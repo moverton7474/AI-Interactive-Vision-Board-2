@@ -1,5 +1,5 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { ChatMessage, FinancialGoal } from '../types';
+import { ChatMessage, FinancialGoal, Milestone } from '../types';
 
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
@@ -40,39 +40,82 @@ export const sendVisionChatMessage = async (
 };
 
 /**
- * Edit User Image using Gemini 2.5 Flash Image (Nano Banana)
- * This handles "Put us in Thailand" or "Add a retro filter"
+ * Edit User Image(s) using Gemini 3 Pro Image Preview
+ * Supports High Fidelity and Text Rendering.
+ * Accepts Single image string or Array of image strings (for compositing).
  */
 export const editVisionImage = async (
-  base64Image: string,
-  prompt: string
+  images: string | string[],
+  prompt: string,
+  embeddedText?: string // New optional param for text rendering
 ): Promise<string | null> => {
   try {
-    // Determine MIME type (assuming jpeg for simplicity or extracting from base64 header)
-    const mimeType = base64Image.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-    const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+    // Upgraded to Pro model for best visual quality and text rendering
+    const model = 'gemini-3-pro-image-preview'; 
+    const imageList = Array.isArray(images) ? images : [images];
+    
+    const parts: any[] = [];
+
+    for (const img of imageList) {
+        let mimeType = 'image/jpeg';
+        let cleanBase64 = img;
+
+        if (img.startsWith('data:')) {
+            const match = img.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+            if (match) {
+                mimeType = match[1];
+                cleanBase64 = match[2];
+            } else {
+                cleanBase64 = img.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+                if (img.includes('image/png')) mimeType = 'image/png';
+            }
+        } else {
+            cleanBase64 = img;
+            if (img.startsWith('iVBOR')) mimeType = 'image/png';
+        }
+
+        parts.push({
+          inlineData: {
+            mimeType: mimeType,
+            data: cleanBase64,
+          },
+        });
+    }
+
+    // Construct a rich prompt that handles text rendering if requested
+    let finalPrompt = '';
+
+    // Explicitly handle multi-image context (Base + References)
+    if (Array.isArray(images) && images.length > 1) {
+        finalPrompt = `The FIRST image provided is the BASE scene to be edited. The SUBSEQUENT images are VISUAL REFERENCES (e.g., for people, style, or specific items). `;
+        finalPrompt += `Apply the visual characteristics of the reference images to the base scene where appropriate based on the prompt. `;
+    }
+
+    finalPrompt += `Edit the base image to match this description: ${prompt}. Maintain photorealism and high dynamic range.`;
+    
+    if (embeddedText) {
+      finalPrompt += ` INTEGRATE TEXT: Render the text "${embeddedText}" naturally into the scene (e.g., on a sign, neon light, cloud writing, or framed poster). Ensure the text is legible and spelled correctly.`;
+    }
+
+    parts.push({ text: finalPrompt });
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image', // Targeting the image editing capabilities
+      model, 
       contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: cleanBase64,
-            },
-          },
-          {
-            text: `Edit this image strictly following this instruction: ${prompt}. Maintain high photorealism.`
-          },
-        ],
+        parts: parts,
       },
+      config: {
+        imageConfig: {
+          imageSize: "1K", // Ensure high resolution
+          aspectRatio: "16:9" // Cinematic aspect ratio
+        }
+      }
     });
 
     // Iterate through parts to find the image
-    const parts = response.candidates?.[0]?.content?.parts;
-    if (parts) {
-      for (const part of parts) {
+    const responseParts = response.candidates?.[0]?.content?.parts;
+    if (responseParts) {
+      for (const part of responseParts) {
         if (part.inlineData && part.inlineData.data) {
           return `data:image/png;base64,${part.inlineData.data}`;
         }
@@ -114,3 +157,44 @@ export const generateFinancialProjection = async (description: string): Promise<
     ];
   }
 };
+
+/**
+ * Generate Action Plan Agent
+ * Creates a structured roadmap based on the vision board context and financial status.
+ */
+export const generateActionPlan = async (visionContext: string, financialContextStr: string): Promise<Milestone[]> => {
+  try {
+    const model = 'gemini-2.5-flash';
+    
+    const prompt = `
+      You are an expert Life Execution Agent. 
+      Vision Context: ${visionContext}
+      Financial Context: ${financialContextStr}
+      Current Date: ${new Date().toISOString()}
+      
+      Generate a 3-year roadmap (current year + 2).
+      For each year, generate:
+      1. A Title (Milestone Name).
+      2. A specific "Market Research Snippet" that provides real-world data relevant to the vision.
+      3. 2-3 specific Action Tasks (type: FINANCE, LIFESTYLE, ADMIN).
+      
+      Return JSON array of Milestone objects.
+    `;
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json'
+      }
+    });
+
+    const text = response.text;
+    if (!text) return [];
+    return JSON.parse(text) as Milestone[];
+
+  } catch (e) {
+    console.error("Agent Plan Error", e);
+    return [];
+  }
+}

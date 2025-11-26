@@ -33,26 +33,40 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples visuali
 
 ### v1.1: Enhanced Interactivity (Immediate)
 - [x] **Voice Dictation:** Capture vision statements naturally (Completed).
-- [ ] **Text-to-Speech (TTS):** Have the AI "Coach" speak back to the user for a more immersive therapy-like session.
+- [x] **High-Fidelity Rendering:** Upgraded to Gemini 3 Pro Image for photorealistic results and text rendering.
+- [x] **Iterative Refinement:** "Refine This" workflow allows continuous editing of generated images.
 - [ ] **Smart Navigation:** Auto-suggest next steps based on chat sentiment.
 
 ### v1.2: Deep Financial Intelligence
-- [ ] **Document Parsing:** Use Gemini 2.5 Pro to actually read uploaded PDF financial plans and extract data points (currently simulated).
+- [ ] **Visionary Financial Automation Engine (Plaid):** Connect bank accounts to automate transfers to "Goal Buckets".
 - [ ] **Real-time Market Data:** Integrate live stock/bond market data to adjust projections dynamically.
 - [ ] **Cost of Living API:** When a user says "Thailand", automatically pull real-time housing and food costs for that region to adjust the "Goal" target.
+
+### v1.3: Trust & Security
+- [ ] **Trust Center:** dedicated page explaining data encryption (AES-256 for tokens) and SOC2 compliance roadmap.
+- [ ] **Auth0/Clerk:** For secure user authentication and profile management.
 
 ### v2.0: The Immersive Vision Board
 - [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
 - [ ] **Video Generation:** Use Veo to generate a 10-second video of the couple walking on the beach in Thailand, not just a static image.
 - [ ] **Face Mapping 2.0:** Improved consistency of user identity across multiple generated scenarios (kitchen, garden, travel).
 
-### v3.0: Enterprise & Social
-- [ ] **Collaborative Mode:** Allow spouses to log in from separate devices and "merge" their vision boards.
-- [ ] **Advisor Portal:** A dashboard for financial advisors to view their clients' vision boards and goals.
-- [ ] **VR Experience:** Export the vision board to a VR headset to "step into" the retirement home.
-
 ## 3. Technical Requirements for Next Steps
+- **Supabase Edge Functions:** Required for secure Plaid token exchange (cannot be done client-side).
 - **Gemini Live API:** For v2.0 conversational features.
-- **Google Cloud Storage:** For secure, long-term storage of user financial documents and generated images.
 - **Stripe Integration:** For SaaS subscription billing (Premium vs Free tier).
-- **Auth0/Clerk:** For secure user authentication and profile management.
+
+## 4. Visionary Financial Automation Engine (Feature Spec)
+
+### Overview
+Connects securely to users’ banking, credit, and investment accounts using Plaid to not just plan, but *execute* financial goals.
+
+### Architecture
+- **Plaid Link (Client):** Obtains `public_token` via secure modal.
+- **Backend Service (Node/Edge):** Exchanges `public_token` for `access_token` and stores securely.
+- **AI Agent:** Monitors `available_balance` and triggers transfers based on user-defined "Safe-to-Spend" logic.
+
+### Phases
+1.  **The Watcher (Read-Only):** Connect accounts and visualize "Real Net Worth" vs "Goal".
+2.  **The Advisor (Simulation):** AI suggests transfers ("You have $500 surplus, move to Thailand Fund?") but user must approve.
+3.  **The Autopilot (Live):** Automated sweeps for approved amounts under a set threshold.

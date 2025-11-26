@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
-import { AppView } from './types';
+
+import React, { useState, useEffect } from 'react';
+import { AppView, VisionImage, FinancialGoal } from './types';
 import FinancialDashboard from './components/FinancialDashboard';
 import VisionBoard from './components/VisionBoard';
-import { SparklesIcon, MicIcon } from './components/Icons';
+import ActionPlanAgent from './components/ActionPlanAgent';
+import Gallery from './components/Gallery';
+import { SparklesIcon, MicIcon, DocumentIcon, SaveIcon } from './components/Icons';
 import { sendVisionChatMessage } from './services/geminiService';
+import { checkDatabaseConnection } from './services/storageService';
+import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 
 const App = () => {
   const [view, setView] = useState<AppView>(AppView.LANDING);
@@ -16,6 +21,24 @@ const App = () => {
   ]);
   const [chatLoading, setChatLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  
+  // Database State
+  const [showSqlModal, setShowSqlModal] = useState(false);
+  const [dbConnected, setDbConnected] = useState(false);
+
+  // Shared State
+  const [activeVisionPrompt, setActiveVisionPrompt] = useState('');
+  const [selectedGalleryImage, setSelectedGalleryImage] = useState<VisionImage | null>(null);
+  
+  // Data Flow State (Plan -> Execute)
+  const [financialData, setFinancialData] = useState<FinancialGoal[]>([]);
+
+  useEffect(() => {
+    // Check DB connection on mount
+    checkDatabaseConnection().then(isConnected => {
+      setDbConnected(isConnected);
+    });
+  }, []);
 
   const startListening = () => {
     if ('webkitSpeechRecognition' in window) {
@@ -51,6 +74,17 @@ const App = () => {
     const response = await sendVisionChatMessage(newHistory as any, chatInput);
     setMessages([...newHistory, { role: 'model', text: response }]);
     setChatLoading(false);
+  };
+
+  const downloadGuide = () => {
+    const blob = new Blob([SYSTEM_GUIDE_MD], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Visionary_System_Guide.md';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const renderContent = () => {
@@ -142,13 +176,135 @@ const App = () => {
           </div>
         );
       case AppView.FINANCIAL:
-        return <FinancialDashboard onComplete={() => setView(AppView.VISION_BOARD)} />;
+        return (
+          <FinancialDashboard 
+            onComplete={(data) => {
+              setFinancialData(data);
+              setView(AppView.VISION_BOARD);
+            }} 
+          />
+        );
       case AppView.VISION_BOARD:
-        return <VisionBoard />;
+        return (
+          <VisionBoard 
+            initialImage={selectedGalleryImage}
+            onAgentStart={(prompt) => {
+              setActiveVisionPrompt(prompt);
+              setView(AppView.ACTION_PLAN);
+            }} 
+          />
+        );
+      case AppView.GALLERY:
+        return (
+          <Gallery onSelect={(img) => {
+             setSelectedGalleryImage(img);
+             setView(AppView.VISION_BOARD);
+          }} />
+        );
+      case AppView.ACTION_PLAN:
+        return (
+          <ActionPlanAgent 
+            visionPrompt={activeVisionPrompt} 
+            financialData={financialData}
+            onBack={() => setView(AppView.VISION_BOARD)} 
+          />
+        );
       default:
         return null;
     }
   };
+
+  const sqlCode = `-- 1. Create Storage Bucket (Ignore if exists)
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('visions', 'visions', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 2. Reset & Create Storage Policies (Fixes Error 42710)
+DROP POLICY IF EXISTS "Public Access" ON storage.objects;
+CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING ( bucket_id = 'visions' );
+
+DROP POLICY IF EXISTS "Public Upload" ON storage.objects;
+CREATE POLICY "Public Upload" ON storage.objects FOR INSERT WITH CHECK ( bucket_id = 'visions' );
+
+DROP POLICY IF EXISTS "Public Delete" ON storage.objects;
+CREATE POLICY "Public Delete" ON storage.objects FOR DELETE USING ( bucket_id = 'visions' );
+
+-- 3. Create Tables
+CREATE TABLE IF NOT EXISTS public.vision_boards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    prompt TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    is_favorite BOOLEAN DEFAULT false
+);
+
+CREATE TABLE IF NOT EXISTS public.reference_images (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    image_url TEXT NOT NULL,
+    tags TEXT[] DEFAULT '{}',
+    user_id UUID
+);
+
+-- PHASE 2: FINANCIAL AUTOMATION TABLES (Optional for now)
+CREATE TABLE IF NOT EXISTS public.plaid_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    user_id UUID,
+    access_token TEXT NOT NULL, -- In production, this must be encrypted
+    institution_id TEXT,
+    status TEXT DEFAULT 'ACTIVE'
+);
+
+CREATE TABLE IF NOT EXISTS public.automation_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    goal_id TEXT, -- Logical link to a vision/goal
+    source_account_id TEXT NOT NULL,
+    destination_account_id TEXT NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL,
+    frequency TEXT DEFAULT 'MONTHLY',
+    is_active BOOLEAN DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS public.transfer_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    executed_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    rule_id UUID REFERENCES public.automation_rules(id),
+    amount NUMERIC(12, 2) NOT NULL,
+    status TEXT, -- PENDING, SETTLED, FAILED
+    ai_rationale TEXT
+);
+
+-- 4. Enable RLS
+ALTER TABLE public.vision_boards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reference_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.plaid_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.automation_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transfer_logs ENABLE ROW LEVEL SECURITY;
+
+-- 5. Reset & Create Table Policies (Public for Demo)
+
+-- Vision Boards
+DROP POLICY IF EXISTS "Allow public read VB" ON public.vision_boards;
+CREATE POLICY "Allow public read VB" ON public.vision_boards FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert VB" ON public.vision_boards;
+CREATE POLICY "Allow public insert VB" ON public.vision_boards FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public delete VB" ON public.vision_boards;
+CREATE POLICY "Allow public delete VB" ON public.vision_boards FOR DELETE USING (true);
+
+-- Reference Images
+DROP POLICY IF EXISTS "Allow public read RI" ON public.reference_images;
+CREATE POLICY "Allow public read RI" ON public.reference_images FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert RI" ON public.reference_images;
+CREATE POLICY "Allow public insert RI" ON public.reference_images FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public delete RI" ON public.reference_images;
+CREATE POLICY "Allow public delete RI" ON public.reference_images FOR DELETE USING (true);
+
+-- Financial Tables (Public for Demo - Secure in Prod)
+DROP POLICY IF EXISTS "Allow public read Auto" ON public.automation_rules;
+CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USING (true);
+`;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -169,9 +325,22 @@ const App = () => {
                 Plan
               </button>
               <button 
-                onClick={() => setView(AppView.VISION_BOARD)}
+                onClick={() => { setSelectedGalleryImage(null); setView(AppView.VISION_BOARD); }}
                 className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-gold-600' : 'text-gray-500 hover:text-navy-900'}`}>
                 Visualize
+              </button>
+              <button 
+                onClick={() => setView(AppView.GALLERY)}
+                className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-gold-600' : 'text-gray-500 hover:text-navy-900'}`}>
+                Gallery
+              </button>
+              <button 
+                onClick={() => {
+                  if (activeVisionPrompt) setView(AppView.ACTION_PLAN);
+                  else alert("Create a vision first!");
+                }}
+                className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-gold-600' : 'text-gray-500 hover:text-navy-900'}`}>
+                Execute
               </button>
               <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm">
                 <img src="https://picsum.photos/100/100" alt="User" />
@@ -193,11 +362,68 @@ const App = () => {
             <span className="font-serif text-xl font-bold">Visionary</span>
             <p className="text-gray-400 text-sm mt-1">SaaS Platform for Retirement Design</p>
           </div>
-          <div className="text-sm text-gray-400">
-            &copy; 2024 Visionary Inc. Powered by Gemini.
+          <div className="flex flex-col md:flex-row items-center gap-6">
+             <button 
+               onClick={downloadGuide}
+               className="flex items-center gap-2 text-sm text-gold-500 hover:text-gold-400 transition-colors"
+             >
+               <DocumentIcon className="w-4 h-4" />
+               Download System Guide
+             </button>
+
+             {dbConnected ? (
+               <div className="flex items-center gap-2 text-green-400 text-sm">
+                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                 System Online
+               </div>
+             ) : (
+               <button 
+                  onClick={() => setShowSqlModal(true)}
+                  className="text-sm text-gray-400 hover:text-white underline decoration-dotted"
+               >
+                  Database Setup
+               </button>
+             )}
+             <div className="text-sm text-gray-400">
+               &copy; 2024 Visionary Inc. Powered by Gemini.
+             </div>
           </div>
         </div>
       </footer>
+
+      {/* Database Setup Modal */}
+      {showSqlModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 animate-fade-in">
+            <h3 className="text-xl font-bold text-navy-900 mb-4">Initialize Supabase Database</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Since this is a new project, you need to run the following SQL commands in your 
+              <a href="https://supabase.com/dashboard" target="_blank" className="text-blue-600 underline ml-1">Supabase SQL Editor</a> 
+              to create the required tables and storage buckets.
+            </p>
+            <div className="bg-gray-900 text-gray-200 p-4 rounded-lg overflow-x-auto text-xs font-mono mb-6 max-h-[300px]">
+              <pre>{sqlCode}</pre>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(sqlCode);
+                  alert("SQL copied to clipboard!");
+                }}
+                className="bg-gray-100 hover:bg-gray-200 text-navy-900 px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                Copy SQL
+              </button>
+              <button 
+                onClick={() => setShowSqlModal(false)}
+                className="bg-navy-900 hover:bg-navy-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,8 +1,9 @@
+
 import { supabase } from '../lib/supabase';
-import { VisionImage } from '../types';
+import { VisionImage, ReferenceImage } from '../types';
 
 /**
- * Service to handle persistence of Vision Board data using Supabase.
+ * Service to handle persistence of Vision Board and Reference data using Supabase.
  */
 
 // Helper to convert Base64 Data URL to Blob for upload
@@ -19,14 +20,30 @@ const base64ToBlob = (base64: string): Blob => {
   return new Blob([u8arr], { type: mime });
 };
 
+export const checkDatabaseConnection = async (): Promise<boolean> => {
+  try {
+    const { count, error } = await supabase
+      .from('vision_boards')
+      .select('*', { count: 'exact', head: true });
+    
+    if (error) {
+      console.warn('DB Connection Check Failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+/* --- VISION BOARDS --- */
+
 export const saveVisionImage = async (image: VisionImage): Promise<void> => {
   try {
-    // 1. Upload the image binary to Supabase Storage
-    // We use the ID as the filename
     const blob = base64ToBlob(image.url);
     const fileName = `${image.id}.png`;
 
-    const { data: uploadData, error: uploadError } = await supabase
+    const { error: uploadError } = await supabase
       .storage
       .from('visions')
       .upload(fileName, blob, {
@@ -34,18 +51,13 @@ export const saveVisionImage = async (image: VisionImage): Promise<void> => {
         upsert: true
       });
 
-    if (uploadError) {
-      console.error('Supabase Storage Upload Error:', uploadError);
-      throw uploadError;
-    }
+    if (uploadError) throw uploadError;
 
-    // 2. Get the Public URL
     const { data: { publicUrl } } = supabase
       .storage
       .from('visions')
       .getPublicUrl(fileName);
 
-    // 3. Insert metadata into the Database
     const { error: dbError } = await supabase
       .from('vision_boards')
       .insert([
@@ -58,13 +70,10 @@ export const saveVisionImage = async (image: VisionImage): Promise<void> => {
         }
       ]);
 
-    if (dbError) {
-      console.error('Supabase DB Insert Error:', dbError);
-      throw dbError;
-    }
+    if (dbError) throw dbError;
 
   } catch (error) {
-    console.error("Failed to save image to Supabase", error);
+    console.error("Failed to save vision image", error);
     throw error;
   }
 };
@@ -76,12 +85,8 @@ export const getVisionGallery = async (): Promise<VisionImage[]> => {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Supabase Select Error:', error);
-      return [];
-    }
+    if (error) return [];
 
-    // Map Supabase result to our App type
     return data.map((row: any) => ({
       id: row.id,
       url: row.image_url,
@@ -90,34 +95,88 @@ export const getVisionGallery = async (): Promise<VisionImage[]> => {
       isFavorite: row.is_favorite
     }));
   } catch (error) {
-    console.error("Failed to load gallery from Supabase", error);
     return [];
   }
 };
 
 export const deleteVisionImage = async (id: string): Promise<void> => {
   try {
-    // 1. Delete from Storage
-    // Assuming filename matches ID + .png based on save logic
-    const { error: storageError } = await supabase
-      .storage
-      .from('visions')
-      .remove([`${id}.png`]);
-
-    if (storageError) {
-      console.warn('Supabase Storage Delete Warning:', storageError);
-    }
-
-    // 2. Delete from Database
-    const { error: dbError } = await supabase
-      .from('vision_boards')
-      .delete()
-      .eq('id', id);
-
-    if (dbError) {
-      console.error('Supabase DB Delete Error:', dbError);
-    }
+    await supabase.storage.from('visions').remove([`${id}.png`]);
+    await supabase.from('vision_boards').delete().eq('id', id);
   } catch (error) {
     console.error("Failed to delete image", error);
+  }
+};
+
+/* --- REFERENCE IMAGES --- */
+
+export const saveReferenceImage = async (base64Url: string, tags: string[]): Promise<ReferenceImage> => {
+  try {
+    const id = crypto.randomUUID();
+    const blob = base64ToBlob(base64Url);
+    const fileName = `ref_${id}.png`; // Use prefix for organization if needed
+
+    // Upload to 'visions' bucket (using same bucket for simplicity, or could use subfolder)
+    const { error: uploadError } = await supabase
+      .storage
+      .from('visions')
+      .upload(fileName, blob, { contentType: 'image/png', upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from('visions')
+      .getPublicUrl(fileName);
+
+    const { error: dbError } = await supabase
+      .from('reference_images')
+      .insert([{
+        id: id,
+        image_url: publicUrl,
+        tags: tags,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (dbError) throw dbError;
+
+    return {
+      id,
+      url: publicUrl,
+      tags,
+      createdAt: Date.now()
+    };
+  } catch (error) {
+    console.error("Failed to save reference image", error);
+    throw error;
+  }
+};
+
+export const getReferenceLibrary = async (): Promise<ReferenceImage[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('reference_images')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) return [];
+
+    return data.map((row: any) => ({
+      id: row.id,
+      url: row.image_url,
+      tags: row.tags || [],
+      createdAt: new Date(row.created_at).getTime()
+    }));
+  } catch (error) {
+    return [];
+  }
+};
+
+export const deleteReferenceImage = async (id: string): Promise<void> => {
+  try {
+    await supabase.storage.from('visions').remove([`ref_${id}.png`]);
+    await supabase.from('reference_images').delete().eq('id', id);
+  } catch (error) {
+    console.error("Failed to delete reference", error);
   }
 };

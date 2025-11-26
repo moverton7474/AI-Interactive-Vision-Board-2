@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FinancialGoal } from '../types';
@@ -5,7 +6,7 @@ import { generateFinancialProjection } from '../services/geminiService';
 import { UploadIcon } from './Icons';
 
 interface Props {
-  onComplete: () => void;
+  onComplete: (data: FinancialGoal[]) => void;
 }
 
 const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
@@ -86,7 +87,7 @@ const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
 
              <div className="flex justify-end pt-4">
                 <button 
-                  onClick={onComplete}
+                  onClick={() => onComplete(data)}
                   className="bg-gold-500 hover:bg-gold-600 text-navy-900 font-bold px-8 py-3 rounded-full shadow-lg transition-transform transform hover:scale-105">
                   Proceed to Vision Board
                 </button>
