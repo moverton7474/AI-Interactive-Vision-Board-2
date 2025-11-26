@@ -1,0 +1,8 @@
+{
+  "name": "Visionary SaaS",
+  "description": "Interactive AI-powered vision board and retirement planning platform.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
