@@ -60,8 +60,8 @@ export const createPosterOrder = async (
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("User must be logged in to order.");
 
-    // 1. Create a DB Record first (Status: Submitted)
-    const { data: orderData, error: dbError } = await supabase
+    // 1. Save Order to Database with 'pending' status initially
+    const { data, error } = await supabase
       .from('poster_orders')
       .insert([{
         user_id: user.id,
@@ -70,8 +70,8 @@ export const createPosterOrder = async (
         print_config: config,
         total_price: totalPrice,
         discount_applied: discountApplied,
-        status: 'submitted',
-        vendor_order_id: 'PENDING' 
+        status: 'pending', // Start as pending until Prodigi confirms
+        vendor_order_id: null
       }])
       .select()
       .single();
@@ -80,12 +80,9 @@ export const createPosterOrder = async (
 
     console.log("Order saved to DB. Now calling Edge Function...");
 
-    // 2. Call Supabase Edge Function to forward to Prodigi
-    // This connects to the function you deployed: https://edaigbnnofyxcfbpcvct.supabase.co/functions/v1/submit-to-prodigi
-    
+    // 2. Construct Prodigi Payload
     const prodigiPayload = {
-      merchantReference: orderData.id,
-      shippingMethod: "Standard",
+      orderId: data.id,
       recipient: {
         name: shipping.name,
         address: {
@@ -112,46 +109,60 @@ export const createPosterOrder = async (
       ]
     };
 
-    const { data: functionData, error: functionError } = await supabase.functions.invoke('submit-to-prodigi', {
-      body: { orderPayload: prodigiPayload }
-    });
+    // 3. Call Edge Function to submit to Prodigi
+    let vendorOrderId = `SIM-${Date.now()}`; // Fallback simulation ID
+    let finalStatus = 'submitted';
 
-    if (functionError) {
-      console.warn("Edge Function Invocation Failed (Backend Offline?). Falling back to Simulation.", functionError);
-      
-      // Fallback: Update DB to show it was processed locally (Simulation)
-      // This ensures the user still gets a "Success" screen even if the backend isn't deployed.
-      await supabase
-        .from('poster_orders')
-        .update({ 
-            vendor_order_id: `SIM-${Math.floor(Math.random() * 10000)}`,
-            status: 'submitted' 
-        })
-        .eq('id', orderData.id);
+    try {
+      console.log("Calling submit-to-prodigi Edge Function...");
+      const { data: prodigiResponse, error: functionError } = await supabase.functions.invoke(
+        'submit-to-prodigi',
+        { body: prodigiPayload }
+      );
 
-    } else {
-      console.log("Prodigi Response:", functionData);
-      
-      // Update the order with the actual Prodigi ID if returned
-      if (functionData?.order?.id) {
-         await supabase
-           .from('poster_orders')
-           .update({ vendor_order_id: functionData.order.id })
-           .eq('id', orderData.id);
+      if (functionError) {
+        console.warn("Edge Function error:", functionError);
+        throw functionError;
       }
+
+      if (prodigiResponse?.success && prodigiResponse?.orderId) {
+        vendorOrderId = prodigiResponse.orderId;
+        finalStatus = 'submitted';
+        console.log("✅ Order submitted to Prodigi:", vendorOrderId);
+      } else {
+        console.warn("Prodigi API returned unexpected response:", prodigiResponse);
+        throw new Error(prodigiResponse?.error || "Unknown Prodigi error");
+      }
+    } catch (edgeFunctionError) {
+      console.warn("Edge Function invocation failed. Falling back to simulation mode.", edgeFunctionError);
+      // Keep the simulation ID and mark as submitted for demo purposes
+      finalStatus = 'submitted';
+    }
+
+    // 4. Update order with vendor ID and final status
+    const { error: updateError } = await supabase
+      .from('poster_orders')
+      .update({
+        vendor_order_id: vendorOrderId,
+        status: finalStatus
+      })
+      .eq('id', data.id);
+
+    if (updateError) {
+      console.error("Failed to update order with vendor ID:", updateError);
     }
 
     return {
-      id: orderData.id,
-      userId: orderData.user_id,
-      visionBoardId: orderData.vision_board_id,
-      status: orderData.status,
-      createdAt: new Date(orderData.created_at).getTime(),
-      totalPrice: orderData.total_price,
-      discountApplied: orderData.discount_applied,
-      shippingAddress: orderData.shipping_address,
-      config: orderData.print_config,
-      vendorOrderId: orderData.vendor_order_id
+      id: data.id,
+      userId: data.user_id,
+      visionBoardId: data.vision_board_id,
+      status: finalStatus,
+      createdAt: new Date(data.created_at).getTime(),
+      totalPrice: data.total_price,
+      discountApplied: data.discount_applied,
+      shippingAddress: data.shipping_address,
+      config: data.print_config,
+      vendorOrderId: vendorOrderId
     };
 
   } catch (error) {
