@@ -7,7 +7,7 @@ import { checkFirstTimeDiscount, calculatePrice, createPosterOrder } from '../se
 interface Props {
   image: VisionImage | null;
   onClose: () => void;
-  onViewHistory?: () => void; // Added prop
+  onViewHistory?: () => void;
 }
 
 type WizardStep = 'CONFIG' | 'SHIPPING' | 'PAYMENT' | 'SUCCESS';
@@ -22,6 +22,7 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
   const [step, setStep] = useState<WizardStep>('CONFIG');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEligibleForDiscount, setIsEligibleForDiscount] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Config State
   const [selectedSize, setSelectedSize] = useState('18x24');
@@ -36,6 +37,9 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
     postalCode: '',
     country: 'US'
   });
+
+  // Card Info (Dummy)
+  const [cardInfo, setCardInfo] = useState({ number: '', exp: '', cvc: '' });
 
   useEffect(() => {
     checkDiscount();
@@ -55,7 +59,22 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
   const total = subtotal - discountAmount + shippingCost;
 
   const handleSubmitOrder = async () => {
+    if (!cardInfo.number || !cardInfo.exp || !cardInfo.cvc) {
+      alert("Please enter payment details to proceed.");
+      return;
+    }
+
     setIsProcessing(true);
+    setErrorMessage(null);
+
+    // Safety timeout in case backend hangs
+    const safetyTimeout = setTimeout(() => {
+        if(isProcessing) {
+            setIsProcessing(false);
+            setErrorMessage("Request timed out. Please try again.");
+        }
+    }, 15000); // 15s timeout
+
     try {
       await createPosterOrder(
         image.id,
@@ -66,14 +85,13 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
         isEligibleForDiscount
       );
       
-      // Simulate payment delay
-      setTimeout(() => {
-        setStep('SUCCESS');
-        setIsProcessing(false);
-      }, 2000);
-    } catch (e) {
+      clearTimeout(safetyTimeout);
+      setStep('SUCCESS');
+    } catch (e: any) {
+      clearTimeout(safetyTimeout);
       console.error(e);
-      alert("Failed to place order. Please try again.");
+      setErrorMessage(e.message || "Failed to place order. Please check your connection.");
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -205,7 +223,7 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
          <button onClick={() => setStep('SHIPPING')} className="text-sm text-gray-500 hover:text-navy-900 underline">Back</button>
        </div>
 
-       <div className="space-y-6 mb-8 flex-1">
+       <div className="space-y-6 mb-8 flex-1 overflow-y-auto">
           {/* Order Summary Card */}
           <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
              <h4 className="font-bold text-navy-900 mb-2 text-sm uppercase">Ship To</h4>
@@ -213,6 +231,43 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
              <p className="text-sm text-gray-600">{shipping.line1} {shipping.line2}</p>
              <p className="text-sm text-gray-600">{shipping.city}, {shipping.state} {shipping.postalCode}</p>
              <p className="text-sm text-gray-600">{shipping.country}</p>
+          </div>
+
+          {/* Payment Fields (Mock Stripe) */}
+          <div className="border border-gray-200 rounded-xl p-4 bg-white">
+             <h4 className="font-bold text-navy-900 mb-3 text-sm uppercase flex items-center gap-2">
+                <LockIcon className="w-3 h-3 text-gold-500" /> Payment Details
+             </h4>
+             <div className="space-y-3">
+               <div>
+                 <input 
+                   type="text" 
+                   placeholder="Card Number" 
+                   className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                   value={cardInfo.number}
+                   onChange={e => setCardInfo({...cardInfo, number: e.target.value})}
+                 />
+               </div>
+               <div className="grid grid-cols-2 gap-3">
+                 <input 
+                   type="text" 
+                   placeholder="MM/YY" 
+                   className="w-full border border-gray-300 rounded-lg p-2 text-sm" 
+                   value={cardInfo.exp}
+                   onChange={e => setCardInfo({...cardInfo, exp: e.target.value})}
+                 />
+                 <input 
+                   type="text" 
+                   placeholder="CVC" 
+                   className="w-full border border-gray-300 rounded-lg p-2 text-sm" 
+                   value={cardInfo.cvc}
+                   onChange={e => setCardInfo({...cardInfo, cvc: e.target.value})}
+                 />
+               </div>
+             </div>
+             <p className="text-[10px] text-gray-400 mt-2 italic">
+               Note: This is a demo. No actual charge will be made, but this step represents where Stripe processes your payment.
+             </p>
           </div>
 
           {/* Pricing Breakdown */}
@@ -238,10 +293,16 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
            </div>
        </div>
 
+       {errorMessage && (
+         <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-start gap-2">
+            <span className="font-bold">Error:</span> {errorMessage}
+         </div>
+       )}
+
        <button 
          onClick={handleSubmitOrder}
          disabled={isProcessing}
-         className="w-full bg-gradient-to-r from-navy-900 to-navy-800 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3"
+         className="w-full bg-gradient-to-r from-navy-900 to-navy-800 text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
        >
          {isProcessing ? (
            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -274,7 +335,7 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
           <div className="bg-gray-50 rounded-lg p-4 mb-6 text-sm text-left">
             <div className="flex justify-between mb-2">
               <span className="text-gray-500">Order Ref:</span>
-              <span className="font-mono font-bold text-navy-900">PROD-{Math.floor(Math.random() * 10000)}</span>
+              <span className="font-mono font-bold text-navy-900">PENDING (See History)</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Est. Delivery:</span>

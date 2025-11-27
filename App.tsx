@@ -12,7 +12,7 @@ import TrustCenter from './components/TrustCenter';
 import OrderHistory from './components/OrderHistory';
 import Pricing from './components/Pricing';
 import SubscriptionModal from './components/SubscriptionModal';
-import { SparklesIcon, MicIcon, DocumentIcon, SaveIcon, ShieldCheckIcon, BankIcon, RobotIcon, ReceiptIcon } from './components/Icons';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -152,7 +152,7 @@ const App = () => {
       case AppView.LANDING:
         return (
           <>
-            <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4 animate-fade-in relative overflow-hidden">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4 animate-fade-in relative overflow-hidden py-12">
               <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 pointer-events-none"></div>
               
               <h1 className="text-5xl md:text-7xl font-serif font-bold text-navy-900 mb-6 tracking-tight z-10">
@@ -502,6 +502,9 @@ USING (auth.uid() = id);
               <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Visualize</button>
               <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Gallery</button>
               <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Execute</button>
+              <button onClick={() => setView(AppView.ORDER_HISTORY)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.ORDER_HISTORY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <ReceiptIcon className="w-4 h-4" /> Orders
+              </button>
               
               <div className="h-6 w-px bg-gray-200 mx-2"></div>
               

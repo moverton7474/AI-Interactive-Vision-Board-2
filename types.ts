@@ -45,6 +45,8 @@ export interface UserProfile {
   names: string;
   targetRetirementYear: number;
   dreamLocation: string;
+  credits: number;
+  subscription_tier: string;
 }
 
 // Financial Documents / Knowledge Base

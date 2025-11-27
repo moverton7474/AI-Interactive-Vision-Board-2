@@ -7,11 +7,14 @@ import {
   deleteVisionImage,
   saveReferenceImage,
   getReferenceLibrary,
-  deleteReferenceImage
+  deleteReferenceImage,
+  getUserProfile,
+  decrementCredits
 } from '../services/storageService';
 import { VisionImage, ReferenceImage } from '../types';
 import { SparklesIcon, UploadIcon, SaveIcon, TrashIcon, DownloadIcon, RobotIcon, MicIcon, LibraryIcon, TagIcon, PlusIcon, PrinterIcon } from './Icons';
 import PrintOrderModal from './PrintOrderModal';
+import SubscriptionModal from './SubscriptionModal'; // Import subscription modal
 
 // Granular tags that can be combined
 const PRESET_TAGS = [
@@ -27,8 +30,8 @@ const PRESET_TAGS = [
 
 interface Props {
   onAgentStart: (prompt: string) => void;
-  initialImage?: VisionImage | null; // Allow passing an image to start with (from Gallery)
-  initialPrompt?: string; // Auto-fill from Vision Statement
+  initialImage?: VisionImage | null;
+  initialPrompt?: string;
 }
 
 const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPrompt }) => {
@@ -43,22 +46,29 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [isListening, setIsListening] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Modals
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showSubModal, setShowSubModal] = useState(false);
 
   // Reference Library State
-  const [showLibrary, setShowLibrary] = useState(true); // Toggle sidebar
+  const [showLibrary, setShowLibrary] = useState(true);
   const [references, setReferences] = useState<ReferenceImage[]>([]);
   const [selectedRefIds, setSelectedRefIds] = useState<string[]>([]);
   const [newRefTag, setNewRefTag] = useState('');
   const [isRefUploading, setIsRefUploading] = useState(false);
 
+  // Credit State
+  const [credits, setCredits] = useState<number | null>(null);
+  const [userTier, setUserTier] = useState<string>('FREE');
+
   useEffect(() => {
     loadReferences();
+    loadProfile();
     if (initialImage) {
       setBaseImage(initialImage.url);
       setPromptInput(initialImage.prompt);
     } else if (initialPrompt && !promptInput) {
-       // Auto-fill prompt from Vision Statement if no image is selected
        setPromptInput(initialPrompt);
     }
   }, [initialImage, initialPrompt]);
@@ -69,6 +79,14 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
+
+  const loadProfile = async () => {
+    const profile = await getUserProfile();
+    if (profile) {
+        setCredits(profile.credits);
+        setUserTier(profile.subscription_tier || 'FREE');
+    }
+  };
 
   const loadReferences = async () => {
     const refs = await getReferenceLibrary();
@@ -164,6 +182,12 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const handleGenerate = async () => {
     if (!baseImage || !promptInput) return;
 
+    // Credit Check
+    if (credits !== null && credits <= 0) {
+        setShowSubModal(true);
+        return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -172,10 +196,8 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       const refUrls = selectedRefs.map(r => r.url);
       const refTags = selectedRefs.flatMap(r => r.tags).join(', ');
 
-      // Construct image list: [Base, ...References]
       const imagesToProcess = [baseImage, ...refUrls];
 
-      // Update prompt to include reference context
       let fullPrompt = promptInput;
       if (selectedRefs.length > 0) {
         fullPrompt += `. Use the subsequent images as visual references for: ${refTags}.`;
@@ -186,6 +208,12 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       if (editedImage) {
         setResultImage(editedImage);
         setCurrentPrompt(fullPrompt + (goalText ? ` (Goal: ${goalText})` : '') + (headerText ? ` (Title: ${headerText})` : ''));
+        
+        // Deduct Credit
+        const success = await decrementCredits();
+        if(success) {
+            setCredits(prev => (prev !== null ? prev - 1 : 0));
+        }
       } else {
         setError("Could not generate image. Please try a different prompt.");
       }
@@ -235,6 +263,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     document.body.removeChild(link);
   };
 
+  const onSubClose = () => {
+      setShowSubModal(false);
+      loadProfile(); // Refresh credits after potential upgrade
+  };
+
   return (
     <div className="max-w-7xl mx-auto h-full animate-fade-in pb-12 relative flex gap-6">
       
@@ -259,12 +292,28 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         />
       )}
 
+      {/* Subscription Modal */}
+      {showSubModal && (
+          <SubscriptionModal tier="PRO" onClose={onSubClose} />
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col gap-8">
           <div className="flex flex-col md:flex-row gap-8">
             {/* Controls */}
             <div className="w-full md:w-5/12 space-y-6">
-              <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+              <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 relative overflow-hidden">
+                {/* Credits Badge */}
+                <div className="absolute top-4 right-4 flex items-center gap-2">
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${userTier === 'FREE' ? 'bg-gray-100 text-gray-600' : 'bg-gold-100 text-gold-700'}`}>
+                        {userTier}
+                    </span>
+                    <div className="bg-navy-900 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow">
+                        <SparklesIcon className="w-3 h-3 text-gold-400" />
+                        {credits !== null ? credits : '...'} Credits
+                    </div>
+                </div>
+
                 <h3 className="text-xl font-serif font-bold text-navy-900 mb-4">Create Your Vision</h3>
                 
                 {/* Upload Section */}
@@ -365,6 +414,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                 </button>
                 
                 {error && <p className="text-red-500 text-xs mt-2 text-center">{error}</p>}
+                {credits === 0 && (
+                    <button onClick={() => setShowSubModal(true)} className="w-full mt-2 text-xs text-gold-600 font-bold underline hover:text-gold-700">
+                        Out of credits? Upgrade now.
+                    </button>
+                )}
               </div>
             </div>
 

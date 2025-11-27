@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { CreditCardIcon, LockIcon, CheckBadgeIcon } from './Icons';
+import { updateSubscription } from '../services/storageService';
 
 interface Props {
   tier: 'PRO' | 'ELITE';
@@ -14,15 +15,23 @@ const SubscriptionModal: React.FC<Props> = ({ tier, onClose }) => {
   const price = tier === 'PRO' ? 19.99 : 49.99;
   const planName = tier === 'PRO' ? 'Visionary Pro' : 'Visionary Elite';
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
-    // Simulate Stripe API call
-    setTimeout(() => {
-      setLoading(false);
-      setSuccess(true);
-    }, 2000);
+    try {
+        // Simulate Stripe API call duration
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Call backend to update profile
+        await updateSubscription(tier);
+        
+        setLoading(false);
+        setSuccess(true);
+    } catch (e) {
+        alert("Payment failed. Please try again.");
+        setLoading(false);
+    }
   };
 
   if (success) {

@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { VisionImage, ReferenceImage, Document, ActionTask } from '../types';
+import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile } from '../types';
 
 /**
  * Service to handle persistence of Vision Board and Reference data using Supabase.
@@ -33,6 +33,83 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
     return true;
   } catch (e) {
     return false;
+  }
+};
+
+/* --- USER PROFILES (Monetization) --- */
+
+export const getUserProfile = async (): Promise<UserProfile | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('credits, subscription_tier')
+      .eq('id', user.id)
+      .single();
+
+    if (error) return null;
+    
+    // Merge auth data with profile data
+    return {
+      names: user.email?.split('@')[0] || 'User',
+      targetRetirementYear: 2030, // Default
+      dreamLocation: '',
+      credits: data.credits ?? 3,
+      subscription_tier: data.subscription_tier || 'FREE'
+    };
+  } catch (e) {
+    return null;
+  }
+};
+
+export const decrementCredits = async (): Promise<boolean> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // Check current credits
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('credits, subscription_tier')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) return false;
+    
+    // PRO/ELITE have unlimited (effectively)
+    if (profile.subscription_tier !== 'FREE') return true;
+
+    if (profile.credits <= 0) return false;
+
+    // Decrement
+    const { error } = await supabase
+      .from('profiles')
+      .update({ credits: profile.credits - 1 })
+      .eq('id', user.id);
+
+    return !error;
+  } catch (e) {
+    return false;
+  }
+};
+
+export const updateSubscription = async (tier: 'PRO' | 'ELITE'): Promise<void> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Upgrade tier and give unlimited credits (9999)
+    await supabase
+      .from('profiles')
+      .update({ 
+        subscription_tier: tier,
+        credits: 9999 
+      })
+      .eq('id', user.id);
+  } catch (e) {
+    console.error("Failed to update subscription", e);
   }
 };
 
@@ -256,8 +333,10 @@ export const deleteDocument = async (id: string): Promise<void> => {
 
 export const saveActionTasks = async (tasks: ActionTask[], milestoneYear: number): Promise<void> => {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
     const rows = tasks.map(t => ({
       id: t.id,
+      user_id: user?.id,
       title: t.title,
       description: t.description,
       due_date: t.dueDate,
