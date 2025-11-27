@@ -4,18 +4,22 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { FinancialGoal, Document } from '../types';
 import { generateFinancialProjection, parseFinancialChat } from '../services/geminiService';
 import { saveDocument, getDocuments, deleteDocument } from '../services/storageService';
-import { UploadIcon, ChartIcon, CloudArrowUpIcon, PenIcon, BrainIcon, BookOpenIcon, FileTextIcon, TrashIcon, EyeIcon } from './Icons';
+import { UploadIcon, ChartIcon, CloudArrowUpIcon, PenIcon, BrainIcon, BookOpenIcon, FileTextIcon, TrashIcon, EyeIcon, BankIcon } from './Icons';
+import ConnectBank from './ConnectBank';
 
 interface Props {
   onComplete: (data: FinancialGoal[]) => void;
 }
 
 const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
-  const [activeTab, setActiveTab] = useState<'UPLOAD' | 'MANUAL' | 'AI'>('UPLOAD');
+  const [activeTab, setActiveTab] = useState<'UPLOAD' | 'MANUAL' | 'AI' | 'ACCOUNTS'>('UPLOAD');
   const [analyzing, setAnalyzing] = useState(false);
   const [data, setData] = useState<FinancialGoal[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  
+  // Bank Integration State
+  const [linkedBankBalance, setLinkedBankBalance] = useState<number>(0);
 
   // Manual Form State
   const [manualForm, setManualForm] = useState({
@@ -95,13 +99,16 @@ const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
 
   const handleManualSubmit = async () => {
     setAnalyzing(true);
-    const description = `Manual Plan: Savings $${manualForm.savings}, Monthly $${manualForm.monthly}, Goal $${manualForm.goal} by ${manualForm.year}`;
+    // Incorporate linked bank balance if available
+    const totalSavings = manualForm.savings + linkedBankBalance;
+    
+    const description = `Manual Plan: Savings $${totalSavings}, Monthly $${manualForm.monthly}, Goal $${manualForm.goal} by ${manualForm.year}`;
     const projection = await generateFinancialProjection(description);
     
     await saveDocument({
       name: `Manual Plan (${new Date().toLocaleDateString()})`,
       type: 'MANUAL',
-      structuredData: { ...manualForm, projection }
+      structuredData: { ...manualForm, savings: totalSavings, projection }
     });
 
     setData(projection);
@@ -128,6 +135,12 @@ const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
       setAnalyzing(true);
       const fullText = newHistory.map(h => h.text).join('\n');
       const parsed = await parseFinancialChat(fullText);
+      
+      // Incorporate linked balance
+      if (linkedBankBalance > 0) {
+         parsed.currentSavings = (parsed.currentSavings || 0) + linkedBankBalance;
+      }
+
       const description = `AI Interview: Savings ${parsed.currentSavings}, Goal ${parsed.targetGoal}`;
       const projection = await generateFinancialProjection(description);
       
@@ -190,24 +203,30 @@ const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
               <p className="text-sm text-gray-500">Analyze your path to freedom</p>
            </div>
            
-           <div className="flex bg-gray-100 p-1 rounded-lg">
+           <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto">
               <button 
                 onClick={() => setActiveTab('UPLOAD')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'UPLOAD' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'UPLOAD' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
               >
                  <span className="flex items-center gap-2"><CloudArrowUpIcon className="w-4 h-4" /> Upload</span>
               </button>
               <button 
                 onClick={() => setActiveTab('MANUAL')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'MANUAL' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'MANUAL' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
               >
                  <span className="flex items-center gap-2"><PenIcon className="w-4 h-4" /> Manual</span>
               </button>
               <button 
                 onClick={() => setActiveTab('AI')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'AI' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'AI' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
               >
-                 <span className="flex items-center gap-2"><BrainIcon className="w-4 h-4" /> AI Interview</span>
+                 <span className="flex items-center gap-2"><BrainIcon className="w-4 h-4" /> AI Agent</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('ACCOUNTS')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'ACCOUNTS' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
+              >
+                 <span className="flex items-center gap-2"><BankIcon className="w-4 h-4" /> Accounts</span>
               </button>
            </div>
         </div>
@@ -279,8 +298,13 @@ const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
 
                       {activeTab === 'MANUAL' && (
                          <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-4">
+                            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 p-3 rounded-lg text-blue-800 text-sm mb-2">
+                               <BankIcon className="w-4 h-4" />
+                               <span className="font-bold">Connected Balance:</span> 
+                               <span>${linkedBankBalance.toLocaleString()}</span>
+                            </div>
                             <div>
-                               <label className="block text-sm font-medium text-gray-700 mb-1">Current Savings</label>
+                               <label className="block text-sm font-medium text-gray-700 mb-1">Additional Savings</label>
                                <input type="number" className="w-full p-2 border rounded-lg" value={manualForm.savings} onChange={e => setManualForm({...manualForm, savings: +e.target.value})} />
                             </div>
                             <div>
@@ -322,6 +346,17 @@ const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
                                />
                                <button type="submit" className="bg-gold-500 text-navy-900 px-4 py-2 rounded-full font-bold text-sm">Send</button>
                             </form>
+                         </div>
+                      )}
+
+                      {activeTab === 'ACCOUNTS' && (
+                         <div className="flex flex-col items-center justify-center">
+                            <div className="w-full max-w-md">
+                               <ConnectBank onConnect={(data) => {
+                                  setLinkedBankBalance(data.balance);
+                                  alert(`Successfully connected ${data.name}! Balance: $${data.balance.toLocaleString()} has been added to your plan.`);
+                               }} />
+                            </div>
                          </div>
                       )}
                    </>

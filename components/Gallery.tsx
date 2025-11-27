@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { getVisionGallery, deleteVisionImage } from '../services/storageService';
 import { VisionImage } from '../types';
-import { TrashIcon, DownloadIcon, SparklesIcon, SaveIcon } from './Icons';
+import { TrashIcon, DownloadIcon, SparklesIcon, SaveIcon, ShareIcon, CopyIcon, MailIcon, TwitterIcon } from './Icons';
 
 interface Props {
   onSelect: (image: VisionImage) => void;
@@ -11,6 +11,8 @@ interface Props {
 const Gallery: React.FC<Props> = ({ onSelect }) => {
   const [images, setImages] = useState<VisionImage[]>([]);
   const [loading, setLoading] = useState(true);
+  // Track which image has the share menu open
+  const [activeShareId, setActiveShareId] = useState<string | null>(null);
 
   useEffect(() => {
     loadGallery();
@@ -31,18 +33,51 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
     }
   };
 
-  const downloadImage = (e: React.MouseEvent, url: string) => {
+  const downloadImage = async (e: React.MouseEvent, url: string) => {
     e.stopPropagation();
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `vision-${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      // Fetch blob to force download and avoid cross-origin issues
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `vision-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+    } catch (error) {
+      console.error("Download failed, falling back to direct link", error);
+      window.open(url, '_blank');
+    }
+  };
+
+  const toggleShare = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setActiveShareId(prev => prev === id ? null : id);
+  };
+
+  const handleShareAction = (e: React.MouseEvent, type: 'email' | 'twitter' | 'copy', url: string) => {
+    e.stopPropagation();
+    const text = "Check out my retirement vision board created with Visionary!";
+    
+    if (type === 'email') {
+      window.open(`mailto:?subject=My Vision Board&body=${encodeURIComponent(text + "\n\n" + url)}`, '_self');
+    } else if (type === 'twitter') {
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+    } else if (type === 'copy') {
+      navigator.clipboard.writeText(url);
+      alert("Link copied to clipboard!");
+    }
+    setActiveShareId(null);
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in pb-12">
+    <div className="max-w-7xl mx-auto animate-fade-in pb-12" onClick={() => setActiveShareId(null)}>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl font-serif font-bold text-navy-900 flex items-center gap-3">
@@ -83,7 +118,33 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
               {/* Overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
                  <p className="text-white text-sm line-clamp-2 font-medium mb-3">{img.prompt}</p>
-                 <div className="flex justify-end gap-2">
+                 <div className="flex justify-end gap-2 relative">
+                    
+                    {/* Share Button & Menu */}
+                    <div className="relative">
+                      <button 
+                        onClick={(e) => toggleShare(e, img.id)}
+                        className="p-2 bg-white/20 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-sm transition-colors"
+                        title="Share"
+                      >
+                        <ShareIcon className="w-4 h-4" />
+                      </button>
+                      
+                      {activeShareId === img.id && (
+                        <div className="absolute bottom-12 right-0 bg-white rounded-lg shadow-xl p-2 flex flex-col gap-1 w-32 z-10 animate-fade-in border border-gray-100">
+                           <button onClick={(e) => handleShareAction(e, 'email', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full">
+                             <MailIcon className="w-3 h-3" /> Email
+                           </button>
+                           <button onClick={(e) => handleShareAction(e, 'twitter', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full">
+                             <TwitterIcon className="w-3 h-3" /> Twitter
+                           </button>
+                           <button onClick={(e) => handleShareAction(e, 'copy', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full">
+                             <CopyIcon className="w-3 h-3" /> Copy Link
+                           </button>
+                        </div>
+                      )}
+                    </div>
+
                     <button 
                       onClick={(e) => downloadImage(e, img.url)}
                       className="p-2 bg-white/20 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-sm transition-colors"

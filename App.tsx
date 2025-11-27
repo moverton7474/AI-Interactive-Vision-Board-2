@@ -1,16 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from './lib/supabase';
 import { AppView, VisionImage, FinancialGoal } from './types';
 import FinancialDashboard from './components/FinancialDashboard';
 import VisionBoard from './components/VisionBoard';
 import ActionPlanAgent from './components/ActionPlanAgent';
 import Gallery from './components/Gallery';
+import Login from './components/Login';
 import { SparklesIcon, MicIcon, DocumentIcon, SaveIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 
 const App = () => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [view, setView] = useState<AppView>(AppView.LANDING);
   const [chatInput, setChatInput] = useState('');
   
@@ -34,11 +40,31 @@ const App = () => {
   const [financialData, setFinancialData] = useState<FinancialGoal[]>([]);
 
   useEffect(() => {
-    // Check DB connection on mount
+    // 1. Check DB Connection
     checkDatabaseConnection().then(isConnected => {
       setDbConnected(isConnected);
     });
+
+    // 2. Check Auth Session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setView(AppView.LANDING);
+    setShowChat(false);
+  };
 
   const startListening = () => {
     if ('webkitSpeechRecognition' in window) {
@@ -365,6 +391,14 @@ DROP POLICY IF EXISTS "Allow public read Auto" ON public.automation_rules;
 CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USING (true);
 `;
 
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div></div>;
+  }
+
+  if (!session) {
+    return <Login />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Navbar */}
@@ -401,8 +435,13 @@ CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USI
                 className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-gold-600' : 'text-gray-500 hover:text-navy-900'}`}>
                 Execute
               </button>
-              <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden border-2 border-white shadow-sm">
-                <img src="https://picsum.photos/100/100" alt="User" />
+              
+              {/* User Profile / Sign Out */}
+              <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+                <span className="text-xs text-gray-500 truncate max-w-[100px]">{session.user.email}</span>
+                <button onClick={handleSignOut} className="text-xs font-bold text-navy-900 hover:text-red-500 transition-colors">
+                  Sign Out
+                </button>
               </div>
             </div>
           </div>
@@ -430,22 +469,14 @@ CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USI
                Download System Guide
              </button>
 
-             {dbConnected ? (
-               <button 
-                 onClick={() => setShowSqlModal(true)}
-                 className="flex items-center gap-2 text-green-400 text-sm hover:text-green-300 transition-colors"
-               >
-                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                 System Online
-               </button>
-             ) : (
-               <button 
-                  onClick={() => setShowSqlModal(true)}
-                  className="text-sm text-gray-400 hover:text-white underline decoration-dotted"
-               >
-                  Database Setup
-               </button>
-             )}
+             <button 
+               onClick={() => setShowSqlModal(true)}
+               className="flex items-center gap-2 text-green-400 text-sm hover:text-green-300 transition-colors"
+             >
+               <span className={`w-2 h-2 rounded-full ${dbConnected ? 'bg-green-400 animate-pulse' : 'bg-red-500'}`}></span>
+               {dbConnected ? 'System Online' : 'Check Database'}
+             </button>
+             
              <div className="text-sm text-gray-400">
                &copy; 2024 Visionary Inc. Powered by Gemini.
              </div>
@@ -457,11 +488,10 @@ CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USI
       {showSqlModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 animate-fade-in">
-            <h3 className="text-xl font-bold text-navy-900 mb-4">Initialize Supabase Database</h3>
+            <h3 className="text-xl font-bold text-navy-900 mb-4">Database Configuration</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Since this is a new project, you need to run the following SQL commands in your 
-              <a href="https://supabase.com/dashboard" target="_blank" className="text-blue-600 underline ml-1">Supabase SQL Editor</a> 
-              to create the required tables and storage buckets.
+              Ensure your Supabase project has the following SQL schema applied. 
+              This includes tables for Vision Boards, Documents, and Financial Automation.
             </p>
             <div className="bg-gray-900 text-gray-200 p-4 rounded-lg overflow-x-auto text-xs font-mono mb-6 max-h-[300px]">
               <pre>{sqlCode}</pre>

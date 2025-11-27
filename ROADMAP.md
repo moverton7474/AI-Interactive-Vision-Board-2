@@ -35,24 +35,28 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples visuali
 - [x] **Voice Dictation:** Capture vision statements naturally using Web Speech API.
 - [x] **High-Fidelity Rendering:** Implemented `gemini-3-pro-image-preview` for photorealistic results.
 - [x] **Iterative Refinement:** "Refine This" workflow allows continuous editing of generated images.
-- [x] **Vision Board Gallery:** Full persistence, delete, and download capabilities.
-- [x] **Action Plan Agent:** Generates 3-year roadmaps with calendar integration.
+- [x] **Vision Board Gallery:** Full persistence, delete, downloading, and social sharing.
+- [x] **Action Plan Agent:** Generates 3-year roadmaps with Google Maps/Gmail/Calendar deep links.
 
-### v1.1: Knowledge & Context (COMPLETED / NEW)
+### v1.1: Knowledge & Context (COMPLETED)
 - [x] **Reference Image Library:** Sidebar to store and reuse user headshots for likeness preservation.
-- [x] **Financial Knowledge Base:** "Notebook Mode" to persist uploaded plans and manual entries.
-- [x] **Document Persistence:** Secure storage of financial context for AI recall.
-- [x] **Text Embedding:** Ability to render goal text (e.g., "Retire 2027") directly into images.
+- [x] **Financial Knowledge Base:** "Notebook Mode" to persist uploaded plans (PDF/CSV) and manual entries.
+- [x] **Document Persistence:** Secure storage of financial context in Supabase `documents` table.
+- [x] **Text Embedding:** Ability to render goal text and custom titles (e.g., "Overton Family Vision") into images.
 
-### v1.2: Deep Financial Intelligence (IN PROGRESS)
-- [ ] **User Authentication:** Move from Demo Mode to Supabase Auth/Auth0 to secure financial data.
-- [ ] **Visionary Financial Automation Engine (Plaid):** Connect bank accounts to automate transfers.
-    - *Status:* Database Schema created. Frontend/Edge Functions pending.
+### v1.2: Identity & Financial Intelligence (IMMEDIATE PRIORITY)
+- [ ] **User Authentication (CRITICAL):**
+    - Implement Supabase Auth (Email/Password or Google).
+    - Create `profiles` table to store user names and retirement dates.
+    - Update RLS policies from `public` to `auth.uid()` to secure user data.
+- [ ] **Visionary Financial Automation Engine (Plaid):**
+    - Integrate `react-plaid-link` on frontend.
+    - Create Supabase Edge Function to exchange tokens securely.
 - [ ] **Cost of Living API:** When a user says "Thailand", pull real-time housing data to adjust the "Goal" target.
 
 ### v1.3: Trust & Security (PLANNED)
 - [ ] **Trust Center:** Dedicated page explaining encryption (AES-256) and SOC2 compliance.
-- [ ] **Edge Function Security:** Move all API key logic to server-side execution.
+- [ ] **Edge Function Security:** Move all Gemini API key logic to server-side execution to prevent key leakage.
 
 ### v2.0: The Immersive Vision Board (FUTURE)
 - [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
@@ -62,23 +66,24 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples visuali
 ## 3. Technical Implementation: Financial Automation (Plaid)
 
 ### Architecture Strategy
-Since the frontend foundation is built, the next immediate technical step is **Backend Security**.
+Now that the frontend and database schema are ready, the focus shifts to **Security**.
 
-1.  **Plaid Link (Client):** 
+1.  **Authentication Layer (Supabase Auth):**
+    - *Dev Task:* Wrap the App in a `SessionProvider`.
+    - *Dev Task:* Create Login/Signup components.
+
+2.  **Plaid Link (Client):** 
     - Obtains `public_token` via secure modal.
     - *Dev Task:* npm install `react-plaid-link`.
 
-2.  **Backend Service (Supabase Edge Functions):**
+3.  **Backend Service (Supabase Edge Functions):**
     - Exchanges `public_token` for `access_token`.
     - Stores `access_token` in `plaid_items` table (Encrypted).
     - *Dev Task:* Set up Deno/Node environment for Supabase Functions.
-
-3.  **AI Execution Agent:**
-    - Monitors `available_balance` via Plaid API.
-    - Triggers transfers based on user-defined "Safe-to-Spend" logic stored in `automation_rules`.
 
 ### Database Readiness
 The following tables have been added to the schema and are ready for implementation:
 - `plaid_items`
 - `automation_rules`
 - `transfer_logs`
+- *New Requirement:* `profiles` (needs to be added).

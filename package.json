@@ -13,7 +13,8 @@
     "react-dom": "^19.2.0",
     "recharts": "^3.5.0",
     "@google/genai": "^1.30.0",
-    "@supabase/supabase-js": "^2.39.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "react-plaid-link": "3.5.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
