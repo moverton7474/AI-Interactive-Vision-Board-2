@@ -1,7 +1,7 @@
 # Visionary SaaS - PR & Development Roadmap
 
 ## Project Overview
-Visionary is a high-end, AI-first SaaS platform designed to help couples visualize, plan, and manifest their dream retirement. By combining financial reality checks with generative AI vision boarding, Visionary offers a unique emotional and practical approach to retirement planning.
+Visionary is a high-end, AI-first SaaS platform designed to help couples and individuals visualize, plan, and manifest their dream retirement. By combining financial reality checks with generative AI vision boarding, Visionary offers a unique emotional and practical approach to retirement planning.
 
 ## 1. Public Relations (PR) Plan
 

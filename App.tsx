@@ -10,7 +10,9 @@ import Gallery from './components/Gallery';
 import Login from './components/Login';
 import TrustCenter from './components/TrustCenter';
 import OrderHistory from './components/OrderHistory';
-import { SparklesIcon, MicIcon, DocumentIcon, SaveIcon, ShieldCheckIcon } from './components/Icons';
+import Pricing from './components/Pricing';
+import SubscriptionModal from './components/SubscriptionModal';
+import { SparklesIcon, MicIcon, DocumentIcon, SaveIcon, ShieldCheckIcon, BankIcon, RobotIcon, ReceiptIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -33,6 +35,10 @@ const App = () => {
   // Database State
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
+
+  // Subscription State
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<'PRO' | 'ELITE'>('PRO');
 
   // Shared State
   const [activeVisionPrompt, setActiveVisionPrompt] = useState('');
@@ -125,6 +131,11 @@ const App = () => {
     setView(nextView);
   };
 
+  const handleUpgradeClick = (tier: 'PRO' | 'ELITE') => {
+    setSelectedTier(tier);
+    setShowUpgradeModal(true);
+  };
+
   const downloadGuide = () => {
     const blob = new Blob([SYSTEM_GUIDE_MD], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -140,89 +151,96 @@ const App = () => {
     switch(view) {
       case AppView.LANDING:
         return (
-          <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4 animate-fade-in">
-            <h1 className="text-5xl md:text-7xl font-serif font-bold text-navy-900 mb-6 tracking-tight">
-              Visionary
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-2xl">
-              The AI-powered SaaS for designing your future. Visualize your retirement, plan your finances, and manifest your dreams.
-            </p>
-            
-            {!showChat ? (
-              <button 
-                onClick={() => setShowChat(true)}
-                className="bg-navy-900 text-white text-lg font-medium px-10 py-4 rounded-full shadow-xl hover:bg-navy-800 hover:scale-105 transition-all duration-300 flex items-center gap-3"
-              >
-                <SparklesIcon className="w-6 h-6 text-gold-400" />
-                Start Your Journey
-              </button>
-            ) : (
-              <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200 text-left transition-all duration-500">
-                 <div className="h-80 overflow-y-auto p-6 space-y-4 bg-gray-50">
-                    {messages.map((m, i) => (
-                      <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] p-4 rounded-2xl text-sm ${m.role === 'user' ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-200 shadow-sm text-gray-800 rounded-bl-none'}`}>
-                          {m.text}
+          <>
+            <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4 animate-fade-in relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 pointer-events-none"></div>
+              
+              <h1 className="text-5xl md:text-7xl font-serif font-bold text-navy-900 mb-6 tracking-tight z-10">
+                Visionary
+              </h1>
+              <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-2xl z-10">
+                The AI-powered SaaS for designing your future. Visualize your retirement, plan your finances, and manifest your dreams.
+              </p>
+              
+              {!showChat ? (
+                <button 
+                  onClick={() => setShowChat(true)}
+                  className="bg-navy-900 text-white text-lg font-medium px-10 py-4 rounded-full shadow-xl hover:bg-navy-800 hover:scale-105 transition-all duration-300 flex items-center gap-3 z-10"
+                >
+                  <SparklesIcon className="w-6 h-6 text-gold-400" />
+                  Start Your Journey
+                </button>
+              ) : (
+                <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200 text-left transition-all duration-500 z-10">
+                   <div className="h-80 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                      {messages.map((m, i) => (
+                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] p-4 rounded-2xl text-sm ${m.role === 'user' ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-200 shadow-sm text-gray-800 rounded-bl-none'}`}>
+                            {m.text}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {chatLoading && <div className="text-gray-400 text-xs ml-4">Visionary is thinking...</div>}
-                 </div>
-                 <div className="p-4 bg-white border-t border-gray-100">
-                    <form onSubmit={handleChatSubmit} className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <input 
-                          type="text" 
-                          value={chatInput}
-                          onChange={(e) => setChatInput(e.target.value)}
-                          placeholder="Describe your dream or use voice..."
-                          className="w-full border border-gray-300 rounded-full pl-4 pr-12 py-3 outline-none focus:border-gold-500 transition-colors"
-                        />
-                        <button
-                          type="button"
-                          onClick={startListening}
-                          className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${isListening ? 'bg-red-100 text-red-500 animate-pulse' : 'text-gray-400 hover:text-navy-900'}`}
-                        >
-                          <MicIcon className="w-5 h-5" />
+                      ))}
+                      {chatLoading && <div className="text-gray-400 text-xs ml-4">Visionary is thinking...</div>}
+                   </div>
+                   <div className="p-4 bg-white border-t border-gray-100">
+                      <form onSubmit={handleChatSubmit} className="flex gap-2">
+                        <div className="flex-1 relative">
+                          <input 
+                            type="text" 
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            placeholder="Describe your dream or use voice..."
+                            className="w-full border border-gray-300 rounded-full pl-4 pr-12 py-3 outline-none focus:border-gold-500 transition-colors"
+                          />
+                          <button
+                            type="button"
+                            onClick={startListening}
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${isListening ? 'bg-red-100 text-red-500 animate-pulse' : 'text-gray-400 hover:text-navy-900'}`}
+                          >
+                            <MicIcon className="w-5 h-5" />
+                          </button>
+                        </div>
+                        <button type="submit" className="bg-gold-500 text-navy-900 font-bold px-6 py-2 rounded-full hover:bg-gold-600 transition-colors">
+                          Send
                         </button>
+                      </form>
+                      
+                      {/* Navigation Actions */}
+                      <div className="mt-4 flex flex-col md:flex-row justify-between items-center px-2 gap-4">
+                         <span className="text-xs text-gray-400">Step 1 of 3: Definition</span>
+                         <div className="flex items-center gap-3">
+                           {messages.length > 2 && (
+                              <>
+                                <button 
+                                  onClick={() => handleVisionCapture(AppView.FINANCIAL)} 
+                                  className="text-sm font-bold bg-navy-900 text-white px-4 py-2 rounded-lg hover:bg-navy-800 transition-colors">
+                                  Next: Financial Plan &rarr;
+                                </button>
+                                <span className="text-xs text-gray-300">or</span>
+                                <button 
+                                  onClick={() => handleVisionCapture(AppView.VISION_BOARD)} 
+                                  className="text-xs text-gray-500 hover:text-navy-900 underline">
+                                  Skip to Vision Board
+                                </button>
+                              </>
+                           )}
+                           {messages.length <= 2 && (
+                             <button 
+                               onClick={() => setView(AppView.FINANCIAL)} 
+                               className="text-xs font-bold text-navy-900 hover:text-gold-600 underline">
+                               Skip to Planning
+                             </button>
+                           )}
+                         </div>
                       </div>
-                      <button type="submit" className="bg-gold-500 text-navy-900 font-bold px-6 py-2 rounded-full hover:bg-gold-600 transition-colors">
-                        Send
-                      </button>
-                    </form>
-                    
-                    {/* Navigation Actions */}
-                    <div className="mt-4 flex flex-col md:flex-row justify-between items-center px-2 gap-4">
-                       <span className="text-xs text-gray-400">Step 1 of 3: Definition</span>
-                       <div className="flex items-center gap-3">
-                         {messages.length > 2 && (
-                            <>
-                              <button 
-                                onClick={() => handleVisionCapture(AppView.FINANCIAL)} 
-                                className="text-sm font-bold bg-navy-900 text-white px-4 py-2 rounded-lg hover:bg-navy-800 transition-colors">
-                                Next: Financial Plan &rarr;
-                              </button>
-                              <span className="text-xs text-gray-300">or</span>
-                              <button 
-                                onClick={() => handleVisionCapture(AppView.VISION_BOARD)} 
-                                className="text-xs text-gray-500 hover:text-navy-900 underline">
-                                Skip to Vision Board
-                              </button>
-                            </>
-                         )}
-                         {messages.length <= 2 && (
-                           <button 
-                             onClick={() => setView(AppView.FINANCIAL)} 
-                             className="text-xs font-bold text-navy-900 hover:text-gold-600 underline">
-                             Skip to Planning
-                           </button>
-                         )}
-                       </div>
-                    </div>
-                 </div>
-              </div>
-            )}
-          </div>
+                   </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Pricing Section */}
+            <Pricing onUpgrade={handleUpgradeClick} />
+          </>
         );
       case AppView.FINANCIAL:
         return (
@@ -327,6 +345,29 @@ CREATE TABLE IF NOT EXISTS public.documents (
     user_id UUID
 );
 
+-- Profiles (Credits & Subscriptions)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  credits INT DEFAULT 3,
+  subscription_tier TEXT DEFAULT 'FREE', -- 'FREE', 'PRO', 'ELITE'
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- Trigger to create profile on signup
+CREATE OR REPLACE FUNCTION public.handle_new_user() 
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, credits, subscription_tier)
+  VALUES (new.id, 3, 'FREE');
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
 -- PHASE 2: FINANCIAL AUTOMATION TABLES (Optional for now)
 CREATE TABLE IF NOT EXISTS public.plaid_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -379,6 +420,7 @@ ALTER TABLE public.plaid_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.automation_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transfer_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.poster_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 
 -- 5. Reset & Create Table Policies (Public for Demo)
@@ -421,6 +463,17 @@ DROP POLICY IF EXISTS "Users can create orders" ON public.poster_orders;
 CREATE POLICY "Users can create orders" 
 ON public.poster_orders FOR INSERT 
 WITH CHECK (auth.uid() = user_id);
+
+-- Profiles
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+CREATE POLICY "Users can view own profile" 
+ON public.profiles FOR SELECT 
+USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+CREATE POLICY "Users can update own profile" 
+ON public.profiles FOR UPDATE 
+USING (auth.uid() = id);
 `;
 
   if (authLoading) {
@@ -438,123 +491,78 @@ WITH CHECK (auth.uid() = user_id);
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center cursor-pointer" onClick={() => setView(AppView.LANDING)}>
-              <div className="w-8 h-8 bg-navy-900 rounded-lg flex items-center justify-center mr-3">
-                 <span className="text-gold-500 font-serif font-bold text-xl">V</span>
+              <div className="w-8 h-8 bg-navy-900 rounded-lg flex items-center justify-center mr-2">
+                <span className="text-gold-500 font-serif font-bold text-xl">V</span>
               </div>
-              <span className="font-serif font-bold text-xl text-navy-900">Visionary</span>
+              <span className="text-xl font-serif font-bold text-navy-900">Visionary</span>
             </div>
+            
             <div className="flex items-center gap-6">
-              <button 
-                onClick={() => setView(AppView.FINANCIAL)}
-                className={`text-sm font-medium transition-colors ${view === AppView.FINANCIAL ? 'text-gold-600' : 'text-gray-500 hover:text-navy-900'}`}>
-                Plan
-              </button>
-              <button 
-                onClick={() => { setSelectedGalleryImage(null); setView(AppView.VISION_BOARD); }}
-                className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-gold-600' : 'text-gray-500 hover:text-navy-900'}`}>
-                Visualize
-              </button>
-              <button 
-                onClick={() => setView(AppView.GALLERY)}
-                className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-gold-600' : 'text-gray-500 hover:text-navy-900'}`}>
-                Gallery
-              </button>
-              <button 
-                onClick={() => {
-                  if (activeVisionPrompt) setView(AppView.ACTION_PLAN);
-                  else alert("Create a vision first!");
-                }}
-                className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-gold-600' : 'text-gray-500 hover:text-navy-900'}`}>
-                Execute
-              </button>
+              <button onClick={() => setView(AppView.FINANCIAL)} className={`text-sm font-medium transition-colors ${view === AppView.FINANCIAL ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Plan</button>
+              <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Visualize</button>
+              <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Gallery</button>
+              <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Execute</button>
               
-              {/* User Profile / Sign Out */}
-              <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-                <span className="text-xs text-gray-500 truncate max-w-[100px]">{session.user.email}</span>
-                <button onClick={handleSignOut} className="text-xs font-bold text-navy-900 hover:text-red-500 transition-colors">
-                  Sign Out
-                </button>
-              </div>
+              <div className="h-6 w-px bg-gray-200 mx-2"></div>
+              
+              <span className="text-xs text-gray-400">{session.user.email}</span>
+              <button onClick={handleSignOut} className="text-xs font-bold text-navy-900 hover:text-red-500 transition-colors">Sign Out</button>
             </div>
           </div>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-12">
+      <main className="flex-1">
         {renderContent()}
       </main>
 
       {/* Footer */}
-      <footer className="bg-navy-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div>
-            <span className="font-serif text-xl font-bold">Visionary</span>
-            <p className="text-gray-400 text-sm mt-1">SaaS Platform for Retirement Design</p>
+      <footer className="bg-navy-900 text-white py-8 mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="text-sm text-gray-400">
+            © 2024 Visionary Inc. Powered by Gemini.
           </div>
-          <div className="flex flex-col md:flex-row items-center gap-6">
-             <button 
-               onClick={() => setView(AppView.TRUST_CENTER)}
-               className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
-             >
-               <ShieldCheckIcon className="w-4 h-4" />
-               Trust & Security
+          <div className="flex gap-6 text-sm font-medium">
+             <button onClick={downloadGuide} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
+               <DocumentIcon className="w-4 h-4" /> Download System Guide
              </button>
-
-             <button 
-               onClick={downloadGuide}
-               className="flex items-center gap-2 text-sm text-gold-500 hover:text-gold-400 transition-colors"
-             >
-               <DocumentIcon className="w-4 h-4" />
-               Download System Guide
+             <button onClick={() => setView(AppView.ORDER_HISTORY)} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
+               <ReceiptIcon className="w-4 h-4" /> Order History
              </button>
-
-             <button 
-               onClick={() => setShowSqlModal(true)}
-               className="flex items-center gap-2 text-green-400 text-sm hover:text-green-300 transition-colors"
-             >
-               <span className={`w-2 h-2 rounded-full ${dbConnected ? 'bg-green-400 animate-pulse' : 'bg-red-500'}`}></span>
-               {dbConnected ? 'System Online' : 'Check Database'}
+             <button onClick={() => setView(AppView.TRUST_CENTER)} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
+               <ShieldCheckIcon className="w-4 h-4" /> Trust & Security
              </button>
-             
-             <div className="text-sm text-gray-400">
-               &copy; 2024 Visionary Inc. Powered by Gemini.
-             </div>
+             <button 
+               onClick={() => setShowSqlModal(true)} 
+               className={`flex items-center gap-2 transition-colors ${dbConnected ? 'text-green-400' : 'text-red-400'}`}
+             >
+               <span className={`w-2 h-2 rounded-full ${dbConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
+               {dbConnected ? 'System Online' : 'Database Setup'}
+             </button>
           </div>
         </div>
       </footer>
 
-      {/* Database Setup Modal */}
+      {/* Modals */}
       {showSqlModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 animate-fade-in">
-            <h3 className="text-xl font-bold text-navy-900 mb-4">Database Configuration</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Ensure your Supabase project has the following SQL schema applied. 
-              This includes tables for Vision Boards, Documents, and Financial Automation.
-            </p>
-            <div className="bg-gray-900 text-gray-200 p-4 rounded-lg overflow-x-auto text-xs font-mono mb-6 max-h-[300px]">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            <h3 className="text-lg font-bold mb-2 text-navy-900">Database Setup (Supabase)</h3>
+            <p className="text-sm text-gray-600 mb-4">Run this SQL in your Supabase Dashboard to create the necessary tables.</p>
+            <div className="bg-gray-100 p-4 rounded text-xs font-mono h-64 overflow-y-auto mb-4 select-all">
               <pre>{sqlCode}</pre>
             </div>
-            <div className="flex justify-end gap-3">
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(sqlCode);
-                  alert("SQL copied to clipboard!");
-                }}
-                className="bg-gray-100 hover:bg-gray-200 text-navy-900 px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                Copy SQL
-              </button>
-              <button 
-                onClick={() => setShowSqlModal(false)}
-                className="bg-navy-900 hover:bg-navy-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                Close
-              </button>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => navigator.clipboard.writeText(sqlCode)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm font-bold">Copy SQL</button>
+              <button onClick={() => setShowSqlModal(false)} className="px-4 py-2 bg-navy-900 text-white rounded hover:bg-navy-800 text-sm font-bold">Close</button>
             </div>
           </div>
         </div>
+      )}
+
+      {showUpgradeModal && (
+        <SubscriptionModal tier={selectedTier} onClose={() => setShowUpgradeModal(false)} />
       )}
     </div>
   );
