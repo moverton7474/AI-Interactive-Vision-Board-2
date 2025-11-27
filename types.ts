@@ -6,6 +6,9 @@ export enum AppView {
   VISION_BOARD = 'VISION_BOARD', // Image Gen
   GALLERY = 'GALLERY', // New Full Gallery
   ACTION_PLAN = 'ACTION_PLAN', // AI Agent Execution
+  SHARED_VISION = 'SHARED_VISION',
+  TRUST_CENTER = 'TRUST_CENTER',
+  ORDER_HISTORY = 'ORDER_HISTORY',
 }
 
 export interface ChatMessage {
@@ -82,4 +85,51 @@ export interface FinancialContext {
   monthlyContribution: number;
   targetGoal: number;
   targetYear: number;
+}
+
+export interface CostOfLivingData {
+  city: string;
+  country: string;
+  currency: string;
+  costs: {
+    rent_1bed_center: number;
+    rent_3bed_center: number;
+    meal_inexpensive: number;
+    utilities_basic: number;
+    monthly_total_single: number;
+    monthly_total_family: number;
+  };
+  lastUpdated: string;
+}
+
+// --- Print / Poster Types ---
+
+export interface ShippingAddress {
+  name: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string; // 'US', 'GB', etc.
+}
+
+export interface PrintConfig {
+  sku: string; // Vendor SKU
+  size: string; // '12x18', '24x36'
+  finish: 'matte' | 'gloss';
+  quantity: number;
+}
+
+export interface PosterOrder {
+  id: string;
+  userId: string;
+  visionBoardId: string;
+  status: 'pending' | 'submitted' | 'shipped' | 'delivered';
+  createdAt: number;
+  totalPrice: number;
+  discountApplied: boolean;
+  shippingAddress: ShippingAddress;
+  config: PrintConfig;
+  vendorOrderId?: string;
 }

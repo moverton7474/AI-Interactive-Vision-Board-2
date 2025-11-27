@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { getVisionGallery, deleteVisionImage } from '../services/storageService';
 import { VisionImage } from '../types';
-import { TrashIcon, DownloadIcon, SparklesIcon, SaveIcon, ShareIcon, CopyIcon, MailIcon, TwitterIcon } from './Icons';
+import { TrashIcon, DownloadIcon, SparklesIcon, SaveIcon, ShareIcon, CopyIcon, MailIcon, TwitterIcon, FacebookIcon, GoogleIcon, PrinterIcon } from './Icons';
+import PrintOrderModal from './PrintOrderModal';
 
 interface Props {
   onSelect: (image: VisionImage) => void;
@@ -13,6 +14,7 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
   const [loading, setLoading] = useState(true);
   // Track which image has the share menu open
   const [activeShareId, setActiveShareId] = useState<string | null>(null);
+  const [printImage, setPrintImage] = useState<VisionImage | null>(null);
 
   useEffect(() => {
     loadGallery();
@@ -61,12 +63,14 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
     setActiveShareId(prev => prev === id ? null : id);
   };
 
-  const handleShareAction = (e: React.MouseEvent, type: 'email' | 'twitter' | 'copy', url: string) => {
+  const handleShareAction = (e: React.MouseEvent, type: 'email' | 'gmail' | 'twitter' | 'copy', url: string) => {
     e.stopPropagation();
     const text = "Check out my retirement vision board created with Visionary!";
     
     if (type === 'email') {
       window.open(`mailto:?subject=My Vision Board&body=${encodeURIComponent(text + "\n\n" + url)}`, '_self');
+    } else if (type === 'gmail') {
+      window.open(`https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent("My Vision Board")}&body=${encodeURIComponent(text + "\n\n" + url)}`, '_blank');
     } else if (type === 'twitter') {
       window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
     } else if (type === 'copy') {
@@ -76,8 +80,20 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
     setActiveShareId(null);
   };
 
+  const handlePrint = (e: React.MouseEvent, img: VisionImage) => {
+    e.stopPropagation();
+    setPrintImage(img);
+  }
+
   return (
     <div className="max-w-7xl mx-auto animate-fade-in pb-12" onClick={() => setActiveShareId(null)}>
+      {printImage && (
+        <PrintOrderModal 
+          image={printImage} 
+          onClose={() => setPrintImage(null)} 
+        />
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl font-serif font-bold text-navy-900 flex items-center gap-3">
@@ -131,19 +147,30 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
                       </button>
                       
                       {activeShareId === img.id && (
-                        <div className="absolute bottom-12 right-0 bg-white rounded-lg shadow-xl p-2 flex flex-col gap-1 w-32 z-10 animate-fade-in border border-gray-100">
-                           <button onClick={(e) => handleShareAction(e, 'email', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full">
-                             <MailIcon className="w-3 h-3" /> Email
+                        <div className="absolute bottom-12 right-0 bg-white rounded-lg shadow-xl p-2 flex flex-col gap-1 w-36 z-10 animate-fade-in border border-gray-100">
+                           <button onClick={(e) => handleShareAction(e, 'email', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium">
+                             <MailIcon className="w-3 h-3 text-gray-400" /> Email App
                            </button>
-                           <button onClick={(e) => handleShareAction(e, 'twitter', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full">
-                             <TwitterIcon className="w-3 h-3" /> Twitter
+                           <button onClick={(e) => handleShareAction(e, 'gmail', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium">
+                             <GoogleIcon className="w-3 h-3" /> Gmail Web
                            </button>
-                           <button onClick={(e) => handleShareAction(e, 'copy', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full">
-                             <CopyIcon className="w-3 h-3" /> Copy Link
+                           <button onClick={(e) => handleShareAction(e, 'twitter', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium">
+                             <TwitterIcon className="w-3 h-3 text-blue-400" /> Twitter
+                           </button>
+                           <button onClick={(e) => handleShareAction(e, 'copy', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium">
+                             <CopyIcon className="w-3 h-3 text-gray-400" /> Copy Link
                            </button>
                         </div>
                       )}
                     </div>
+
+                    <button 
+                      onClick={(e) => handlePrint(e, img)}
+                      className="p-2 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-full backdrop-blur-sm transition-colors shadow-lg"
+                      title="Order Poster Print"
+                    >
+                      <PrinterIcon className="w-4 h-4" />
+                    </button>
 
                     <button 
                       onClick={(e) => downloadImage(e, img.url)}

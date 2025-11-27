@@ -8,7 +8,9 @@ import VisionBoard from './components/VisionBoard';
 import ActionPlanAgent from './components/ActionPlanAgent';
 import Gallery from './components/Gallery';
 import Login from './components/Login';
-import { SparklesIcon, MicIcon, DocumentIcon, SaveIcon } from './components/Icons';
+import TrustCenter from './components/TrustCenter';
+import OrderHistory from './components/OrderHistory';
+import { SparklesIcon, MicIcon, DocumentIcon, SaveIcon, ShieldCheckIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -257,6 +259,10 @@ const App = () => {
             onBack={() => setView(AppView.VISION_BOARD)} 
           />
         );
+      case AppView.TRUST_CENTER:
+        return <TrustCenter />;
+      case AppView.ORDER_HISTORY:
+        return <OrderHistory />;
       default:
         return null;
     }
@@ -351,6 +357,20 @@ CREATE TABLE IF NOT EXISTS public.transfer_logs (
     ai_rationale TEXT
 );
 
+-- 1. Create Poster Orders Table
+CREATE TABLE IF NOT EXISTS public.poster_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    user_id UUID NOT NULL,
+    vision_board_id UUID,
+    vendor_order_id TEXT,
+    status TEXT DEFAULT 'pending', -- pending, submitted, shipped
+    total_price NUMERIC(10, 2),
+    discount_applied BOOLEAN DEFAULT false,
+    shipping_address JSONB, -- Stores name, address, city, etc.
+    print_config JSONB -- Stores size, finish, sku
+);
+
 -- 4. Enable RLS
 ALTER TABLE public.vision_boards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reference_images ENABLE ROW LEVEL SECURITY;
@@ -358,6 +378,7 @@ ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.plaid_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.automation_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transfer_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.poster_orders ENABLE ROW LEVEL SECURITY;
 
 
 -- 5. Reset & Create Table Policies (Public for Demo)
@@ -389,6 +410,17 @@ CREATE POLICY "Allow public delete Docs" ON public.documents FOR DELETE USING (t
 -- Financial Tables
 DROP POLICY IF EXISTS "Allow public read Auto" ON public.automation_rules;
 CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USING (true);
+
+-- Print Orders
+DROP POLICY IF EXISTS "Users can view own orders" ON public.poster_orders;
+CREATE POLICY "Users can view own orders" 
+ON public.poster_orders FOR SELECT 
+USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create orders" ON public.poster_orders;
+CREATE POLICY "Users can create orders" 
+ON public.poster_orders FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
 `;
 
   if (authLoading) {
@@ -461,6 +493,14 @@ CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USI
             <p className="text-gray-400 text-sm mt-1">SaaS Platform for Retirement Design</p>
           </div>
           <div className="flex flex-col md:flex-row items-center gap-6">
+             <button 
+               onClick={() => setView(AppView.TRUST_CENTER)}
+               className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+             >
+               <ShieldCheckIcon className="w-4 h-4" />
+               Trust & Security
+             </button>
+
              <button 
                onClick={downloadGuide}
                className="flex items-center gap-2 text-sm text-gold-500 hover:text-gold-400 transition-colors"

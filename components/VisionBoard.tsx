@@ -10,7 +10,8 @@ import {
   deleteReferenceImage
 } from '../services/storageService';
 import { VisionImage, ReferenceImage } from '../types';
-import { SparklesIcon, UploadIcon, SaveIcon, TrashIcon, DownloadIcon, RobotIcon, MicIcon, LibraryIcon, TagIcon, PlusIcon } from './Icons';
+import { SparklesIcon, UploadIcon, SaveIcon, TrashIcon, DownloadIcon, RobotIcon, MicIcon, LibraryIcon, TagIcon, PlusIcon, PrinterIcon } from './Icons';
+import PrintOrderModal from './PrintOrderModal';
 
 // Granular tags that can be combined
 const PRESET_TAGS = [
@@ -42,6 +43,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [isListening, setIsListening] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Reference Library State
   const [showLibrary, setShowLibrary] = useState(true); // Toggle sidebar
@@ -244,6 +246,19 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         </div>
       )}
 
+      {/* Print Modal */}
+      {showPrintModal && resultImage && (
+        <PrintOrderModal 
+          image={{
+            id: 'current',
+            url: resultImage,
+            prompt: currentPrompt,
+            createdAt: Date.now()
+          }}
+          onClose={() => setShowPrintModal(false)}
+        />
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col gap-8">
           <div className="flex flex-col md:flex-row gap-8">
@@ -414,9 +429,19 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                       )}
                       Save
                     </button>
+                    
+                    <button 
+                      onClick={() => setShowPrintModal(true)}
+                      className="p-2 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg shadow transition-colors"
+                      title="Order Poster Print"
+                    >
+                      <PrinterIcon className="w-4 h-4" />
+                    </button>
+
                     <button 
                       onClick={() => downloadImage(resultImage!)}
-                      className="p-2 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg shadow transition-colors"
+                      className="p-2 bg-white border border-gray-200 hover:bg-gray-50 text-navy-900 rounded-lg shadow-sm transition-colors"
+                      title="Download"
                     >
                       <DownloadIcon className="w-4 h-4" />
                     </button>
