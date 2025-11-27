@@ -76,7 +76,9 @@ export const createPosterOrder = async (
       .select()
       .single();
 
-    if (error) throw error;
+    if (dbError) throw dbError;
+
+    console.log("Order saved to DB. Now calling Edge Function...");
 
     // 2. Construct Prodigi Payload
     const prodigiPayload = {
@@ -85,7 +87,7 @@ export const createPosterOrder = async (
         name: shipping.name,
         address: {
           line1: shipping.line1,
-          line2: shipping.line2,
+          line2: shipping.line2 || "",
           postalOrZipCode: shipping.postalCode,
           countryCode: shipping.country,
           townOrCity: shipping.city,
