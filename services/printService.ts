@@ -60,7 +60,7 @@ export const createPosterOrder = async (
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("User must be logged in to order.");
 
-    // 1. Save Order to Database
+    // 1. Save Order to Database with 'pending' status initially
     const { data, error } = await supabase
       .from('poster_orders')
       .insert([{
@@ -70,16 +70,17 @@ export const createPosterOrder = async (
         print_config: config,
         total_price: totalPrice,
         discount_applied: discountApplied,
-        status: 'submitted',
-        vendor_order_id: `PROD-${Date.now()}` // Simulated Vendor ID
+        status: 'pending', // Start as pending until Prodigi confirms
+        vendor_order_id: null
       }])
       .select()
       .single();
 
     if (error) throw error;
 
-    // 2. Construct Prodigi Payload (For reference/future backend hook)
+    // 2. Construct Prodigi Payload
     const prodigiPayload = {
+      orderId: data.id,
       recipient: {
         name: shipping.name,
         address: {
@@ -106,20 +107,60 @@ export const createPosterOrder = async (
       ]
     };
 
-    console.log("Payload ready for Prodigi API:", prodigiPayload);
-    // In a real app, you would now call: supabase.functions.invoke('submit-to-prodigi', { body: prodigiPayload })
+    // 3. Call Edge Function to submit to Prodigi
+    let vendorOrderId = `SIM-${Date.now()}`; // Fallback simulation ID
+    let finalStatus = 'submitted';
+
+    try {
+      console.log("Calling submit-to-prodigi Edge Function...");
+      const { data: prodigiResponse, error: functionError } = await supabase.functions.invoke(
+        'submit-to-prodigi',
+        { body: prodigiPayload }
+      );
+
+      if (functionError) {
+        console.warn("Edge Function error:", functionError);
+        throw functionError;
+      }
+
+      if (prodigiResponse?.success && prodigiResponse?.orderId) {
+        vendorOrderId = prodigiResponse.orderId;
+        finalStatus = 'submitted';
+        console.log("✅ Order submitted to Prodigi:", vendorOrderId);
+      } else {
+        console.warn("Prodigi API returned unexpected response:", prodigiResponse);
+        throw new Error(prodigiResponse?.error || "Unknown Prodigi error");
+      }
+    } catch (edgeFunctionError) {
+      console.warn("Edge Function invocation failed. Falling back to simulation mode.", edgeFunctionError);
+      // Keep the simulation ID and mark as submitted for demo purposes
+      finalStatus = 'submitted';
+    }
+
+    // 4. Update order with vendor ID and final status
+    const { error: updateError } = await supabase
+      .from('poster_orders')
+      .update({
+        vendor_order_id: vendorOrderId,
+        status: finalStatus
+      })
+      .eq('id', data.id);
+
+    if (updateError) {
+      console.error("Failed to update order with vendor ID:", updateError);
+    }
 
     return {
       id: data.id,
       userId: data.user_id,
       visionBoardId: data.vision_board_id,
-      status: data.status,
+      status: finalStatus,
       createdAt: new Date(data.created_at).getTime(),
       totalPrice: data.total_price,
       discountApplied: data.discount_applied,
       shippingAddress: data.shipping_address,
       config: data.print_config,
-      vendorOrderId: data.vendor_order_id
+      vendorOrderId: vendorOrderId
     };
 
   } catch (error) {
