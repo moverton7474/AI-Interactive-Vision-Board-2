@@ -1,4 +1,3 @@
-
 import { supabase } from '../lib/supabase';
 import { PosterOrder, ShippingAddress, PrintConfig } from '../types';
 
@@ -76,9 +75,7 @@ export const createPosterOrder = async (
       .select()
       .single();
 
-    if (dbError) throw dbError;
-
-    console.log("Order saved to DB. Now calling Edge Function...");
+    if (error) throw error;
 
     // 2. Construct Prodigi Payload
     const prodigiPayload = {
@@ -87,7 +84,7 @@ export const createPosterOrder = async (
         name: shipping.name,
         address: {
           line1: shipping.line1,
-          line2: shipping.line2 || "",
+          line2: shipping.line2,
           postalOrZipCode: shipping.postalCode,
           countryCode: shipping.country,
           townOrCity: shipping.city,
