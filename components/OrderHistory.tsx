@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { getPosterOrders } from '../services/printService';
 import { PosterOrder } from '../types';
-import { TruckIcon, CheckBadgeIcon, ReceiptIcon, ClockIcon } from './Icons';
+import { TruckIcon, CheckBadgeIcon, ReceiptIcon, ClockIcon, SparklesIcon } from './Icons';
+import { supabase } from '../lib/supabase';
 
 const OrderHistory = () => {
   const [orders, setOrders] = useState<PosterOrder[]>([]);
@@ -16,6 +17,17 @@ const OrderHistory = () => {
     const data = await getPosterOrders();
     setOrders(data);
     setLoading(false);
+  };
+
+  // Helper for DEMO purposes: Allows user to manually advance the order status
+  // In production, this would be handled by a Webhook from Prodigi
+  const simulateShipping = async (orderId: string) => {
+    const { error } = await supabase
+      .from('poster_orders')
+      .update({ status: 'shipped', vendor_order_id: `TRK-${Math.floor(Math.random() * 100000)}` })
+      .eq('id', orderId);
+    
+    if (!error) loadOrders();
   };
 
   if (loading) {
@@ -44,7 +56,10 @@ const OrderHistory = () => {
             <div key={order.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col md:flex-row">
                {/* Thumbnail placeholder - in real app would fetch vision board image */}
                <div className="w-full md:w-48 bg-gray-100 flex items-center justify-center p-4 border-b md:border-b-0 md:border-r border-gray-100">
-                  <div className="text-xs text-gray-400 text-center">Vision Board<br/>#{order.visionBoardId.slice(0,8)}</div>
+                  <div className="text-xs text-gray-400 text-center flex flex-col items-center gap-2">
+                    <SparklesIcon className="w-6 h-6 opacity-20" />
+                    <span>Vision Board<br/>#{order.visionBoardId.slice(0,8)}</span>
+                  </div>
                </div>
                
                <div className="flex-1 p-6">
@@ -81,6 +96,18 @@ const OrderHistory = () => {
                        ${order.totalPrice.toFixed(2)}
                     </div>
                  </div>
+
+                 {/* Simulation Tool for Demo */}
+                 {order.status === 'submitted' && (
+                   <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+                      <button 
+                        onClick={() => simulateShipping(order.id)}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        [Demo] Simulate Shipping Update
+                      </button>
+                   </div>
+                 )}
                </div>
             </div>
           ))}
