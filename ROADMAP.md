@@ -13,7 +13,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples visuali
 ### Key Messaging
 - "See your future before you spend it."
 - "The first financial tool that understands your dreams, not just your dollars."
-- "Powered by Gemini 2.5: The world's most advanced AI for life planning."
+- "Powered by Gemini 2.5 & 3.0: The world's most advanced AI for life planning."
 
 ### Campaign Phases
 
@@ -24,49 +24,61 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples visuali
 
 #### Phase 2: User Stories & Virality (Month 1-3)
 - **Feature:** "Vision Board Challenge" - Users share their generated AI vision boards on social media with #MyVisionaryFuture.
-- **Influencer Strategy:** Partner with retirement coaches and financial influencers on YouTube/Instagram to demo the "Voice-to-Vision" feature.
+- **Influencer Strategy:** Partner with retirement coaches and financial influencers to demo the "Voice-to-Vision" feature.
 
 #### Phase 3: B2B Integration (Month 3-6)
 - **Partnership Announcement:** Integration with major wealth management platforms (e.g., Fidelity, Vanguard APIs) to pull real-time data.
 
-## 2. Development Roadmap (Future Scope)
+## 2. Development Roadmap & Status
 
-### v1.1: Enhanced Interactivity (Immediate)
-- [x] **Voice Dictation:** Capture vision statements naturally (Completed).
-- [x] **High-Fidelity Rendering:** Upgraded to Gemini 3 Pro Image for photorealistic results and text rendering.
+### v1.0: Foundation (COMPLETED)
+- [x] **Voice Dictation:** Capture vision statements naturally using Web Speech API.
+- [x] **High-Fidelity Rendering:** Implemented `gemini-3-pro-image-preview` for photorealistic results.
 - [x] **Iterative Refinement:** "Refine This" workflow allows continuous editing of generated images.
-- [ ] **Smart Navigation:** Auto-suggest next steps based on chat sentiment.
+- [x] **Vision Board Gallery:** Full persistence, delete, and download capabilities.
+- [x] **Action Plan Agent:** Generates 3-year roadmaps with calendar integration.
 
-### v1.2: Deep Financial Intelligence
-- [ ] **Visionary Financial Automation Engine (Plaid):** Connect bank accounts to automate transfers to "Goal Buckets".
-- [ ] **Real-time Market Data:** Integrate live stock/bond market data to adjust projections dynamically.
-- [ ] **Cost of Living API:** When a user says "Thailand", automatically pull real-time housing and food costs for that region to adjust the "Goal" target.
+### v1.1: Knowledge & Context (COMPLETED / NEW)
+- [x] **Reference Image Library:** Sidebar to store and reuse user headshots for likeness preservation.
+- [x] **Financial Knowledge Base:** "Notebook Mode" to persist uploaded plans and manual entries.
+- [x] **Document Persistence:** Secure storage of financial context for AI recall.
+- [x] **Text Embedding:** Ability to render goal text (e.g., "Retire 2027") directly into images.
 
-### v1.3: Trust & Security
-- [ ] **Trust Center:** dedicated page explaining data encryption (AES-256 for tokens) and SOC2 compliance roadmap.
-- [ ] **Auth0/Clerk:** For secure user authentication and profile management.
+### v1.2: Deep Financial Intelligence (IN PROGRESS)
+- [ ] **User Authentication:** Move from Demo Mode to Supabase Auth/Auth0 to secure financial data.
+- [ ] **Visionary Financial Automation Engine (Plaid):** Connect bank accounts to automate transfers.
+    - *Status:* Database Schema created. Frontend/Edge Functions pending.
+- [ ] **Cost of Living API:** When a user says "Thailand", pull real-time housing data to adjust the "Goal" target.
 
-### v2.0: The Immersive Vision Board
+### v1.3: Trust & Security (PLANNED)
+- [ ] **Trust Center:** Dedicated page explaining encryption (AES-256) and SOC2 compliance.
+- [ ] **Edge Function Security:** Move all API key logic to server-side execution.
+
+### v2.0: The Immersive Vision Board (FUTURE)
 - [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
-- [ ] **Video Generation:** Use Veo to generate a 10-second video of the couple walking on the beach in Thailand, not just a static image.
-- [ ] **Face Mapping 2.0:** Improved consistency of user identity across multiple generated scenarios (kitchen, garden, travel).
+- [ ] **Video Generation:** Use Veo to generate a 10-second video of the couple walking on the beach.
+- [ ] **Face Mapping 2.0:** Advanced consistency of user identity across multiple generated scenarios.
 
-## 3. Technical Requirements for Next Steps
-- **Supabase Edge Functions:** Required for secure Plaid token exchange (cannot be done client-side).
-- **Gemini Live API:** For v2.0 conversational features.
-- **Stripe Integration:** For SaaS subscription billing (Premium vs Free tier).
+## 3. Technical Implementation: Financial Automation (Plaid)
 
-## 4. Visionary Financial Automation Engine (Feature Spec)
+### Architecture Strategy
+Since the frontend foundation is built, the next immediate technical step is **Backend Security**.
 
-### Overview
-Connects securely to users’ banking, credit, and investment accounts using Plaid to not just plan, but *execute* financial goals.
+1.  **Plaid Link (Client):** 
+    - Obtains `public_token` via secure modal.
+    - *Dev Task:* npm install `react-plaid-link`.
 
-### Architecture
-- **Plaid Link (Client):** Obtains `public_token` via secure modal.
-- **Backend Service (Node/Edge):** Exchanges `public_token` for `access_token` and stores securely.
-- **AI Agent:** Monitors `available_balance` and triggers transfers based on user-defined "Safe-to-Spend" logic.
+2.  **Backend Service (Supabase Edge Functions):**
+    - Exchanges `public_token` for `access_token`.
+    - Stores `access_token` in `plaid_items` table (Encrypted).
+    - *Dev Task:* Set up Deno/Node environment for Supabase Functions.
 
-### Phases
-1.  **The Watcher (Read-Only):** Connect accounts and visualize "Real Net Worth" vs "Goal".
-2.  **The Advisor (Simulation):** AI suggests transfers ("You have $500 surplus, move to Thailand Fund?") but user must approve.
-3.  **The Autopilot (Live):** Automated sweeps for approved amounts under a set threshold.
+3.  **AI Execution Agent:**
+    - Monitors `available_balance` via Plaid API.
+    - Triggers transfers based on user-defined "Safe-to-Spend" logic stored in `automation_rules`.
+
+### Database Readiness
+The following tables have been added to the schema and are ready for implementation:
+- `plaid_items`
+- `automation_rules`
+- `transfer_logs`

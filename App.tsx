@@ -6,8 +6,8 @@ import VisionBoard from './components/VisionBoard';
 import ActionPlanAgent from './components/ActionPlanAgent';
 import Gallery from './components/Gallery';
 import { SparklesIcon, MicIcon, DocumentIcon, SaveIcon } from './components/Icons';
-import { sendVisionChatMessage } from './services/geminiService';
-import { checkDatabaseConnection } from './services/storageService';
+import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
+import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 
 const App = () => {
@@ -74,6 +74,27 @@ const App = () => {
     const response = await sendVisionChatMessage(newHistory as any, chatInput);
     setMessages([...newHistory, { role: 'model', text: response }]);
     setChatLoading(false);
+  };
+
+  const handleVisionCapture = async (nextView: AppView) => {
+    // Only capture if we have a conversation history
+    if (messages.length > 2) {
+       console.log("Capturing vision...");
+       // Async - don't block navigation
+       generateVisionSummary(messages).then(async (summary) => {
+          if (summary) {
+             console.log("Vision summarized:", summary);
+             setActiveVisionPrompt(summary);
+             // Save to Knowledge Base
+             await saveDocument({
+                name: `Vision Statement (${new Date().toLocaleDateString()})`,
+                type: 'VISION',
+                structuredData: { prompt: summary, fullChat: messages }
+             });
+          }
+       });
+    }
+    setView(nextView);
   };
 
   const downloadGuide = () => {
@@ -149,13 +170,13 @@ const App = () => {
                          {messages.length > 2 && (
                             <>
                               <button 
-                                onClick={() => setView(AppView.FINANCIAL)} 
+                                onClick={() => handleVisionCapture(AppView.FINANCIAL)} 
                                 className="text-sm font-bold bg-navy-900 text-white px-4 py-2 rounded-lg hover:bg-navy-800 transition-colors">
                                 Next: Financial Plan &rarr;
                               </button>
                               <span className="text-xs text-gray-300">or</span>
                               <button 
-                                onClick={() => setView(AppView.VISION_BOARD)} 
+                                onClick={() => handleVisionCapture(AppView.VISION_BOARD)} 
                                 className="text-xs text-gray-500 hover:text-navy-900 underline">
                                 Skip to Vision Board
                               </button>
@@ -188,6 +209,7 @@ const App = () => {
         return (
           <VisionBoard 
             initialImage={selectedGalleryImage}
+            initialPrompt={activeVisionPrompt} // Pass the captured vision prompt
             onAgentStart={(prompt) => {
               setActiveVisionPrompt(prompt);
               setView(AppView.ACTION_PLAN);
@@ -214,22 +236,36 @@ const App = () => {
     }
   };
 
-  const sqlCode = `-- 1. Create Storage Bucket (Ignore if exists)
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('visions', 'visions', true)
-ON CONFLICT (id) DO NOTHING;
+  const sqlCode = `-- 1. Create Storage Buckets
+INSERT INTO storage.buckets (id, name, public) VALUES ('visions', 'visions', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('documents', 'documents', true) ON CONFLICT (id) DO NOTHING;
 
--- 2. Reset & Create Storage Policies (Fixes Error 42710)
-DROP POLICY IF EXISTS "Public Access" ON storage.objects;
-CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING ( bucket_id = 'visions' );
+-- 2. Reset & Create Storage Policies (Idempotent)
 
-DROP POLICY IF EXISTS "Public Upload" ON storage.objects;
-CREATE POLICY "Public Upload" ON storage.objects FOR INSERT WITH CHECK ( bucket_id = 'visions' );
+-- Visions Bucket
+DROP POLICY IF EXISTS "Public Access Visions" ON storage.objects;
+CREATE POLICY "Public Access Visions" ON storage.objects FOR SELECT USING ( bucket_id = 'visions' );
 
-DROP POLICY IF EXISTS "Public Delete" ON storage.objects;
-CREATE POLICY "Public Delete" ON storage.objects FOR DELETE USING ( bucket_id = 'visions' );
+DROP POLICY IF EXISTS "Public Upload Visions" ON storage.objects;
+CREATE POLICY "Public Upload Visions" ON storage.objects FOR INSERT WITH CHECK ( bucket_id = 'visions' );
+
+DROP POLICY IF EXISTS "Public Delete Visions" ON storage.objects;
+CREATE POLICY "Public Delete Visions" ON storage.objects FOR DELETE USING ( bucket_id = 'visions' );
+
+-- Documents Bucket
+DROP POLICY IF EXISTS "Public Access Docs" ON storage.objects;
+CREATE POLICY "Public Access Docs" ON storage.objects FOR SELECT USING ( bucket_id = 'documents' );
+
+DROP POLICY IF EXISTS "Public Upload Docs" ON storage.objects;
+CREATE POLICY "Public Upload Docs" ON storage.objects FOR INSERT WITH CHECK ( bucket_id = 'documents' );
+
+DROP POLICY IF EXISTS "Public Delete Docs" ON storage.objects;
+CREATE POLICY "Public Delete Docs" ON storage.objects FOR DELETE USING ( bucket_id = 'documents' );
+
 
 -- 3. Create Tables
+
+-- Vision Boards
 CREATE TABLE IF NOT EXISTS public.vision_boards (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -238,10 +274,23 @@ CREATE TABLE IF NOT EXISTS public.vision_boards (
     is_favorite BOOLEAN DEFAULT false
 );
 
+-- Reference Images
 CREATE TABLE IF NOT EXISTS public.reference_images (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     image_url TEXT NOT NULL,
+    tags TEXT[] DEFAULT '{}',
+    user_id UUID
+);
+
+-- Financial Documents (Knowledge Base)
+CREATE TABLE IF NOT EXISTS public.documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'UPLOAD', 'MANUAL', 'AI_INTERVIEW', 'VISION'
+    structured_data JSONB, -- The parsed financial data
     tags TEXT[] DEFAULT '{}',
     user_id UUID
 );
@@ -259,7 +308,7 @@ CREATE TABLE IF NOT EXISTS public.plaid_items (
 CREATE TABLE IF NOT EXISTS public.automation_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    goal_id TEXT, -- Logical link to a vision/goal
+    goal_id TEXT, 
     source_account_id TEXT NOT NULL,
     destination_account_id TEXT NOT NULL,
     amount NUMERIC(12, 2) NOT NULL,
@@ -279,9 +328,11 @@ CREATE TABLE IF NOT EXISTS public.transfer_logs (
 -- 4. Enable RLS
 ALTER TABLE public.vision_boards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reference_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.plaid_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.automation_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transfer_logs ENABLE ROW LEVEL SECURITY;
+
 
 -- 5. Reset & Create Table Policies (Public for Demo)
 
@@ -301,7 +352,15 @@ CREATE POLICY "Allow public insert RI" ON public.reference_images FOR INSERT WIT
 DROP POLICY IF EXISTS "Allow public delete RI" ON public.reference_images;
 CREATE POLICY "Allow public delete RI" ON public.reference_images FOR DELETE USING (true);
 
--- Financial Tables (Public for Demo - Secure in Prod)
+-- Documents
+DROP POLICY IF EXISTS "Allow public read Docs" ON public.documents;
+CREATE POLICY "Allow public read Docs" ON public.documents FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow public insert Docs" ON public.documents;
+CREATE POLICY "Allow public insert Docs" ON public.documents FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public delete Docs" ON public.documents;
+CREATE POLICY "Allow public delete Docs" ON public.documents FOR DELETE USING (true);
+
+-- Financial Tables
 DROP POLICY IF EXISTS "Allow public read Auto" ON public.automation_rules;
 CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USING (true);
 `;
@@ -372,10 +431,13 @@ CREATE POLICY "Allow public read Auto" ON public.automation_rules FOR SELECT USI
              </button>
 
              {dbConnected ? (
-               <div className="flex items-center gap-2 text-green-400 text-sm">
+               <button 
+                 onClick={() => setShowSqlModal(true)}
+                 className="flex items-center gap-2 text-green-400 text-sm hover:text-green-300 transition-colors"
+               >
                  <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
                  System Online
-               </div>
+               </button>
              ) : (
                <button 
                   onClick={() => setShowSqlModal(true)}

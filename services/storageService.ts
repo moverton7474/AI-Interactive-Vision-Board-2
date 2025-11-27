@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { VisionImage, ReferenceImage } from '../types';
+import { VisionImage, ReferenceImage, Document, ActionTask } from '../types';
 
 /**
  * Service to handle persistence of Vision Board and Reference data using Supabase.
@@ -85,7 +85,7 @@ export const getVisionGallery = async (): Promise<VisionImage[]> => {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) return [];
+    if (error || !data) return [];
 
     return data.map((row: any) => ({
       id: row.id,
@@ -114,9 +114,8 @@ export const saveReferenceImage = async (base64Url: string, tags: string[]): Pro
   try {
     const id = crypto.randomUUID();
     const blob = base64ToBlob(base64Url);
-    const fileName = `ref_${id}.png`; // Use prefix for organization if needed
+    const fileName = `ref_${id}.png`; 
 
-    // Upload to 'visions' bucket (using same bucket for simplicity, or could use subfolder)
     const { error: uploadError } = await supabase
       .storage
       .from('visions')
@@ -159,7 +158,7 @@ export const getReferenceLibrary = async (): Promise<ReferenceImage[]> => {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) return [];
+    if (error || !data) return [];
 
     return data.map((row: any) => ({
       id: row.id,
@@ -178,5 +177,132 @@ export const deleteReferenceImage = async (id: string): Promise<void> => {
     await supabase.from('reference_images').delete().eq('id', id);
   } catch (error) {
     console.error("Failed to delete reference", error);
+  }
+};
+
+/* --- FINANCIAL DOCUMENTS --- */
+
+export const saveDocument = async (doc: Omit<Document, 'id' | 'createdAt'>, file?: File): Promise<Document> => {
+  try {
+    const id = crypto.randomUUID();
+    let publicUrl = '';
+
+    if (file) {
+      const fileName = `${id}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, file, { upsert: true });
+      
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('documents').getPublicUrl(fileName);
+      publicUrl = data.publicUrl;
+    }
+
+    const { error: dbError } = await supabase.from('documents').insert([{
+      id,
+      name: doc.name,
+      url: publicUrl,
+      type: doc.type,
+      structured_data: doc.structuredData || {},
+      created_at: new Date().toISOString()
+    }]);
+
+    if (dbError) throw dbError;
+
+    return {
+      ...doc,
+      id,
+      url: publicUrl,
+      createdAt: Date.now()
+    };
+  } catch (error) {
+    console.error("Failed to save document", error);
+    throw error;
+  }
+};
+
+export const getDocuments = async (): Promise<Document[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      url: row.url,
+      type: row.type,
+      structuredData: row.structured_data,
+      createdAt: new Date(row.created_at).getTime()
+    }));
+  } catch (error) {
+    return [];
+  }
+};
+
+export const deleteDocument = async (id: string): Promise<void> => {
+  try {
+    await supabase.from('documents').delete().eq('id', id);
+  } catch (error) {
+    console.error("Failed to delete document", error);
+  }
+};
+
+/* --- ACTION TASKS (AGENT EXECUTION) --- */
+
+export const saveActionTasks = async (tasks: ActionTask[], milestoneYear: number): Promise<void> => {
+  try {
+    const rows = tasks.map(t => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      due_date: t.dueDate,
+      type: t.type,
+      is_completed: t.isCompleted,
+      milestone_year: milestoneYear,
+      ai_metadata: t.aiMetadata || {},
+      created_at: new Date().toISOString()
+    }));
+
+    const { error } = await supabase.from('action_tasks').insert(rows);
+    if (error) throw error;
+  } catch (error) {
+    console.error("Failed to save tasks", error);
+  }
+};
+
+export const getActionTasks = async (): Promise<ActionTask[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('action_tasks')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error || !data) return [];
+
+    return data.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      dueDate: row.due_date,
+      type: row.type,
+      isCompleted: row.is_completed,
+      milestoneYear: row.milestone_year,
+      aiMetadata: row.ai_metadata
+    }));
+  } catch (error) {
+    return [];
+  }
+};
+
+export const updateTaskStatus = async (id: string, isCompleted: boolean): Promise<void> => {
+  try {
+    await supabase.from('action_tasks').update({ is_completed: isCompleted }).eq('id', id);
+  } catch (error) {
+    console.error("Failed to update task", error);
   }
 };

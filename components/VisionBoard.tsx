@@ -27,14 +27,16 @@ const PRESET_TAGS = [
 interface Props {
   onAgentStart: (prompt: string) => void;
   initialImage?: VisionImage | null; // Allow passing an image to start with (from Gallery)
+  initialPrompt?: string; // Auto-fill from Vision Statement
 }
 
-const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage }) => {
+const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPrompt }) => {
   const [baseImage, setBaseImage] = useState<string | null>(initialImage?.url || null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [currentPrompt, setCurrentPrompt] = useState(initialImage?.prompt || '');
-  const [promptInput, setPromptInput] = useState(initialImage?.prompt || '');
+  const [promptInput, setPromptInput] = useState(initialImage?.prompt || initialPrompt || '');
   const [goalText, setGoalText] = useState(''); 
+  const [headerText, setHeaderText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -53,8 +55,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage }) => {
     if (initialImage) {
       setBaseImage(initialImage.url);
       setPromptInput(initialImage.prompt);
+    } else if (initialPrompt && !promptInput) {
+       // Auto-fill prompt from Vision Statement if no image is selected
+       setPromptInput(initialPrompt);
     }
-  }, [initialImage]);
+  }, [initialImage, initialPrompt]);
 
   useEffect(() => {
     if (toastMessage) {
@@ -174,11 +179,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage }) => {
         fullPrompt += `. Use the subsequent images as visual references for: ${refTags}.`;
       }
 
-      const editedImage = await editVisionImage(imagesToProcess, fullPrompt, goalText);
+      const editedImage = await editVisionImage(imagesToProcess, fullPrompt, goalText, headerText);
       
       if (editedImage) {
         setResultImage(editedImage);
-        setCurrentPrompt(fullPrompt + (goalText ? ` (Goal: ${goalText})` : ''));
+        setCurrentPrompt(fullPrompt + (goalText ? ` (Goal: ${goalText})` : '') + (headerText ? ` (Title: ${headerText})` : ''));
       } else {
         setError("Could not generate image. Please try a different prompt.");
       }
@@ -306,6 +311,18 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage }) => {
                     value={goalText}
                     onChange={(e) => setGoalText(e.target.value)}
                     placeholder="e.g., Retire 2027"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-gold-500 outline-none"
+                  />
+                </div>
+
+                {/* Header Title Overlay */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">4. Vision Board Title (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={headerText}
+                    onChange={(e) => setHeaderText(e.target.value)}
+                    placeholder="e.g. The Overton Family Vision 2025"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-gold-500 outline-none"
                   />
                 </div>

@@ -44,6 +44,16 @@ export interface UserProfile {
   dreamLocation: string;
 }
 
+// Financial Documents / Knowledge Base
+export interface Document {
+  id: string;
+  name: string;
+  url?: string;
+  type: 'UPLOAD' | 'MANUAL' | 'AI_INTERVIEW' | 'VISION';
+  createdAt: number;
+  structuredData?: any; // Cached financial analysis
+}
+
 // Agent Types
 export interface ActionTask {
   id: string;
@@ -52,6 +62,12 @@ export interface ActionTask {
   dueDate: string; // ISO string
   type: 'FINANCE' | 'LIFESTYLE' | 'ADMIN';
   isCompleted: boolean;
+  milestoneYear?: number;
+  aiMetadata?: {
+    researchSnippet?: string;
+    sourceUrl?: string;
+    suggestedTool?: 'GMAIL' | 'MAPS' | 'CALENDAR';
+  };
 }
 
 export interface Milestone {
