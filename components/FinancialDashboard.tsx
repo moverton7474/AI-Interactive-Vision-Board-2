@@ -4,14 +4,15 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { FinancialGoal, Document } from '../types';
 import { generateFinancialProjection, parseFinancialChat } from '../services/geminiService';
 import { saveDocument, getDocuments, deleteDocument } from '../services/storageService';
-import { UploadIcon, ChartIcon, CloudArrowUpIcon, PenIcon, BrainIcon, BookOpenIcon, FileTextIcon, TrashIcon, EyeIcon, BankIcon } from './Icons';
+import { UploadIcon, ChartIcon, CloudArrowUpIcon, PenIcon, BrainIcon, BookOpenIcon, FileTextIcon, TrashIcon, EyeIcon, BankIcon, SparklesIcon } from './Icons';
 import ConnectBank from './ConnectBank';
 
 interface Props {
   onComplete: (data: FinancialGoal[]) => void;
+  onLaunchWizard?: () => void;
 }
 
-const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
+const FinancialDashboard: React.FC<Props> = ({ onComplete, onLaunchWizard }) => {
   const [activeTab, setActiveTab] = useState<'UPLOAD' | 'MANUAL' | 'AI' | 'ACCOUNTS'>('UPLOAD');
   const [analyzing, setAnalyzing] = useState(false);
   const [data, setData] = useState<FinancialGoal[]>([]);
@@ -203,31 +204,43 @@ const FinancialDashboard: React.FC<Props> = ({ onComplete }) => {
               <p className="text-sm text-gray-500">Analyze your path to freedom</p>
            </div>
            
-           <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto">
-              <button 
-                onClick={() => setActiveTab('UPLOAD')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'UPLOAD' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
-              >
-                 <span className="flex items-center gap-2"><CloudArrowUpIcon className="w-4 h-4" /> Upload</span>
-              </button>
-              <button 
-                onClick={() => setActiveTab('MANUAL')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'MANUAL' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
-              >
-                 <span className="flex items-center gap-2"><PenIcon className="w-4 h-4" /> Manual</span>
-              </button>
-              <button 
-                onClick={() => setActiveTab('AI')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'AI' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
-              >
-                 <span className="flex items-center gap-2"><BrainIcon className="w-4 h-4" /> AI Agent</span>
-              </button>
-              <button 
-                onClick={() => setActiveTab('ACCOUNTS')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'ACCOUNTS' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
-              >
-                 <span className="flex items-center gap-2"><BankIcon className="w-4 h-4" /> Accounts</span>
-              </button>
+           <div className="flex items-center gap-4">
+             {/* Launch Wizard Button */}
+             {onLaunchWizard && (
+                <button 
+                  onClick={onLaunchWizard}
+                  className="flex items-center gap-2 text-sm font-bold text-gold-600 hover:text-gold-700 bg-gold-50 px-4 py-2 rounded-lg border border-gold-200 hover:border-gold-400 transition-colors"
+                >
+                  <SparklesIcon className="w-4 h-4" /> Vision Wizard
+                </button>
+             )}
+
+             <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto">
+                <button 
+                  onClick={() => setActiveTab('UPLOAD')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'UPLOAD' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
+                >
+                   <span className="flex items-center gap-2"><CloudArrowUpIcon className="w-4 h-4" /> Upload</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('MANUAL')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'MANUAL' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
+                >
+                   <span className="flex items-center gap-2"><PenIcon className="w-4 h-4" /> Manual</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('AI')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'AI' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
+                >
+                   <span className="flex items-center gap-2"><BrainIcon className="w-4 h-4" /> AI Agent</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('ACCOUNTS')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'ACCOUNTS' ? 'bg-white text-navy-900 shadow-sm' : 'text-gray-500 hover:text-navy-900'}`}
+                >
+                   <span className="flex items-center gap-2"><BankIcon className="w-4 h-4" /> Accounts</span>
+                </button>
+             </div>
            </div>
         </div>
 

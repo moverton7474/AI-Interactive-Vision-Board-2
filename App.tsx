@@ -12,6 +12,7 @@ import TrustCenter from './components/TrustCenter';
 import OrderHistory from './components/OrderHistory';
 import Pricing from './components/Pricing';
 import SubscriptionModal from './components/SubscriptionModal';
+import OnboardingWizard from './components/OnboardingWizard';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
@@ -163,13 +164,21 @@ const App = () => {
               </p>
               
               {!showChat ? (
-                <button 
-                  onClick={() => setShowChat(true)}
-                  className="bg-navy-900 text-white text-lg font-medium px-10 py-4 rounded-full shadow-xl hover:bg-navy-800 hover:scale-105 transition-all duration-300 flex items-center gap-3 z-10"
-                >
-                  <SparklesIcon className="w-6 h-6 text-gold-400" />
-                  Start Your Journey
-                </button>
+                <div className="flex flex-col gap-4 z-10">
+                  <button 
+                    onClick={() => setShowChat(true)}
+                    className="bg-navy-900 text-white text-lg font-medium px-10 py-4 rounded-full shadow-xl hover:bg-navy-800 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+                  >
+                    <SparklesIcon className="w-6 h-6 text-gold-400" />
+                    Start Your Journey
+                  </button>
+                  <button
+                    onClick={() => setView(AppView.ONBOARDING)}
+                    className="text-navy-900 font-bold border-2 border-navy-900 px-10 py-3 rounded-full hover:bg-navy-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    Launch Vision Wizard
+                  </button>
+                </div>
               ) : (
                 <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200 text-left transition-all duration-500 z-10">
                    <div className="h-80 overflow-y-auto p-6 space-y-4 bg-gray-50">
@@ -242,13 +251,24 @@ const App = () => {
             <Pricing onUpgrade={handleUpgradeClick} />
           </>
         );
+      case AppView.ONBOARDING:
+        return (
+          <OnboardingWizard
+            onComplete={(prompt) => {
+              setActiveVisionPrompt(prompt);
+              setView(AppView.VISION_BOARD);
+            }}
+            onSkip={() => setView(AppView.LANDING)}
+          />
+        );
       case AppView.FINANCIAL:
         return (
           <FinancialDashboard 
             onComplete={(data) => {
               setFinancialData(data);
               setView(AppView.VISION_BOARD);
-            }} 
+            }}
+            onLaunchWizard={() => setView(AppView.ONBOARDING)} 
           />
         );
       case AppView.VISION_BOARD:

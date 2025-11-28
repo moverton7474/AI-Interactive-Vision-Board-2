@@ -1,11 +1,12 @@
 
 export enum AppView {
   LANDING = 'LANDING',
-  DISCOVERY = 'DISCOVERY', // Chat/Voice
-  FINANCIAL = 'FINANCIAL', // Recharts
-  VISION_BOARD = 'VISION_BOARD', // Image Gen
-  GALLERY = 'GALLERY', // New Full Gallery
-  ACTION_PLAN = 'ACTION_PLAN', // AI Agent Execution
+  ONBOARDING = 'ONBOARDING', // New View
+  DISCOVERY = 'DISCOVERY', 
+  FINANCIAL = 'FINANCIAL', 
+  VISION_BOARD = 'VISION_BOARD', 
+  GALLERY = 'GALLERY', 
+  ACTION_PLAN = 'ACTION_PLAN', 
   SHARED_VISION = 'SHARED_VISION',
   TRUST_CENTER = 'TRUST_CENTER',
   ORDER_HISTORY = 'ORDER_HISTORY',
@@ -47,6 +48,7 @@ export interface UserProfile {
   dreamLocation: string;
   credits: number;
   subscription_tier: string;
+  onboarding_completed?: boolean; // New Field
 }
 
 // Financial Documents / Knowledge Base
@@ -56,7 +58,8 @@ export interface Document {
   url?: string;
   type: 'UPLOAD' | 'MANUAL' | 'AI_INTERVIEW' | 'VISION';
   createdAt: number;
-  structuredData?: any; // Cached financial analysis
+  structuredData?: any; 
+  tags?: string[];
 }
 
 // Agent Types
@@ -64,7 +67,7 @@ export interface ActionTask {
   id: string;
   title: string;
   description: string;
-  dueDate: string; // ISO string
+  dueDate: string; 
   type: 'FINANCE' | 'LIFESTYLE' | 'ADMIN';
   isCompleted: boolean;
   milestoneYear?: number;
@@ -79,7 +82,7 @@ export interface Milestone {
   year: number;
   title: string;
   tasks: ActionTask[];
-  marketResearchSnippet?: string; // AI Agent research finding
+  marketResearchSnippet?: string; 
 }
 
 export interface FinancialContext {
@@ -113,12 +116,12 @@ export interface ShippingAddress {
   city: string;
   state: string;
   postalCode: string;
-  country: string; // 'US', 'GB', etc.
+  country: string; 
 }
 
 export interface PrintConfig {
-  sku: string; // Vendor SKU
-  size: string; // '12x18', '24x36'
+  sku: string; 
+  size: string; 
   finish: 'matte' | 'gloss';
   quantity: number;
 }
@@ -134,4 +137,14 @@ export interface PosterOrder {
   shippingAddress: ShippingAddress;
   config: PrintConfig;
   vendorOrderId?: string;
+}
+
+// --- Templates ---
+export interface VisionTemplate {
+  id: string;
+  category: 'RETIREMENT' | 'CAREER' | 'TRAVEL' | 'HEALTH';
+  title: string;
+  description: string;
+  basePrompt: string; // The "Magic" prompt
+  previewColor: string;
 }
