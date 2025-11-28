@@ -35,66 +35,73 @@ serve(async (req) => {
 
   if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
-      
+
       // Handle Subscription
       if (session.mode === 'subscription') {
-const priceId = session.line_items?.data?.[0]?.price?.id
-            const customerEmail = session.customer_email
-      
-            // Determine subscription tier based on price
-            let tier = 'FREE'
-            const amountTotal = session.amount_total || 0
-            if (priceId?.includes('elite') || amountTotal >= 9900) {
-                      tier = 'ELITE'
-                    } else if (priceId?.includes('pro') || priceId?.includes('price_pro') || amountTotal >= 1999) {
-                      tier = 'PRO'
-                    }
+        const customerEmail = session.customer_email || session.customer_details?.email
+        const amountTotal = session.amount_total || 0
 
-              // Find user by email and update their subscription
-              if (customerEmail) {
-                        // First, find the user ID from auth.users
-                        const { data: users, error: userError } = await supabase
-                          .from('profiles')
-                          .select('id')
-                          .eq('id', (await supabase.auth.admin.listUsers()).data.users?.find(u => u.email === customerEmail)?.id)
-                          .single()
+        // Determine subscription tier based on amount
+        // ELITE: $49.99/mo (4999 cents), PRO: $19.99/mo (1999 cents)
+        let tier = 'FREE'
+        if (amountTotal >= 4000) {
+          tier = 'ELITE'
+        } else if (amountTotal >= 1500) {
+          tier = 'PRO'
+        }
 
-                        // Alternative: Query via RPC or just update by email match if profiles has email
-                        // For simplicity, try to update profiles where we have a match
-                        const { data: authUsers } = await supabase.auth.admin.listUsers()
-                        const matchedUser = authUsers.users?.find(u => u.email === customerEmail)
+        console.log(`Processing subscription: email=${customerEmail}, amount=${amountTotal}, tier=${tier}`)
 
-                        if (matchedUser) {
-                                    const { error: updateError } = await supabase
-                                      .from('profiles')
-                                      .update({
-                                                      subscription_tier: tier,
-                                                      credits: 9999, // Unlimited credits for paid tiers
-                                                      stripe_customer_id: session.customer,
-                                                      subscription_status: 'active'
-                                                    })
-                                      .eq('id', matchedUser.id)
+        // Find user by email and update their subscription
+        if (customerEmail) {
+          // Single call to listUsers - much more efficient
+          const { data: authUsers, error: listError } = await supabase.auth.admin.listUsers()
 
-                                    if (updateError) {
-                                                  console.error('Failed to update profile:', updateError)
-                                                } else {
-                                                  console.log(`Successfully upgraded user ${customerEmail} to ${tier}`)
-                                                }
-                                  }
-                      } else {
-                        console.warn('Could not find user with email:', customerEmail)
-                      }
+          if (listError) {
+            console.error('Failed to list users:', listError)
+            return new Response(JSON.stringify({ error: 'Failed to lookup user' }), { status: 500 })
+          }
+
+          const matchedUser = authUsers.users?.find(u => u.email === customerEmail)
+
+          if (matchedUser) {
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({
+                subscription_tier: tier,
+                credits: 9999, // Unlimited credits for paid tiers
+                stripe_customer_id: session.customer,
+                subscription_status: 'active'
+              })
+              .eq('id', matchedUser.id)
+
+            if (updateError) {
+              console.error('Failed to update profile:', updateError)
+              return new Response(JSON.stringify({ error: 'Failed to update profile' }), { status: 500 })
+            } else {
+              console.log(`Successfully upgraded user ${customerEmail} to ${tier}`)
             }
-      
+          } else {
+            console.warn('No user found with email:', customerEmail)
+          }
+        } else {
+          console.warn('No customer email in session')
+        }
+      }
+
       // Handle Print Order
       if (session.mode === 'payment' && session.metadata?.order_id) {
-          await supabase
-            .from('poster_orders')
-            .update({ status: 'paid', discount_applied: true })
-            .eq('id', session.metadata.order_id)
-          
+        const { error: orderError } = await supabase
+          .from('poster_orders')
+          .update({ status: 'paid', discount_applied: true })
+          .eq('id', session.metadata.order_id)
+
+        if (orderError) {
+          console.error('Failed to update order:', orderError)
+        } else {
           console.log("Marked order as paid:", session.metadata.order_id)
-          // Trigger Prodigi submission here...
+        }
+        // Trigger Prodigi submission here...
       }
   }
 

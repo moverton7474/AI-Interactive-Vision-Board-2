@@ -28,13 +28,18 @@ serve(async (req) => {
                 Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
               )
 
-    const { mode, priceId, orderId, successUrl, cancelUrl } = await req.json()
+    const { mode, priceId, orderId, successUrl, cancelUrl, customerEmail } = await req.json()
 
     let sessionConfig: any = {
       line_items: [],
       mode: mode, // 'subscription' or 'payment'
       success_url: successUrl,
       cancel_url: cancelUrl,
+    }
+
+    // Include customer email so it's available in the webhook
+    if (customerEmail) {
+      sessionConfig.customer_email = customerEmail
     }
 
     if (mode === 'subscription') {

@@ -14,7 +14,13 @@ const SubscriptionModal: React.FC<Props> = ({ tier, onClose }) => {
 
   const price = tier === 'PRO' ? 19.99 : 49.99;
   const planName = tier === 'PRO' ? 'Visionary Pro' : 'Visionary Elite';
-  const stripePriceId = tier === 'PRO' ? 'price_pro_123' : 'price_elite_456'; // Replace with real Stripe IDs in Edge Function
+
+  // IMPORTANT: Replace these with your real Stripe Price IDs from Stripe Dashboard -> Products
+  // Create recurring prices: PRO at $19.99/mo, ELITE at $49.99/mo
+  // Price IDs look like: price_1ABC123DEF456...
+  const stripePriceId = tier === 'PRO'
+    ? 'price_1SYW3FKL2eZPXyr5Q3xpFYCG'  // PRO: $19.99/month - Replace with your actual Price ID
+    : 'price_1SYW41KL2eZPXyr5qSvfyDne'; // ELITE: $49.99/month - Replace with your actual Price ID
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();

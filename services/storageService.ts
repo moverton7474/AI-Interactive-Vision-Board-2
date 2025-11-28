@@ -120,12 +120,17 @@ export const createStripeCheckoutSession = async (
   itemId: string // priceId or orderId
 ): Promise<string | null> => {
   try {
+    // Get current user's email to pass to Stripe
+    const { data: { user } } = await supabase.auth.getUser();
+    const customerEmail = user?.email;
+
     const { data, error } = await supabase.functions.invoke('create-checkout-session', {
       body: {
         mode,
         [mode === 'subscription' ? 'priceId' : 'orderId']: itemId,
         successUrl: window.location.origin + '?session_id={CHECKOUT_SESSION_ID}',
         cancelUrl: window.location.origin,
+        customerEmail,
       }
     });
 
