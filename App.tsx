@@ -370,6 +370,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   credits INT DEFAULT 3,
   subscription_tier TEXT DEFAULT 'FREE', -- 'FREE', 'PRO', 'ELITE'
+      stripe_customer_id TEXT,
+          subscription_status TEXT DEFAULT 'inactive', -- 'inactive', 'active', 'cancelled'
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
