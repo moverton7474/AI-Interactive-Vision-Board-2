@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfix: Improve Stripe integration for production readiness\n\n- Add env var support for Stripe Price IDs (VITE_STRIPE_PRICE_PRO/ELITE)\n- Pass customer email and tier metadata to checkout session for reliable webhook processing\n- Fix webhook tier detection using metadata with amount fallback\n- Update ROADMAP with complete Stripe configuration instructions\n- Update storageService to pass tier parameter for subscriptions\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
