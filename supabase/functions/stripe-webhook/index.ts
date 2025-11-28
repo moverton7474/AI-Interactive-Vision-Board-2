@@ -35,56 +35,54 @@ serve(async (req) => {
 
   if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
-      
+
       // Handle Subscription
       if (session.mode === 'subscription') {
-const priceId = session.line_items?.data?.[0]?.price?.id
-            const customerEmail = session.customer_email
-      
-            // Determine subscription tier based on price
+            const customerEmail = session.customer_email || session.customer_details?.email
+
+            // Determine subscription tier from metadata (most reliable) or amount
             let tier = 'FREE'
             const amountTotal = session.amount_total || 0
-            if (priceId?.includes('elite') || amountTotal >= 9900) {
-                      tier = 'ELITE'
-                    } else if (priceId?.includes('pro') || priceId?.includes('price_pro') || amountTotal >= 1999) {
-                      tier = 'PRO'
-                    }
 
-              // Find user by email and update their subscription
-              if (customerEmail) {
-                        // First, find the user ID from auth.users
-                        const { data: users, error: userError } = await supabase
-                          .from('profiles')
-                          .select('id')
-                          .eq('id', (await supabase.auth.admin.listUsers()).data.users?.find(u => u.email === customerEmail)?.id)
-                          .single()
-
-                        // Alternative: Query via RPC or just update by email match if profiles has email
-                        // For simplicity, try to update profiles where we have a match
-                        const { data: authUsers } = await supabase.auth.admin.listUsers()
-                        const matchedUser = authUsers.users?.find(u => u.email === customerEmail)
-
-                        if (matchedUser) {
-                                    const { error: updateError } = await supabase
-                                      .from('profiles')
-                                      .update({
-                                                      subscription_tier: tier,
-                                                      credits: 9999, // Unlimited credits for paid tiers
-                                                      stripe_customer_id: session.customer,
-                                                      subscription_status: 'active'
-                                                    })
-                                      .eq('id', matchedUser.id)
-
-                                    if (updateError) {
-                                                  console.error('Failed to update profile:', updateError)
-                                                } else {
-                                                  console.log(`Successfully upgraded user ${customerEmail} to ${tier}`)
-                                                }
-                                  }
-                      } else {
-                        console.warn('Could not find user with email:', customerEmail)
-                      }
+            // Check metadata first (set during checkout creation)
+            if (session.metadata?.tier) {
+                tier = session.metadata.tier
+            } else if (amountTotal >= 4999) {
+                // $49.99 = 4999 cents
+                tier = 'ELITE'
+            } else if (amountTotal >= 1999) {
+                // $19.99 = 1999 cents
+                tier = 'PRO'
             }
+
+            // Find user by email and update their subscription
+            if (customerEmail) {
+                const { data: authUsers } = await supabase.auth.admin.listUsers()
+                const matchedUser = authUsers.users?.find(u => u.email === customerEmail)
+
+                if (matchedUser) {
+                    const { error: updateError } = await supabase
+                        .from('profiles')
+                        .update({
+                            subscription_tier: tier,
+                            credits: 9999, // Unlimited credits for paid tiers
+                            stripe_customer_id: session.customer,
+                            subscription_status: 'active'
+                        })
+                        .eq('id', matchedUser.id)
+
+                    if (updateError) {
+                        console.error('Failed to update profile:', updateError)
+                    } else {
+                        console.log(`Successfully upgraded user ${customerEmail} to ${tier}`)
+                    }
+                } else {
+                    console.warn('Could not find user with email:', customerEmail)
+                }
+            } else {
+                console.warn('No customer email in session')
+            }
+      }
       
       // Handle Print Order
       if (session.mode === 'payment' && session.metadata?.order_id) {

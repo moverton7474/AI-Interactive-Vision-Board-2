@@ -28,7 +28,7 @@ serve(async (req) => {
                 Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
               )
 
-    const { mode, priceId, orderId, successUrl, cancelUrl } = await req.json()
+    const { mode, priceId, orderId, successUrl, cancelUrl, customerEmail, tier } = await req.json()
 
     let sessionConfig: any = {
       line_items: [],
@@ -37,12 +37,21 @@ serve(async (req) => {
       cancel_url: cancelUrl,
     }
 
+    // Include customer email for webhook user matching
+    if (customerEmail) {
+      sessionConfig.customer_email = customerEmail
+    }
+
     if (mode === 'subscription') {
         // For Pro/Elite Upgrades
         sessionConfig.line_items.push({
-            price: priceId, 
+            price: priceId,
             quantity: 1,
         })
+        // Pass tier in metadata for reliable webhook processing
+        sessionConfig.metadata = {
+            tier: tier || (priceId?.includes('elite') ? 'ELITE' : 'PRO')
+        }
     } else if (mode === 'payment') {
         // For Print Orders (One-time)
       // Fetch actual order price from database for security

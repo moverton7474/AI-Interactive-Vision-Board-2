@@ -117,15 +117,21 @@ export const updateSubscription = async (tier: 'PRO' | 'ELITE'): Promise<void> =
 
 export const createStripeCheckoutSession = async (
   mode: 'subscription' | 'payment',
-  itemId: string // priceId or orderId
+  itemId: string, // priceId or orderId
+  tier?: 'PRO' | 'ELITE' // Only for subscriptions
 ): Promise<string | null> => {
   try {
+    // Get current user's email for webhook matching
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { data, error } = await supabase.functions.invoke('create-checkout-session', {
       body: {
         mode,
         [mode === 'subscription' ? 'priceId' : 'orderId']: itemId,
         successUrl: window.location.origin + '?session_id={CHECKOUT_SESSION_ID}',
         cancelUrl: window.location.origin,
+        customerEmail: user?.email,
+        tier: tier, // Pass tier for reliable webhook processing
       }
     });
 

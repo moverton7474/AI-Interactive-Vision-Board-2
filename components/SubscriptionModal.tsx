@@ -14,15 +14,21 @@ const SubscriptionModal: React.FC<Props> = ({ tier, onClose }) => {
 
   const price = tier === 'PRO' ? 19.99 : 49.99;
   const planName = tier === 'PRO' ? 'Visionary Pro' : 'Visionary Elite';
-  const stripePriceId = tier === 'PRO' ? 'price_pro_123' : 'price_elite_456'; // Replace with real Stripe IDs in Edge Function
+  // IMPORTANT: Replace these with your actual Stripe Price IDs from the Stripe Dashboard
+  // Create products at: https://dashboard.stripe.com/products
+  // Pro: $19.99/month recurring, Elite: $49.99/month recurring
+  const stripePriceId = tier === 'PRO'
+    ? (import.meta.env.VITE_STRIPE_PRICE_PRO || 'price_pro_placeholder')
+    : (import.meta.env.VITE_STRIPE_PRICE_ELITE || 'price_elite_placeholder');
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
-        const checkoutUrl = await createStripeCheckoutSession('subscription', stripePriceId);
-        
+        // Pass tier for reliable webhook processing
+        const checkoutUrl = await createStripeCheckoutSession('subscription', stripePriceId, tier);
+
         if (checkoutUrl === "SIMULATION") {
             // Simulating for demo if backend offline
             await new Promise(resolve => setTimeout(resolve, 1500));
