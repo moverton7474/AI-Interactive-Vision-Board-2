@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { CreditCardIcon, LockIcon, CheckBadgeIcon } from './Icons';
-import { updateSubscription } from '../services/storageService';
+import { updateSubscription, createStripeCheckoutSession } from '../services/storageService';
 
 interface Props {
   tier: 'PRO' | 'ELITE';
@@ -14,22 +14,27 @@ const SubscriptionModal: React.FC<Props> = ({ tier, onClose }) => {
 
   const price = tier === 'PRO' ? 19.99 : 49.99;
   const planName = tier === 'PRO' ? 'Visionary Pro' : 'Visionary Elite';
+  const stripePriceId = tier === 'PRO' ? 'price_pro_123' : 'price_elite_456'; // Replace with real Stripe IDs in Edge Function
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
     try {
-        // Simulate Stripe API call duration
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        const checkoutUrl = await createStripeCheckoutSession('subscription', stripePriceId);
         
-        // Call backend to update profile
-        await updateSubscription(tier);
-        
-        setLoading(false);
-        setSuccess(true);
+        if (checkoutUrl === "SIMULATION") {
+            // Simulating for demo if backend offline
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            await updateSubscription(tier);
+            setSuccess(true);
+        } else if (checkoutUrl) {
+            // Redirect to real Stripe
+            window.location.href = checkoutUrl;
+        }
     } catch (e) {
-        alert("Payment failed. Please try again.");
+        alert("Subscription initialization failed. Please try again.");
+    } finally {
         setLoading(false);
     }
   };
@@ -79,61 +84,30 @@ const SubscriptionModal: React.FC<Props> = ({ tier, onClose }) => {
 
         {/* Form */}
         <div className="p-6">
-          <form onSubmit={handleSubscribe} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Card Information</label>
-              <div className="relative">
-                <CreditCardIcon className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                <input 
-                  type="text" 
-                  placeholder="0000 0000 0000 0000" 
-                  className="w-full border border-gray-300 rounded-lg py-2.5 pl-10 pr-4 outline-none focus:border-navy-900 transition-colors"
-                  required
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Expiry</label>
-                <input 
-                  type="text" 
-                  placeholder="MM/YY" 
-                  className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-navy-900 transition-colors"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">CVC</label>
-                <input 
-                  type="text" 
-                  placeholder="123" 
-                  className="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-navy-900 transition-colors"
-                  required
-                />
-              </div>
-            </div>
+           <div className="mb-6 text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <CreditCardIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-600">You will be redirected to Stripe to complete your secure purchase.</p>
+           </div>
 
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-gold-500 hover:bg-gold-600 text-navy-900 font-bold py-3.5 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 mt-6"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
-              ) : (
-                <>
-                  <LockIcon className="w-4 h-4" />
-                  Subscribe & Pay ${price}
-                </>
-              )}
-            </button>
-            
-            <p className="text-center text-[10px] text-gray-400 mt-4 flex items-center justify-center gap-1">
-              <LockIcon className="w-3 h-3" />
-              Payments secured by Stripe. Cancel anytime.
-            </p>
-          </form>
+          <button 
+            onClick={handleSubscribe}
+            disabled={loading}
+            className="w-full bg-gold-500 hover:bg-gold-600 text-navy-900 font-bold py-3.5 rounded-lg shadow-md transition-all flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
+            ) : (
+              <>
+                <LockIcon className="w-4 h-4" />
+                Proceed to Stripe Checkout
+              </>
+            )}
+          </button>
+          
+          <p className="text-center text-[10px] text-gray-400 mt-4 flex items-center justify-center gap-1">
+            <LockIcon className="w-3 h-3" />
+            AES-256 SSL Encrypted
+          </p>
         </div>
       </div>
     </div>

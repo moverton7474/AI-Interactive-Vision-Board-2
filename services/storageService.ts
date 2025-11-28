@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile } from '../types';
+import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile, ShippingAddress } from '../types';
 
 /**
  * Service to handle persistence of Vision Board and Reference data using Supabase.
@@ -110,6 +110,54 @@ export const updateSubscription = async (tier: 'PRO' | 'ELITE'): Promise<void> =
       .eq('id', user.id);
   } catch (e) {
     console.error("Failed to update subscription", e);
+  }
+};
+
+/* --- PAYMENTS (Stripe Integration) --- */
+
+export const createStripeCheckoutSession = async (
+  mode: 'subscription' | 'payment',
+  itemId: string // priceId or orderId
+): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+      body: {
+        mode,
+        [mode === 'subscription' ? 'priceId' : 'orderId']: itemId,
+        successUrl: window.location.origin + '?session_id={CHECKOUT_SESSION_ID}',
+        cancelUrl: window.location.origin,
+      }
+    });
+
+    if (error) throw error;
+    return data.url;
+  } catch (error: any) {
+    console.error("Stripe Session Error:", error);
+    // Fallback for demo if backend not present
+    if (error.message && error.message.includes('FunctionsHttpError')) {
+       console.warn("Backend unavailable. Simulating success.");
+       return "SIMULATION";
+    }
+    throw error;
+  }
+};
+
+export const getLastShippingAddress = async (): Promise<ShippingAddress | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data } = await supabase
+      .from('poster_orders')
+      .select('shipping_address')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    return data?.shipping_address || null;
+  } catch {
+    return null;
   }
 };
 

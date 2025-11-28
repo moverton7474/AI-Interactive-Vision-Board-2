@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
+declare const Deno: any;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,9 +19,9 @@ serve(async (req) => {
     // For this implementation, we assume the user is authenticated if they hit this endpoint.
     
     // 2. Configuration
-    const PLAID_CLIENT_ID = (Deno as any).env.get('PLAID_CLIENT_ID')
-    const PLAID_SECRET = (Deno as any).env.get('PLAID_SECRET')
-    const PLAID_ENV = (Deno as any).env.get('PLAID_ENV') || 'sandbox' // 'sandbox' | 'development' | 'production'
+    const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID')
+    const PLAID_SECRET = Deno.env.get('PLAID_SECRET')
+    const PLAID_ENV = Deno.env.get('PLAID_ENV') || 'sandbox' // 'sandbox' | 'development' | 'production'
     
     if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
       throw new Error('Missing Plaid Credentials in Edge Function Secrets')

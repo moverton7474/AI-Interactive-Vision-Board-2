@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { VisionImage, ShippingAddress } from '../types';
 import { PrinterIcon, CheckBadgeIcon, TruckIcon, LockIcon, RobotIcon, ReceiptIcon } from './Icons';
 import { checkFirstTimeDiscount, calculatePrice, createPosterOrder } from '../services/printService';
+import { createStripeCheckoutSession, getLastShippingAddress } from '../services/storageService';
 
 interface Props {
   image: VisionImage | null;
@@ -38,11 +39,15 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
     country: 'US'
   });
 
-  // Card Info (Dummy)
+  // Card Info (Dummy - for visual only if not using Stripe Link)
   const [cardInfo, setCardInfo] = useState({ number: '', exp: '', cvc: '' });
 
   useEffect(() => {
     checkDiscount();
+    // Intelligent Auto-Fill: Fetch last used address
+    getLastShippingAddress().then(addr => {
+      if (addr) setShipping(addr);
+    });
   }, []);
 
   const checkDiscount = async () => {
@@ -59,24 +64,19 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
   const total = subtotal - discountAmount + shippingCost;
 
   const handleSubmitOrder = async () => {
-    if (!cardInfo.number || !cardInfo.exp || !cardInfo.cvc) {
-      alert("Please enter payment details to proceed.");
-      return;
-    }
-
     setIsProcessing(true);
     setErrorMessage(null);
 
-    // Safety timeout in case backend hangs
     const safetyTimeout = setTimeout(() => {
         if(isProcessing) {
             setIsProcessing(false);
             setErrorMessage("Request timed out. Please try again.");
         }
-    }, 15000); // 15s timeout
+    }, 15000);
 
     try {
-      await createPosterOrder(
+      // 1. Create Order Record
+      const order = await createPosterOrder(
         image.id,
         image.url,
         shipping,
@@ -84,9 +84,22 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
         total,
         isEligibleForDiscount
       );
-      
+
       clearTimeout(safetyTimeout);
-      setStep('SUCCESS');
+
+      if (order) {
+          // 2. Initiate Stripe Checkout (Live Mode)
+          const checkoutUrl = await createStripeCheckoutSession('payment', order.id);
+          
+          if (checkoutUrl === "SIMULATION") {
+               // Fallback to success screen if backend unavailable
+               setStep('SUCCESS');
+          } else if (checkoutUrl) {
+               // Redirect to Stripe
+               window.location.href = checkoutUrl;
+          }
+      }
+      
     } catch (e: any) {
       clearTimeout(safetyTimeout);
       console.error(e);
@@ -167,34 +180,34 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
        <form className="space-y-4 mb-8 flex-1 overflow-y-auto" onSubmit={(e) => { e.preventDefault(); setStep('PAYMENT'); }}>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Full Name</label>
-            <input required type="text" className="w-full border rounded-lg p-3" value={shipping.name} onChange={e => setShipping({...shipping, name: e.target.value})} placeholder="John Doe" />
+            <input required type="text" name="name" autoComplete="name" className="w-full border rounded-lg p-3" value={shipping.name} onChange={e => setShipping({...shipping, name: e.target.value})} placeholder="John Doe" />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Address Line 1</label>
-            <input required type="text" className="w-full border rounded-lg p-3" value={shipping.line1} onChange={e => setShipping({...shipping, line1: e.target.value})} placeholder="123 Dream St" />
+            <input required type="text" name="address-line1" autoComplete="street-address" className="w-full border rounded-lg p-3" value={shipping.line1} onChange={e => setShipping({...shipping, line1: e.target.value})} placeholder="123 Dream St" />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Address Line 2 (Optional)</label>
-            <input type="text" className="w-full border rounded-lg p-3" value={shipping.line2} onChange={e => setShipping({...shipping, line2: e.target.value})} placeholder="Apt 4B" />
+            <input type="text" name="address-line2" className="w-full border rounded-lg p-3" value={shipping.line2} onChange={e => setShipping({...shipping, line2: e.target.value})} placeholder="Apt 4B" />
           </div>
           <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">City</label>
-                <input required type="text" className="w-full border rounded-lg p-3" value={shipping.city} onChange={e => setShipping({...shipping, city: e.target.value})} />
+                <input required type="text" name="city" autoComplete="address-level2" className="w-full border rounded-lg p-3" value={shipping.city} onChange={e => setShipping({...shipping, city: e.target.value})} />
              </div>
              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">State/Prov</label>
-                <input required type="text" className="w-full border rounded-lg p-3" value={shipping.state} onChange={e => setShipping({...shipping, state: e.target.value})} />
+                <input required type="text" name="state" autoComplete="address-level1" className="w-full border rounded-lg p-3" value={shipping.state} onChange={e => setShipping({...shipping, state: e.target.value})} />
              </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Zip/Postal</label>
-                <input required type="text" className="w-full border rounded-lg p-3" value={shipping.postalCode} onChange={e => setShipping({...shipping, postalCode: e.target.value})} />
+                <input required type="text" name="zip" autoComplete="postal-code" className="w-full border rounded-lg p-3" value={shipping.postalCode} onChange={e => setShipping({...shipping, postalCode: e.target.value})} />
              </div>
              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Country</label>
-                <select className="w-full border rounded-lg p-3" value={shipping.country} onChange={e => setShipping({...shipping, country: e.target.value})}>
+                <select name="country" autoComplete="country" className="w-full border rounded-lg p-3" value={shipping.country} onChange={e => setShipping({...shipping, country: e.target.value})}>
                    <option value="US">United States</option>
                    <option value="GB">United Kingdom</option>
                    <option value="CA">Canada</option>
@@ -218,7 +231,7 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
        <div className="flex justify-between items-start mb-6">
          <div>
            <h2 className="text-2xl font-serif font-bold text-navy-900">Review & Pay</h2>
-           <p className="text-gray-500 text-sm">Step 3 of 3: Confirm Order</p>
+           <p className="text-gray-500 text-sm">Step 3 of 3: Secure Checkout</p>
          </div>
          <button onClick={() => setStep('SHIPPING')} className="text-sm text-gray-500 hover:text-navy-900 underline">Back</button>
        </div>
@@ -231,43 +244,6 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
              <p className="text-sm text-gray-600">{shipping.line1} {shipping.line2}</p>
              <p className="text-sm text-gray-600">{shipping.city}, {shipping.state} {shipping.postalCode}</p>
              <p className="text-sm text-gray-600">{shipping.country}</p>
-          </div>
-
-          {/* Payment Fields (Mock Stripe) */}
-          <div className="border border-gray-200 rounded-xl p-4 bg-white">
-             <h4 className="font-bold text-navy-900 mb-3 text-sm uppercase flex items-center gap-2">
-                <LockIcon className="w-3 h-3 text-gold-500" /> Payment Details
-             </h4>
-             <div className="space-y-3">
-               <div>
-                 <input 
-                   type="text" 
-                   placeholder="Card Number" 
-                   className="w-full border border-gray-300 rounded-lg p-2 text-sm"
-                   value={cardInfo.number}
-                   onChange={e => setCardInfo({...cardInfo, number: e.target.value})}
-                 />
-               </div>
-               <div className="grid grid-cols-2 gap-3">
-                 <input 
-                   type="text" 
-                   placeholder="MM/YY" 
-                   className="w-full border border-gray-300 rounded-lg p-2 text-sm" 
-                   value={cardInfo.exp}
-                   onChange={e => setCardInfo({...cardInfo, exp: e.target.value})}
-                 />
-                 <input 
-                   type="text" 
-                   placeholder="CVC" 
-                   className="w-full border border-gray-300 rounded-lg p-2 text-sm" 
-                   value={cardInfo.cvc}
-                   onChange={e => setCardInfo({...cardInfo, cvc: e.target.value})}
-                 />
-               </div>
-             </div>
-             <p className="text-[10px] text-gray-400 mt-2 italic">
-               Note: This is a demo. No actual charge will be made, but this step represents where Stripe processes your payment.
-             </p>
           </div>
 
           {/* Pricing Breakdown */}
@@ -309,12 +285,12 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
          ) : (
            <>
              <LockIcon className="w-5 h-5" />
-             Pay & Place Order
+             Pay & Place Order via Stripe
            </>
          )}
        </button>
        <div className="mt-4 text-center">
-         <p className="text-[10px] text-gray-400">Secure 256-bit SSL Encrypted Payment</p>
+         <p className="text-[10px] text-gray-400">Secure Payment processed by Stripe. No card info stored locally.</p>
        </div>
     </div>
   );

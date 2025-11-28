@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+declare const Deno: any;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -14,13 +16,13 @@ serve(async (req) => {
   try {
     const { public_token, metadata } = await req.json()
 
-    const PLAID_CLIENT_ID = (Deno as any).env.get('PLAID_CLIENT_ID')
-    const PLAID_SECRET = (Deno as any).env.get('PLAID_SECRET')
-    const PLAID_ENV = (Deno as any).env.get('PLAID_ENV') || 'sandbox'
+    const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID')
+    const PLAID_SECRET = Deno.env.get('PLAID_SECRET')
+    const PLAID_ENV = Deno.env.get('PLAID_ENV') || 'sandbox'
     
     // Supabase Admin Client to write to protected table
-    const supabaseUrl = (Deno as any).env.get('SUPABASE_URL')!
-    const supabaseKey = (Deno as any).env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     const PLAID_API_URL = PLAID_ENV === 'sandbox' 
