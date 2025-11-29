@@ -11,7 +11,8 @@
       "Bash(npx supabase:*)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
