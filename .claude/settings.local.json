@@ -10,7 +10,8 @@
       "Bash(npx supabase functions:*)",
       "Bash(npx supabase:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(xargs ls:*)"
     ],
     "deny": [],
     "ask": []
