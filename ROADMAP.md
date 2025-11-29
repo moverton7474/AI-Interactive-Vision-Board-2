@@ -85,6 +85,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [x] **SMS Notifications:** `send-sms` Edge Function with templates
 - [x] **Voice Calls:** `make-call` Edge Function with TwiML scripts
 - [x] **Notification Triggers:** `schedule-notification` for habit reminders, pace warnings, milestones
+- [x] **Habit Service API:** `habit-service` Edge Function (create, complete, list, stats, delete)
 - [ ] **Habit Tracking UI:** Frontend components
 
 ### v1.5: Vision Workbook (Physical Print Products) 🆕 PLANNED
@@ -105,7 +106,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (10 Active)
+### Supabase Edge Functions (11 Active)
 
 | Function | Status | Purpose |
 |----------|--------|---------|
@@ -119,6 +120,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `send-sms` | ✅ Active | Twilio SMS notifications |
 | `make-call` | ✅ Active | Twilio voice calls |
 | `schedule-notification` | ✅ Active | AI Agent notification triggers |
+| `habit-service` | ✅ Active | Habit CRUD, completions, streaks, stats |
 
 ### Environment Secrets Configured
 
@@ -250,7 +252,7 @@ progress_predictions ✅ Pace analytics
 | Phase | Focus | Status |
 |-------|-------|--------|
 | Phase 1 | Database schema + basic text chat | ✅ Complete |
-| Phase 2 | Habit system + streak tracking | 🔲 Pending |
+| Phase 2 | Habit system + streak tracking | 🚧 Backend Complete (UI pending) |
 | Phase 3 | Twilio SMS + scheduled notifications | ✅ Complete |
 | Phase 4 | Voice integration (Gemini Live) | 🔲 Pending |
 | Phase 5 | Weekly reviews + predictions | 🔲 Pending |
