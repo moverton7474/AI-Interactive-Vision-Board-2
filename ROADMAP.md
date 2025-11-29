@@ -147,3 +147,130 @@ supabase functions deploy stripe-webhook
 1. Gemini Live real-time voice conversation
 2. Veo video generation
 3. Advanced face mapping consistency
+
+---
+
+## 6. Product Enhancement Recommendations
+
+> **TL;DR:** Visionary has strong foundational features but lacks engagement loops and completion pathways. Key enhancements should focus on reducing friction between dream definition and execution, enabling couple collaboration, improving AI reliability, and building micro-monetization patterns that feel natural rather than punitive.
+
+### Priority Enhancements (v1.4)
+
+#### 1. Couple Collaboration Mode
+Allow spouse/partner to join shared vision workspace, co-edit preferences, and co-approve action plans. Enables natural engagement loop for primary target audience (couples aged 45-60).
+
+**Implementation Options:**
+- **Option A (Complex):** Seamless co-editing with conflict resolution
+- **Option B (MVP - Recommended):** One user owns account, partner has read-only + comment-only access
+
+*Recommend Option B for v1.4, upgrade to full sync in v2.0*
+
+#### 2. Progress Tracking & Momentum Dashboards
+Replace flat view with visual milestone progress:
+- [ ] "Days Until Retirement" countdown widget
+- [ ] Achievement badges and streaks
+- [ ] Visual milestone progress indicators
+- [ ] Psychological feedback loops to reduce drop-off between steps
+
+#### 3. Credit Transparency & Graceful Paywalls
+Redesign credit model to reduce mid-workflow friction:
+- [ ] Upfront cost visibility per feature
+- [ ] Free trial generation (3 vision boards/month for free tier)
+- [ ] Soft subscription prompts vs. hard credit cutoffs
+- [ ] Hybrid model: Free unlimited action planning + paid unlimited generations
+
+#### 4. Complete Plaid Integration End-to-End
+Move beyond token exchange to full financial automation:
+- [ ] Actual account balance retrieval
+- [ ] Auto-populate financial forms from real data
+- [ ] Automated savings transfer suggestions
+- [ ] Real-time surplus detection for goal acceleration
+
+#### 5. In-Product Task Execution
+Build native execution tools instead of deep links:
+- [ ] Mini Gmail composer embedded in app
+- [ ] Calendar picker for action plan scheduling
+- [ ] Native notifications/reminders for follow-through
+- [ ] Keep users in Visionary workflow end-to-end
+
+#### 6. AI Generation Reliability Features
+Improve confidence in AI features:
+- [ ] Image retry logic with automatic fallback
+- [ ] In-app refinement palette (brightness, composition, people emphasis)
+- [ ] Generative queue with estimated wait times
+- [ ] Error recovery for high-load periods
+
+#### 7. Onboarding Segmentation & Path Selection
+Let users choose focus on landing based on life stage:
+- [ ] "Dream First" path (visual/emotional entry)
+- [ ] "Financial First" path (practical/analytical entry)
+- [ ] Reduces cognitive overload
+- [ ] Improves perceived relevance for both young retirees and early planners
+
+---
+
+## 7. Category Dominance Features (v2.0+)
+
+These features would push Visionary into true category leadership:
+
+### Weekly AI Review Meetings
+- [ ] Auto-generate weekly reflection summaries
+- [ ] Wins, blockers, next steps analysis
+- [ ] Suggested schedule adjustments
+- [ ] Email/push notification delivery
+
+### Micro Habit Tracking
+- [ ] Tiny daily actions tied to each goal
+- [ ] Streak tracking with visual indicators
+- [ ] Badge system for consistency
+- [ ] Momentum visualization
+
+### Voice Check-Ins
+- [ ] Personalized voice prompts: *"Milton, how's your financial freedom board going today?"*
+- [ ] Voice builds relationship and commitment
+- [ ] Integrate with Gemini Live for natural conversation
+
+### Accountability Groups
+- [ ] Couple collaboration (see v1.4)
+- [ ] Family vision boards
+- [ ] Team/mastermind group features
+- [ ] Community encouragement loops
+
+### Predictive Coaching
+- [ ] AI warns users when falling behind pace
+- [ ] Example: *"At current pace, you'll miss your July goal by 2 months — here are 3 adjustments"*
+- [ ] Proactive intervention vs. passive tracking
+- [ ] Smart recommendations based on behavior patterns
+
+### AI-Generated Monthly Progress Videos
+- [ ] Highlight reel of user's journey
+- [ ] Motivational content for retention
+- [ ] Shareable for viral marketing potential
+- [ ] Celebration of milestones
+
+### Gamification System
+- [ ] Levels and XP for engagement
+- [ ] Rewards for completing milestones
+- [ ] Progress statuses (Dreamer → Planner → Achiever → Visionary)
+- [ ] Make life improvement feel fun
+
+---
+
+## 8. Further Technical Considerations
+
+### Financial Integration Depth
+Cost-of-Living API currently on roadmap but underutilized:
+- When user says "Thailand", auto-fetch Numbeo/Expatica cost data
+- Dynamically adjust Goal Target based on location
+- Turn vague dreams into concrete financial targets automatically
+
+### Monetization Psychology
+Current credit model feels transactional. Recommended hybrid approach:
+
+| Tier | Vision Boards | Action Planning | Queue Priority | Advanced Features |
+|------|---------------|-----------------|----------------|-------------------|
+| Free | 3/month | Unlimited | Standard | - |
+| Pro ($19.99) | Unlimited | Unlimited | Priority | Refinement tools |
+| Elite ($49.99) | Unlimited | Unlimited | Instant | Video gen, face consistency |
+
+*Aligns revenue with true value drivers rather than punitive credit cutoffs*
