@@ -91,7 +91,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (6 Active)
+### Supabase Edge Functions (7 Active)
 
 | Function | Status | Purpose |
 |----------|--------|---------|
@@ -101,6 +101,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `stripe-webhook` | ✅ Active | Payment confirmation handler |
 | `submit-to-prodigi` | ✅ Active | Print order fulfillment |
 | `rapid-api` | ✅ Active | External API proxy |
+| `agent-chat` | ✅ Active | AI Vision Coach conversations |
 
 ### Environment Secrets Configured
 
@@ -161,8 +162,8 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 | Task | Status | Effort |
 |------|--------|--------|
-| Create `agent-chat` Edge Function | 🔲 Pending | 4-6 hours |
-| Build basic chat UI component | 🔲 Pending | 3-4 hours |
+| Create `agent-chat` Edge Function | ✅ Done | 4-6 hours |
+| Build basic chat UI component | ✅ Done | 3-4 hours |
 | Implement habit tracking frontend | 🔲 Pending | 4-6 hours |
 | Add streak visualization | 🔲 Pending | 2-3 hours |
 
@@ -183,7 +184,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | Feature | Description | Status |
 |---------|-------------|--------|
 | Database Schema | 10 tables for agent data | ✅ Applied |
-| Text Chat | Real-time conversation with AI Coach | 🔲 Pending |
+| Text Chat | Real-time conversation with AI Coach | ✅ Completed |
 | Voice Chat | Gemini Live integration for voice | 🔲 Pending |
 | Proactive Outreach | SMS/Email/Push notifications | 🔲 Pending |
 | Voice Calls | Twilio-powered check-in calls | 🔲 Pending |
@@ -368,9 +369,10 @@ Current credit model feels transactional. Recommended hybrid approach:
 3. 🔲 Test payment flow with test card
 
 ### This Week
-4. 🔲 Create `agent-chat` Edge Function
-5. 🔲 Build basic chat UI component
+4. ✅ ~~Create `agent-chat` Edge Function~~ DONE
+5. ✅ ~~Build basic chat UI component~~ DONE
 6. 🔲 Sign up for Twilio account
+7. 🔲 Set GEMINI_API_KEY as Supabase secret
 
 ### Next Week
 7. 🔲 Move Gemini API to Edge Function (security)
