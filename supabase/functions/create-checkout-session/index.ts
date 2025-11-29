@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { Stripe } from "https://esm.sh/stripe@12.0.0?target=deno"
+import Stripe from "https://esm.sh/stripe@11.1.0?target=deno&deno-std=0.132.0"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 declare const Deno: any;
@@ -31,7 +31,6 @@ serve(async (req) => {
 
     const stripe = new Stripe(STRIPE_SECRET_KEY, {
       apiVersion: '2022-11-15',
-      httpClient: Stripe.createFetchHttpClient(),
     })
 
     const supabase = createClient(
@@ -63,33 +62,34 @@ serve(async (req) => {
         }
     } else if (mode === 'payment') {
         // For Print Orders (One-time)
-      // Fetch actual order price from database for security
-            let unitAmount = 2900 // Default fallback: $29.00
+        // Fetch actual order price from database for security
+        let unitAmount = 2900 // Default fallback: $29.00
 
-            if (orderId) {
-                      const { data: order, error: orderError } = await supabase
-                        .from('poster_orders')
-                        .select('total_price, print_config')
-                        .eq('id', orderId)
-                        .single()
+        if (orderId) {
+            const { data: order, error: orderError } = await supabase
+                .from('poster_orders')
+                .select('total_price, print_config')
+                .eq('id', orderId)
+                .single()
 
-                      if (!orderError && order?.total_price) {
-                                  // Convert dollars to cents for Stripe
-                                  unitAmount = Math.round(order.total_price * 100)
-                                }
-                    }
+            if (!orderError && order?.total_price) {
+                // Convert dollars to cents for Stripe
+                unitAmount = Math.round(order.total_price * 100)
+            }
+        }
 
-            const sizeLabel = orderId ? `Order #${orderId.substring(0, 8)}` : 'Vision Board Poster'
+        const sizeLabel = orderId ? `Order #${orderId.substring(0, 8)}` : 'Vision Board Poster'
 
-            sessionConfig.line_items.push({
-price_data: {
-            currency: 'usd',
-            product_data: {
-                          name: sizeLabel,
-                          description: `Order #${orderId}`,
-                        },
-            unit_amount: unitAmount,
-          },quantity: 1,
+        sessionConfig.line_items.push({
+            price_data: {
+                currency: 'usd',
+                product_data: {
+                    name: sizeLabel,
+                    description: `Order #${orderId}`,
+                },
+                unit_amount: unitAmount,
+            },
+            quantity: 1,
         })
         sessionConfig.metadata = {
             order_id: orderId
@@ -103,9 +103,10 @@ price_data: {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
 
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Create checkout session error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || 'Unknown error' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 },
     )
   }
