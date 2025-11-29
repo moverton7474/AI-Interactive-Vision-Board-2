@@ -106,7 +106,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (12 Active)
+### Supabase Edge Functions (13 Active)
 
 | Function | Status | Purpose |
 |----------|--------|---------|
@@ -122,6 +122,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `schedule-notification` | ✅ Active | AI Agent notification triggers |
 | `habit-service` | ✅ Active | Habit CRUD, completions, streaks, stats |
 | `compile-knowledge-base` | ✅ Active | Aggregate user data for AI/workbooks |
+| `generate-weekly-review` | ✅ Active | AI-powered weekly progress summaries |
 
 ### Environment Secrets Configured
 
@@ -256,7 +257,7 @@ progress_predictions ✅ Pace analytics
 | Phase 2 | Habit system + streak tracking | 🚧 Backend Complete (UI pending) |
 | Phase 3 | Twilio SMS + scheduled notifications | ✅ Complete |
 | Phase 4 | Voice integration (Gemini Live) | 🔲 Pending |
-| Phase 5 | Weekly reviews + predictions | 🔲 Pending |
+| Phase 5 | Weekly reviews + predictions | ✅ Complete |
 | Phase 6 | Polish + n8n workflows | 🔲 Pending |
 
 ---
