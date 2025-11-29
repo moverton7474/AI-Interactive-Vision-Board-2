@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Stripe } from "https://esm.sh/stripe@12.0.0?target=deno"
+import Stripe from "https://esm.sh/stripe@11.1.0?target=deno&deno-std=0.132.0"
 
 declare const Deno: any;
 
@@ -15,7 +15,6 @@ serve(async (req) => {
 
   const stripe = new Stripe(STRIPE_SECRET_KEY, {
       apiVersion: '2022-11-15',
-      httpClient: Stripe.createFetchHttpClient(),
   })
 
   // Verify signature (Simplified for Deno environment example)
