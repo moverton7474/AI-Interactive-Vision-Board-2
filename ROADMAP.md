@@ -1,7 +1,11 @@
 # Visionary SaaS - PR & Development Roadmap
 
+**Last Updated:** November 29, 2024
+
 ## Project Overview
 Visionary is a high-end, AI-first SaaS platform designed to help couples and individuals visualize, plan, and manifest their dream retirement. By combining financial reality checks with generative AI vision boarding, Visionary offers a unique emotional and practical approach to retirement planning.
+
+---
 
 ## 1. Public Relations (PR) Plan
 
@@ -29,140 +33,156 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 #### Phase 3: B2B Integration (Month 3-6)
 - **Partnership Announcement:** Integration with major wealth management platforms (e.g., Fidelity, Vanguard APIs) to pull real-time data.
 
+---
+
 ## 2. Development Roadmap & Status
 
-### v1.0: Foundation (COMPLETED)
+### v1.0: Foundation ✅ COMPLETED
 - [x] **Voice Dictation:** Capture vision statements naturally using Web Speech API.
 - [x] **High-Fidelity Rendering:** Implemented `gemini-3-pro-image-preview` for photorealistic results.
 - [x] **Iterative Refinement:** "Refine This" workflow allows continuous editing of generated images.
 - [x] **Vision Board Gallery:** Full persistence, delete, downloading, and social sharing.
 - [x] **Action Plan Agent:** Generates 3-year roadmaps with Google Maps/Gmail/Calendar deep links.
 
-### v1.1: Knowledge & Context (COMPLETED)
+### v1.1: Knowledge & Context ✅ COMPLETED
 - [x] **Reference Image Library:** Sidebar to store and reuse user headshots for likeness preservation.
 - [x] **Financial Knowledge Base:** "Notebook Mode" to persist uploaded plans (PDF/CSV) and manual entries.
 - [x] **Document Persistence:** Secure storage of financial context in Supabase `documents` table.
 - [x] **Text Embedding:** Ability to render goal text and custom titles (e.g., "Overton Family Vision") into images.
 
-### v1.2: Identity & Financial Intelligence (MOSTLY COMPLETED)
+### v1.2: Identity & Financial Intelligence ✅ COMPLETED
 - [x] **User Authentication:**
     - Implemented Supabase Auth (Email/Password) in `Login.tsx`.
     - Created `profiles` table with credits, subscription_tier, stripe_customer_id, and subscription_status.
     - Updated RLS policies to use `auth.uid()` for secure user data.
 - [x] **Visionary Financial Automation Engine (Plaid):**
     - Integrated `react-plaid-link` in `ConnectBank.tsx`.
-    - Created Supabase Edge Functions (`create-link-token`, `exchange-public-token`) for secure token exchange.
-- [ ] **Cost of Living API:** When a user says "Thailand", pull real-time housing data to adjust the "Goal" target.
+    - Created Supabase Edge Functions (`create-link-token`, `exchange-public-token`).
+    - Updated application name to "AI Interactive Vision Board" in Plaid Dashboard.
+    - Sandbox mode working; production requires Plaid approval.
+- [x] **Gemini API Integration:**
+    - `GEMINI_API_KEY` configured in Vercel environment variables.
+    - Image generation and chat features operational.
 
-### v1.3: Trust & Security (PARTIALLY COMPLETED)
-- [x] **Trust Center:** Dedicated page (`TrustCenter.tsx`) explaining encryption (AES-256) and SOC2 compliance.
-- [ ] **Edge Function Security:** Move all Gemini API key logic to server-side execution to prevent key leakage.
+### v1.3: Monetization & Print ✅ MOSTLY COMPLETED
+- [x] **Stripe Integration:**
+    - Edge Functions deployed: `create-checkout-session`, `stripe-webhook`
+    - Secrets configured: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+    - Webhook endpoint ready: `https://edaigbnnofyxcfbpcvct.supabase.co/functions/v1/stripe-webhook`
+- [x] **Prodigi Print Integration:**
+    - Edge Function deployed: `submit-to-prodigi`
+    - API key configured: `PRODIGI_API_KEY`
+- [x] **Trust Center:** Dedicated page (`TrustCenter.tsx`) explaining encryption and compliance.
+- [ ] **Stripe Webhook Verification:** Verify endpoint is active in Stripe Dashboard
+
+### v1.4: AI Agent Foundation 🚧 IN PROGRESS
+- [x] **Database Schema Applied:** 10 new tables for AI Agent features
+- [x] **TypeScript Types:** 15+ interfaces for agent data models
+- [x] **Implementation Plan:** Full 12-week roadmap documented
+- [ ] **Agent Chat Edge Function:** Basic text conversation
+- [ ] **Habit Tracking UI:** Frontend components
 
 ### v2.0: The Immersive Vision Board (FUTURE)
 - [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
 - [ ] **Video Generation:** Use Veo to generate a 10-second video of the couple walking on the beach.
 - [ ] **Face Mapping 2.0:** Advanced consistency of user identity across multiple generated scenarios.
 
-## 3. Technical Implementation: Financial Automation (Plaid) - COMPLETED
+---
 
-### Architecture Strategy
-All core authentication and Plaid integration components have been implemented.
+## 3. Infrastructure Status
 
-1.  **Authentication Layer (Supabase Auth):** ✅ COMPLETED
-    - App wrapped with session management in `App.tsx`.
-    - Login/Signup components implemented in `Login.tsx`.
+### Supabase Edge Functions (6 Active)
 
-2.  **Plaid Link (Client):** ✅ COMPLETED
-    - `react-plaid-link` integrated in `ConnectBank.tsx`.
-    - Secure modal obtains `public_token`.
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `create-link-token` | ✅ Active | Plaid link token generation |
+| `exchange-public-token` | ✅ Active | Plaid token exchange |
+| `create-checkout-session` | ✅ Active | Stripe payment sessions |
+| `stripe-webhook` | ✅ Active | Payment confirmation handler |
+| `submit-to-prodigi` | ✅ Active | Print order fulfillment |
+| `rapid-api` | ✅ Active | External API proxy |
 
-3.  **Backend Service (Supabase Edge Functions):** ✅ COMPLETED
-    - `create-link-token` function generates Plaid link tokens.
-    - `exchange-public-token` function exchanges tokens and stores securely.
-    - Tokens stored encrypted in `plaid_items` table.
+### Environment Secrets Configured
 
-### Database Status
-The following tables have been implemented:
-- ✅ `plaid_items` - Stores encrypted Plaid access tokens
-- ✅ `profiles` - User profiles with credits, subscription tier, Stripe data
+| Secret | Status |
+|--------|--------|
+| `STRIPE_SECRET_KEY` | ✅ Set |
+| `STRIPE_WEBHOOK_SECRET` | ✅ Set |
+| `PLAID_CLIENT_ID` | ✅ Set |
+| `PLAID_SECRET` | ✅ Set |
+| `PLAID_ENV` | ✅ Set (sandbox) |
+| `PRODIGI_API_KEY` | ✅ Set |
+| `GEMINI_API_KEY` | ✅ Set (Vercel) |
+
+### Database Tables (17 Total)
+
+**Core Tables (7):**
+- ✅ `profiles` - User accounts with credits & subscription
 - ✅ `vision_boards` - Generated vision images
 - ✅ `reference_images` - Style reference library
 - ✅ `documents` - Financial document storage
 - ✅ `action_tasks` - 3-year roadmap tasks
 - ✅ `poster_orders` - Print order history
-- `automation_rules` - Schema ready (pending automation features)
-- `transfer_logs` - Schema ready (pending automation features)
+- ✅ `plaid_items` - Bank connection tokens
 
-## 4. Stripe Integration Setup (REQUIRED FOR LIVE PAYMENTS)
-
-The Stripe integration code is complete but requires configuration to go live.
-
-### Step 1: Create Stripe Products & Prices
-1. Go to [Stripe Dashboard → Products](https://dashboard.stripe.com/products)
-2. Create **Visionary Pro** product with $19.99/month recurring price
-3. Create **Visionary Elite** product with $49.99/month recurring price
-4. Copy the `price_xxxxx` IDs for each
-
-### Step 2: Set Environment Variables
-
-**Frontend (.env file):**
-```
-VITE_STRIPE_PRICE_PRO=price_xxxxx
-VITE_STRIPE_PRICE_ELITE=price_xxxxx
-```
-
-**Supabase Secrets (run via CLI):**
-```bash
-supabase secrets set STRIPE_SECRET_KEY=sk_live_xxxxx
-supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_xxxxx
-```
-
-### Step 3: Configure Stripe Webhook
-1. Go to [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks)
-2. Add endpoint: `https://edaigbnnofyxcfbpcvct.supabase.co/functions/v1/stripe-webhook`
-3. Select event: `checkout.session.completed`
-4. Copy the signing secret (`whsec_xxxxx`) to Supabase secrets
-
-### Step 4: Deploy Edge Functions
-```bash
-supabase functions deploy create-checkout-session
-supabase functions deploy stripe-webhook
-```
-
-### Step 5: Test in Stripe Test Mode
-- Use test keys (`sk_test_`, `pk_test_`) first
-- Test card: `4242 4242 4242 4242`
-- Verify webhook receives events and updates user profiles
+**AI Agent Tables (10) - NEW:**
+- ✅ `agent_sessions` - Conversation context
+- ✅ `agent_messages` - Chat history
+- ✅ `user_comm_preferences` - Communication settings
+- ✅ `habits` - Micro-habits
+- ✅ `habit_completions` - Streak tracking
+- ✅ `user_achievements` - Badges & levels
+- ✅ `scheduled_checkins` - Proactive outreach
+- ✅ `agent_actions` - Agentic operations
+- ✅ `weekly_reviews` - Progress summaries
+- ✅ `progress_predictions` - Pace analytics
 
 ---
 
-## 5. Remaining Development Tasks
+## 4. Remaining Tasks by Priority
 
-### Immediate Priority
-1. **Cost of Living API** - Integrate real-time location-based cost data
-2. **Gemini API Key Security** - Move API calls to Edge Functions
-3. **Stripe Go-Live** - Complete configuration steps above
+### 🔴 Critical (Before Launch)
 
-### Future Roadmap (v2.0)
-1. Gemini Live real-time voice conversation
-2. Veo video generation
-3. Advanced face mapping consistency
+| Task | Status | Effort |
+|------|--------|--------|
+| Verify Stripe webhook in Dashboard | 🔲 Pending | 15 min |
+| Test payment flow end-to-end | 🔲 Pending | 30 min |
+| Verify Prodigi production mode | 🔲 Pending | 15 min |
+
+### 🟡 High Priority (Revenue Enablement)
+
+| Task | Status | Effort |
+|------|--------|--------|
+| Move Gemini API to Edge Function (security) | 🔲 Pending | 2-3 hours |
+| Plaid balance retrieval | 🔲 Pending | 3-4 hours |
+| Cost of Living API integration | 🔲 Pending | 4-6 hours |
+
+### 🟢 Medium Priority (AI Agent Phase 1)
+
+| Task | Status | Effort |
+|------|--------|--------|
+| Create `agent-chat` Edge Function | 🔲 Pending | 4-6 hours |
+| Build basic chat UI component | 🔲 Pending | 3-4 hours |
+| Implement habit tracking frontend | 🔲 Pending | 4-6 hours |
+| Add streak visualization | 🔲 Pending | 2-3 hours |
 
 ---
 
-## 6. AI Agent Assistant (KEY DIFFERENTIATOR)
+## 5. AI Agent Assistant (KEY DIFFERENTIATOR)
 
 > **This is Visionary's market differentiator.** Unlike passive goal-tracking apps, the AI Agent ("Vision Coach") proactively engages users through voice, text, and calls to help them execute their vision goals.
 
-### Implementation Status: PLANNED
+### Implementation Status: DATABASE READY ✅
 
-**Database Schema:** `supabase/migrations/20241129_ai_agent_schema.sql`
+**Database Schema:** Applied via `supabase/migrations/20241129_ai_agent_schema.sql`
 **Full Plan:** `docs/AI_AGENT_IMPLEMENTATION_PLAN.md`
+**TypeScript Types:** Added to `types.ts`
 
 ### Core Capabilities
 
 | Feature | Description | Status |
 |---------|-------------|--------|
+| Database Schema | 10 tables for agent data | ✅ Applied |
 | Text Chat | Real-time conversation with AI Coach | 🔲 Pending |
 | Voice Chat | Gemini Live integration for voice | 🔲 Pending |
 | Proactive Outreach | SMS/Email/Push notifications | 🔲 Pending |
@@ -172,46 +192,48 @@ supabase functions deploy stripe-webhook
 | Predictive Coaching | Pace warnings & recommendations | 🔲 Pending |
 | Agentic Actions | Execute tasks on user's behalf | 🔲 Pending |
 
-### New Database Tables
+### Database Tables Created
 
 ```
-agent_sessions       - Conversation context
-agent_messages       - Chat history
-user_comm_preferences - Communication settings
-habits               - Micro-habits
-habit_completions    - Streak tracking
-user_achievements    - Badges & levels
-scheduled_checkins   - Proactive outreach
-agent_actions        - Agentic operations
-weekly_reviews       - Progress summaries
-progress_predictions - Pace analytics
+agent_sessions       ✅ Conversation context
+agent_messages       ✅ Chat history
+user_comm_preferences ✅ Communication settings
+habits               ✅ Micro-habits
+habit_completions    ✅ Streak tracking
+user_achievements    ✅ Badges & levels
+scheduled_checkins   ✅ Proactive outreach
+agent_actions        ✅ Agentic operations
+weekly_reviews       ✅ Progress summaries
+progress_predictions ✅ Pace analytics
 ```
 
 ### External Integrations Required
 
-| Service | Purpose | Account Needed |
-|---------|---------|----------------|
-| Twilio | SMS & Voice calls | Yes |
-| Resend | Transactional email | Yes |
-| n8n/Zapier | Workflow automation | Optional |
-| Gemini Live | Voice AI | Uses existing key |
+| Service | Purpose | Status |
+|---------|---------|--------|
+| Gemini AI | Text/Voice chat | ✅ Configured |
+| Twilio | SMS & Voice calls | 🔲 Need account |
+| Resend | Transactional email | 🔲 Need account |
+| n8n/Zapier | Workflow automation | 🔲 Optional |
 
 ### Implementation Phases
 
-**Phase 1 (Week 1-2):** Database schema + basic text chat
-**Phase 2 (Week 3-4):** Habit system + streak tracking
-**Phase 3 (Week 5-6):** Twilio SMS + scheduled notifications
-**Phase 4 (Week 7-8):** Voice integration (Gemini Live)
-**Phase 5 (Week 9-10):** Weekly reviews + predictions
-**Phase 6 (Week 11-12):** Polish + n8n workflows
+| Phase | Focus | Status |
+|-------|-------|--------|
+| Phase 1 | Database schema + basic text chat | 🚧 In Progress |
+| Phase 2 | Habit system + streak tracking | 🔲 Pending |
+| Phase 3 | Twilio SMS + scheduled notifications | 🔲 Pending |
+| Phase 4 | Voice integration (Gemini Live) | 🔲 Pending |
+| Phase 5 | Weekly reviews + predictions | 🔲 Pending |
+| Phase 6 | Polish + n8n workflows | 🔲 Pending |
 
 ---
 
-## 7. Additional Product Enhancements
+## 6. Additional Product Enhancements (v1.5+)
 
 > **TL;DR:** Visionary has strong foundational features but lacks engagement loops and completion pathways. Key enhancements should focus on reducing friction between dream definition and execution, enabling couple collaboration, improving AI reliability, and building micro-monetization patterns that feel natural rather than punitive.
 
-### Priority Enhancements (v1.4)
+### Priority Enhancements
 
 #### 1. Couple Collaboration Mode
 Allow spouse/partner to join shared vision workspace, co-edit preferences, and co-approve action plans. Enables natural engagement loop for primary target audience (couples aged 45-60).
@@ -220,7 +242,7 @@ Allow spouse/partner to join shared vision workspace, co-edit preferences, and c
 - **Option A (Complex):** Seamless co-editing with conflict resolution
 - **Option B (MVP - Recommended):** One user owns account, partner has read-only + comment-only access
 
-*Recommend Option B for v1.4, upgrade to full sync in v2.0*
+*Recommend Option B for v1.5, upgrade to full sync in v2.0*
 
 #### 2. Progress Tracking & Momentum Dashboards
 Replace flat view with visual milestone progress:
@@ -266,7 +288,7 @@ Let users choose focus on landing based on life stage:
 
 ---
 
-## 8. Category Dominance Features (v2.0+)
+## 7. Category Dominance Features (v2.0+)
 
 These features would push Visionary into true category leadership:
 
@@ -288,7 +310,7 @@ These features would push Visionary into true category leadership:
 - [ ] Integrate with Gemini Live for natural conversation
 
 ### Accountability Groups
-- [ ] Couple collaboration (see v1.4)
+- [ ] Couple collaboration (see v1.5)
 - [ ] Family vision boards
 - [ ] Team/mastermind group features
 - [ ] Community encouragement loops
@@ -313,7 +335,11 @@ These features would push Visionary into true category leadership:
 
 ---
 
-## 9. Further Technical Considerations
+## 8. Technical Considerations
+
+### API Key Security
+Current: Gemini API key exposed in client bundle via Vercel env vars.
+**Action Required:** Move to Edge Function for production security.
 
 ### Financial Integration Depth
 Cost-of-Living API currently on roadmap but underutilized:
@@ -331,3 +357,22 @@ Current credit model feels transactional. Recommended hybrid approach:
 | Elite ($49.99) | Unlimited | Unlimited | Instant | Video gen, face consistency |
 
 *Aligns revenue with true value drivers rather than punitive credit cutoffs*
+
+---
+
+## 9. Quick Reference: Next Actions
+
+### Immediate (Today)
+1. ✅ ~~Apply AI Agent database schema~~ DONE
+2. 🔲 Verify Stripe webhook endpoint in Dashboard
+3. 🔲 Test payment flow with test card
+
+### This Week
+4. 🔲 Create `agent-chat` Edge Function
+5. 🔲 Build basic chat UI component
+6. 🔲 Sign up for Twilio account
+
+### Next Week
+7. 🔲 Move Gemini API to Edge Function (security)
+8. 🔲 Implement habit tracking frontend
+9. 🔲 Add streak visualization
