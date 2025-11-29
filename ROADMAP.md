@@ -106,7 +106,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (13 Active)
+### Supabase Edge Functions (14 Active)
 
 | Function | Status | Purpose |
 |----------|--------|---------|
@@ -123,6 +123,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `habit-service` | ✅ Active | Habit CRUD, completions, streaks, stats |
 | `compile-knowledge-base` | ✅ Active | Aggregate user data for AI/workbooks |
 | `generate-weekly-review` | ✅ Active | AI-powered weekly progress summaries |
+| `gemini-proxy` | ✅ Active | Secure Gemini API proxy (removes client exposure) |
 
 ### Environment Secrets Configured
 
@@ -134,7 +135,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `PLAID_SECRET` | ✅ Set |
 | `PLAID_ENV` | ✅ Set (sandbox) |
 | `PRODIGI_API_KEY` | ✅ Set |
-| `GEMINI_API_KEY` | ✅ Set (Vercel) |
+| `GEMINI_API_KEY` | ⚠️ Vercel only - copy to Supabase for `gemini-proxy` |
 | `TWILIO_ACCOUNT_SID` | ✅ Set |
 | `TWILIO_AUTH_TOKEN` | ✅ Set |
 | `TWILIO_PHONE_NUMBER` | ✅ Set (+18885905074) |
