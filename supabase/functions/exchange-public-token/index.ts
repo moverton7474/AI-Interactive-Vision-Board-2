@@ -6,6 +6,7 @@ declare const Deno: any;
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 serve(async (req) => {
@@ -25,9 +26,13 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    const PLAID_API_URL = PLAID_ENV === 'sandbox' 
-      ? 'https://sandbox.plaid.com' 
-      : 'https://development.plaid.com';
+    // Plaid API URL based on environment
+    const PLAID_API_URLS: Record<string, string> = {
+      'sandbox': 'https://sandbox.plaid.com',
+      'development': 'https://development.plaid.com',
+      'production': 'https://production.plaid.com'
+    };
+    const PLAID_API_URL = PLAID_API_URLS[PLAID_ENV] || 'https://sandbox.plaid.com';
 
     // 1. Exchange Public Token
     const tokenResponse = await fetch(`${PLAID_API_URL}/item/public_token/exchange`, {

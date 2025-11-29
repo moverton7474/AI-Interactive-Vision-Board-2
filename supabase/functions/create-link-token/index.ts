@@ -1,10 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 declare const Deno: any;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 serve(async (req) => {
@@ -15,9 +17,18 @@ serve(async (req) => {
 
   try {
     // 1. Get User from Supabase Auth (via Header)
-    // Note: In a real app, validate the JWT here.
-    // For this implementation, we assume the user is authenticated if they hit this endpoint.
-    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    const authHeader = req.headers.get('Authorization')
+    const { data: { user }, error: userError } = await supabase.auth.getUser(
+      authHeader?.replace('Bearer ', '') || ''
+    )
+
+    // Use authenticated user ID or fallback for unauthenticated requests
+    const clientUserId = user?.id || `anonymous_${Date.now()}`
+
     // 2. Configuration
     const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID')
     const PLAID_SECRET = Deno.env.get('PLAID_SECRET')
@@ -27,9 +38,13 @@ serve(async (req) => {
       throw new Error('Missing Plaid Credentials in Edge Function Secrets')
     }
 
-    const PLAID_API_URL = PLAID_ENV === 'sandbox' 
-      ? 'https://sandbox.plaid.com' 
-      : 'https://development.plaid.com'; // Adjust for production if needed
+    // Plaid API URL based on environment
+    const PLAID_API_URLS: Record<string, string> = {
+      'sandbox': 'https://sandbox.plaid.com',
+      'development': 'https://development.plaid.com',
+      'production': 'https://production.plaid.com'
+    };
+    const PLAID_API_URL = PLAID_API_URLS[PLAID_ENV] || 'https://sandbox.plaid.com';
 
     // 3. Request Link Token from Plaid
     const response = await fetch(`${PLAID_API_URL}/link/token/create`, {
@@ -40,7 +55,7 @@ serve(async (req) => {
         secret: PLAID_SECRET,
         client_name: 'Visionary SaaS',
         user: {
-          client_user_id: 'user_123', // In prod, map this to Supabase User ID
+          client_user_id: clientUserId,
         },
         products: ['auth', 'transactions'],
         country_codes: ['US'],
