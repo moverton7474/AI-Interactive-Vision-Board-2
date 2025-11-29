@@ -1,7 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-declare const Deno: any;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,9 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight - return immediately
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { status: 204, headers: corsHeaders })
   }
 
   try {
@@ -20,10 +18,15 @@ serve(async (req) => {
     const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID')
     const PLAID_SECRET = Deno.env.get('PLAID_SECRET')
     const PLAID_ENV = Deno.env.get('PLAID_ENV') || 'sandbox'
-    
+
     // Supabase Admin Client to write to protected table
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase credentials')
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     // Plaid API URL based on environment
@@ -31,8 +34,10 @@ serve(async (req) => {
       'sandbox': 'https://sandbox.plaid.com',
       'development': 'https://development.plaid.com',
       'production': 'https://production.plaid.com'
-    };
-    const PLAID_API_URL = PLAID_API_URLS[PLAID_ENV] || 'https://sandbox.plaid.com';
+    }
+    const PLAID_API_URL = PLAID_API_URLS[PLAID_ENV] || 'https://sandbox.plaid.com'
+
+    console.log('Exchanging public token with Plaid:', PLAID_API_URL)
 
     // 1. Exchange Public Token
     const tokenResponse = await fetch(`${PLAID_API_URL}/item/public_token/exchange`, {
@@ -48,44 +53,61 @@ serve(async (req) => {
     const tokenData = await tokenResponse.json()
 
     if (!tokenResponse.ok) {
+      console.error('Plaid exchange error:', JSON.stringify(tokenData))
       throw new Error(tokenData.error_message || 'Failed to exchange token')
     }
 
     const accessToken = tokenData.access_token
     const itemId = tokenData.item_id
 
-    // 2. Get User ID from Auth Header (Simple parsing for demo)
-    // In production, verify the JWT properly
+    // 2. Get User ID from Auth Header
     const authHeader = req.headers.get('Authorization')
-    const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader?.replace('Bearer ', '') || '')
-    
-    if (userError || !user) {
-        // Fallback for simulation if auth fails in this specific setup
-        console.warn("Could not verify user for token storage, forcing generic ID")
+    let userId = null
+
+    if (authHeader) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', '')
+      )
+      if (!userError && user) {
+        userId = user.id
+      } else {
+        console.warn('Could not verify user for token storage')
+      }
     }
 
     // 3. Save to Database
     const { error: dbError } = await supabase
       .from('plaid_items')
       .insert({
-        user_id: user?.id,
-        access_token: accessToken, // Warning: In production, encrypt this before storing!
-        institution_id: metadata.institution?.institution_id,
+        user_id: userId,
+        access_token: accessToken, // Note: In production, encrypt this before storing
+        institution_id: metadata?.institution?.institution_id,
         status: 'active'
       })
 
-    if (dbError) throw dbError
+    if (dbError) {
+      console.error('Database error:', dbError)
+      throw dbError
+    }
+
+    console.log('Token exchanged and saved successfully')
 
     return new Response(
       JSON.stringify({ success: true, item_id: itemId }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      },
     )
 
-  } catch (error) {
-    console.error(error)
+  } catch (error: any) {
+    console.error('Error:', error.message)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 },
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      },
     )
   }
 })
