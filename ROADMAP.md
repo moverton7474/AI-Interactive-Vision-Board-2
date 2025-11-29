@@ -455,3 +455,255 @@ Current credit model feels transactional. Recommended hybrid approach:
 12. 🔲 Verify Prodigi notebook SKUs
 13. 🔲 Create `generate-workbook-pdf` Edge Function
 14. 🔲 Build WorkbookOrderModal component
+
+---
+
+## 11. Vision Board Print Materials - Complete Implementation Guide
+
+> **Premium Physical Product Line:** Transform digital vision boards into a complete ecosystem of physical products that function as a luxury coaching program in print.
+
+### Best-in-Class Workbook Contents
+
+The physical workbook should feel like a **luxury coaching program in print**, not just a printed PDF.
+
+#### Vision Board Gallery with Reflection Prompts
+- Full-page AI images with white-space frames
+- Each paired with prompts:
+  - "Why this matters"
+  - "How life will feel"
+  - "What must be true financially"
+- Space to paste printed photos or write alternate versions for next-year iterations
+
+#### Financial Snapshot Summary
+- Clean dashboards for net worth, income, spending categories, and retirement gap
+- Data pulled from `documents` and Plaid (once balances are live)
+- Scenario panels (Base / Stretch / Dream) with sliders or checkboxes
+- User can mark assumptions as they change
+
+#### 3-Year Action Plan with QR Deep Links
+- One spread per major goal with:
+  - Outcome
+  - 12 key milestones
+  - Owner and due dates
+  - Printed QR code linking back to live `action_tasks` in app
+- "Agent notes" callouts where AI Coach prints recommendations or warnings (e.g., pace risk)
+
+#### 12-Month Habit Tracker
+- Monthly grids tied to each habit row from `habits` table
+- Icons for categories (health, money, relationships, career)
+- Streak visualization bars
+- "Reset protocol" section for what to do after a missed streak
+
+#### 52-Week Reflection Journal
+- Weekly prompts aligned with predictive coaching:
+  - Wins
+  - Blockers
+  - Next best action
+  - "Message from future self"
+- QR code at top to jump into weekly AI review chat seeded with that week's data
+
+#### Achievement Sticker Pages
+- Stickers for levels (Dreamer / Planner / Achiever / Visionary)
+- Money milestones and habit streak badges
+- Matching gamification tiers
+- Blank sticker outlines for custom user-specified achievements
+
+#### Personalization & Front/Back Matter
+- **Cover:** Custom name, year, tagline
+- **Front Matter:** Dedication page, "My Vision Statement"
+- **Guide:** "How to Use This Workbook with Your AI Coach"
+- **Back Matter:** QR page with links to support, community, and re-order/upgrade offer
+
+---
+
+### Additional Print Assets (Upsells & Bundles)
+
+Layer in smaller, high-utility pieces that can be added to orders as upsells or bundles.
+
+| Product | Description | Use Case |
+|---------|-------------|----------|
+| **Daily Focus Pads** | Tear-off A5 desk pads showing "Top 3 actions today" from `agent_actions` and `action_tasks` with QR to sync completion | Desk productivity |
+| **Habit Cue Cards** | Small cards with one habit, trigger, and reward; place on mirrors, desks, dashboards | Behavior triggers |
+| **Quarterly Review Kits** | Pre-packaged bundle (review booklet, stickers, postcards) mailed automatically to Elite subscribers | Retention |
+| **Thank-you / Gift Cards** | Branded cards inviting spouses/friends to join via unique referral QR, using Prodigi packaging inserts | Viral growth |
+
+---
+
+### Print Feature Roadmap
+
+#### v1.5 – Vision Workbook MVP
+- [ ] Complete `generate-workbook-pdf` Edge Function that composes sections from:
+  - `workbook_sections`
+  - `user_knowledge_base`
+  - `action_tasks`
+  - `habits`
+  - `weekly_reviews`
+  - `progress_predictions`
+- [ ] Extend `workbook_templates` to tag product type:
+  - journal, companion, habit-only, poster, sticker sheet
+  - Map to specific Prodigi SKUs (GLOBAL-NTB, NB-A5-PB-C-P, poster SKUs, sticker SKUs)
+- [ ] Implement `WorkbookOrderModal` allowing users to select:
+  - Format (softcover/hardcover/leather-look)
+  - Size
+  - Personalization text
+  - Quantity
+- [ ] Trigger `submit-to-prodigi` with custom metadata
+
+#### v1.6 – Execution Toolkit (Pads, Posters, Stickers)
+- [ ] Add product lines in `workbook_templates` or new `print_products` table for:
+  - Daily pads
+  - Wall posters
+  - Sticker sheets
+  - Companion workbooks
+- [ ] Each with own layout template and Prodigi SKU mapping
+- [ ] Extend `poster_orders` or create unified `print_orders` table with:
+  - Status tracking
+  - Upsell logic (e.g., suggest habit notebook when streaks exceed 30 days)
+- [ ] Build "Print Center" UI section for:
+  - Re-ordering from dashboard
+  - Adding new items from AI agent chat
+
+#### v2.0 – Automated Print Campaigns
+- [ ] AI Agent triggers print recommendations:
+  - After 4 weeks of consistent usage → offer discounted hardcover
+  - After major milestone → prompt "Milestone Poster" order
+- [ ] Add `print_campaigns` table to define:
+  - Trigger conditions
+  - Product
+  - Discount
+  - Message copy
+- [ ] Log user responses for optimization
+
+---
+
+### Backend & Database Structure
+
+Extend existing schema for personalization, layouts, and cross-product reuse.
+
+#### Database Additions/Adjustments
+
+**`workbook_templates` - Add columns:**
+```sql
+product_type ENUM ('main_workbook', 'habit_notebook', 'companion', 'pad', 'poster', 'stickers')
+prodigi_sku TEXT
+size TEXT
+binding_type TEXT
+leather_option BOOLEAN
+base_pages INT
+base_price DECIMAL
+personalization_fields JSONB
+```
+
+**`workbook_orders` - Add columns:**
+```sql
+product_type TEXT
+prodigi_order_id TEXT
+prodigi_status TEXT
+shipping_address_id UUID
+personalization_data JSONB
+source_trigger TEXT  -- 'manual', 'agent_prompt', 'campaign_id'
+```
+
+**`workbook_sections` - Add columns:**
+```sql
+layout_type TEXT  -- 'vision_gallery', 'finance_summary', 'action_plan', 'habit_grid', 'reflection_week', 'sticker_sheet'
+order_index INT
+template_reference TEXT  -- allows multiple products to reuse same section logic
+```
+
+**`user_knowledge_base` - Enhancements:**
+- Continue storing aggregated text and structured summaries
+- Add views or materialized tables (e.g., `workbook_content_views`) that pre-compile content for PDFs
+
+**`print_products` (Optional):**
+- Separate catalog table for all physical SKUs
+- Shared across workbooks, pads, and posters
+- Cleaner separation from logical "templates"
+
+#### Knowledge Compilation Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    COMPILE-WORKBOOK-CONTENT                      │
+├─────────────────────────────────────────────────────────────────┤
+│  INPUT:                                                          │
+│  - profiles (user info)                                          │
+│  - documents (financial uploads)                                 │
+│  - action_tasks (3-year plan)                                    │
+│  - habits + habit_completions (streak data)                      │
+│  - weekly_reviews (reflection summaries)                         │
+│  - progress_predictions (pace analytics)                         │
+│  - agent_messages (summary entries)                              │
+├─────────────────────────────────────────────────────────────────┤
+│  OUTPUT:                                                         │
+│  - Normalized rows in workbook_sections                          │
+│  - Keyed by workbook_order_id                                    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    GENERATE-WORKBOOK-PDF                         │
+├─────────────────────────────────────────────────────────────────┤
+│  - Consumes sections + selected template                         │
+│  - Renders HTML-to-PDF                                           │
+│  - Stores in Supabase storage                                    │
+│  - Returns URL for Prodigi                                       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    SUBMIT-TO-PRODIGI                             │
+├─────────────────────────────────────────────────────────────────┤
+│  - Uses selected Prodigi SKU                                     │
+│  - Personalization metadata                                      │
+│  - Shipping details                                              │
+│  - Creates order                                                 │
+│  - Syncs status via webhooks → workbook_orders                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Business Plan Print Variant
+
+Reuse the same PDF pipeline to create a "Business Plan" variant.
+
+#### Features
+- Emphasizes financial projections, budgets, and execution steps
+- Maps to thinner notebook or bound report product type in Prodigi
+- Toggle in Print Center: "Vision Workbook" / "Business Plan" / "Bundle (save X%)"
+
+#### Agent-Integrated Flow
+- AI Coach suggests printing at key moments
+- Pre-fills order modal with recommended product and personalization
+- User just confirms shipping and payment
+
+#### Elite Tier Automation
+- One softcover workbook auto-renews annually unless cancelled
+- Locks in predictable recurring print revenue
+- Creates physical touchpoint that reinforces subscription value
+
+---
+
+### Prodigi SKU Reference
+
+| Product Type | Prodigi SKU Pattern | Notes |
+|--------------|---------------------|-------|
+| Softcover Notebook | GLOBAL-NTB-*-SC | A5, A4, Letter sizes |
+| Hardcover Notebook | GLOBAL-NTB-*-HC | Premium binding |
+| Paperback Book | NB-A5-PB-C-P | Full color interior |
+| Wall Poster | GLOBAL-FAP-* | Fine art prints |
+| Canvas | GLOBAL-CAN-* | Gallery wrap |
+| Sticker Sheets | GLOBAL-STK-* | Kiss-cut stickers |
+
+---
+
+### Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Workbook orders per 100 active users | 5+ |
+| Average order value | $45+ |
+| Upsell attach rate (pads, stickers) | 20% |
+| Repeat orders (6 months) | 25% |
+| Elite tier auto-renewal retention | 80% |
