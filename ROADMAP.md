@@ -81,8 +81,11 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [x] **Implementation Plan:** Full 12-week roadmap documented
 - [x] **Agent Chat Edge Function:** `agent-chat` deployed and operational
 - [x] **Chat UI Component:** `AgentChat.tsx` with conversation history
+- [x] **Twilio Integration:** Account configured, secrets set
+- [x] **SMS Notifications:** `send-sms` Edge Function with templates
+- [x] **Voice Calls:** `make-call` Edge Function with TwiML scripts
+- [x] **Notification Triggers:** `schedule-notification` for habit reminders, pace warnings, milestones
 - [ ] **Habit Tracking UI:** Frontend components
-- [x] **Twilio Integration:** Account configured, secrets set (SMS/Voice ready)
 
 ### v1.5: Vision Workbook (Physical Print Products) 🆕 PLANNED
 - [x] **Feature Plan:** Complete implementation roadmap in `docs/VISION_WORKBOOK_PLAN.md`
@@ -102,7 +105,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (7 Active)
+### Supabase Edge Functions (10 Active)
 
 | Function | Status | Purpose |
 |----------|--------|---------|
@@ -113,6 +116,9 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `submit-to-prodigi` | ✅ Active | Print order fulfillment |
 | `rapid-api` | ✅ Active | External API proxy |
 | `agent-chat` | ✅ Active | AI Vision Coach conversations |
+| `send-sms` | ✅ Active | Twilio SMS notifications |
+| `make-call` | ✅ Active | Twilio voice calls |
+| `schedule-notification` | ✅ Active | AI Agent notification triggers |
 
 ### Environment Secrets Configured
 
@@ -243,9 +249,9 @@ progress_predictions ✅ Pace analytics
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| Phase 1 | Database schema + basic text chat | 🚧 In Progress |
+| Phase 1 | Database schema + basic text chat | ✅ Complete |
 | Phase 2 | Habit system + streak tracking | 🔲 Pending |
-| Phase 3 | Twilio SMS + scheduled notifications | 🔲 Pending |
+| Phase 3 | Twilio SMS + scheduled notifications | ✅ Complete |
 | Phase 4 | Voice integration (Gemini Live) | 🔲 Pending |
 | Phase 5 | Weekly reviews + predictions | 🔲 Pending |
 | Phase 6 | Polish + n8n workflows | 🔲 Pending |
