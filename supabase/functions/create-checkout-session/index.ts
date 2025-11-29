@@ -10,11 +10,22 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests - must return before any JSON parsing
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      }
+    })
   }
 
   try {
+    // Parse body first before any other operations
+    const body = await req.json()
+    const { mode, priceId, orderId, successUrl, cancelUrl, customerEmail, tier } = body
+
     const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')
     if (!STRIPE_SECRET_KEY) throw new Error('Missing STRIPE_SECRET_KEY')
 
@@ -23,12 +34,10 @@ serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     })
 
-        const supabase = createClient(
-                Deno.env.get('SUPABASE_URL') ?? '',
-                Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-              )
-
-    const { mode, priceId, orderId, successUrl, cancelUrl, customerEmail, tier } = await req.json()
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
     let sessionConfig: any = {
       line_items: [],
