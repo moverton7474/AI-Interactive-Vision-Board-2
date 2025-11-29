@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         client_id: PLAID_CLIENT_ID,
         secret: PLAID_SECRET,
-        client_name: 'Visionary SaaS',
+        client_name: 'AI Interactive Vision Board',
         user: {
           client_user_id: clientUserId,
         },
