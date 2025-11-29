@@ -79,8 +79,19 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [x] **Database Schema Applied:** 10 new tables for AI Agent features
 - [x] **TypeScript Types:** 15+ interfaces for agent data models
 - [x] **Implementation Plan:** Full 12-week roadmap documented
-- [ ] **Agent Chat Edge Function:** Basic text conversation
+- [x] **Agent Chat Edge Function:** `agent-chat` deployed and operational
+- [x] **Chat UI Component:** `AgentChat.tsx` with conversation history
 - [ ] **Habit Tracking UI:** Frontend components
+- [ ] **Twilio Integration:** SMS/Voice check-ins
+
+### v1.5: Vision Workbook (Physical Print Products) 🆕 PLANNED
+- [x] **Feature Plan:** Complete implementation roadmap in `docs/VISION_WORKBOOK_PLAN.md`
+- [x] **Database Schema:** 4 new tables for workbook orders and templates
+- [x] **TypeScript Types:** Interfaces for workbook data models
+- [ ] **PDF Generation:** `generate-workbook-pdf` Edge Function
+- [ ] **Knowledge Base Compiler:** Aggregate user data for workbook content
+- [ ] **Workbook Order UI:** Template selection and customization modal
+- [ ] **Prodigi Notebook Integration:** Support for GLOBAL-NTB-* SKUs
 
 ### v2.0: The Immersive Vision Board (FUTURE)
 - [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
@@ -115,7 +126,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `PRODIGI_API_KEY` | ✅ Set |
 | `GEMINI_API_KEY` | ✅ Set (Vercel) |
 
-### Database Tables (17 Total)
+### Database Tables (21 Total)
 
 **Core Tables (7):**
 - ✅ `profiles` - User accounts with credits & subscription
@@ -126,7 +137,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ `poster_orders` - Print order history
 - ✅ `plaid_items` - Bank connection tokens
 
-**AI Agent Tables (10) - NEW:**
+**AI Agent Tables (10):**
 - ✅ `agent_sessions` - Conversation context
 - ✅ `agent_messages` - Chat history
 - ✅ `user_comm_preferences` - Communication settings
@@ -137,6 +148,12 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ `agent_actions` - Agentic operations
 - ✅ `weekly_reviews` - Progress summaries
 - ✅ `progress_predictions` - Pace analytics
+
+**Vision Workbook Tables (4) - NEW:**
+- ✅ `workbook_templates` - Product catalog (softcover/hardcover options)
+- ✅ `workbook_orders` - User workbook orders
+- ✅ `workbook_sections` - Generated sections/pages
+- ✅ `user_knowledge_base` - Aggregated user data for AI/workbooks
 
 ---
 
@@ -230,7 +247,61 @@ progress_predictions ✅ Pace analytics
 
 ---
 
-## 6. Additional Product Enhancements (v1.5+)
+## 6. Vision Workbook (Physical Print Product) 🆕
+
+> **Premium Revenue Stream:** Transform users' digital vision boards, action plans, and financial snapshots into professionally printed workbooks via Prodigi's notebook printing service.
+
+### Product Concept
+
+The Vision Workbook is a personalized, AI-generated physical journal containing:
+- Full-page vision board prints with reflection prompts
+- Financial reality check summary
+- 3-year action plan with QR code deep links
+- 12-month habit tracker templates
+- 52-week reflection journal pages
+- Achievement sticker pages
+
+### Product Tiers
+
+| Tier | Product | Pages | Size | Price |
+|------|---------|-------|------|-------|
+| Starter | Softcover Journal | 100 | A5 (5.8"x8.3") | $29.99 |
+| Standard | Hardcover Notebook | 100 | A5 (5.8"x8.3") | $44.99 |
+| Premium | Executive Hardcover | 120 | A4 (8.3"x11.7") | $64.99 |
+| Legacy | Letter Hardcover | 150 | Letter (8.5"x11") | $79.99 |
+
+### Implementation Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Feature Plan | ✅ Complete | `docs/VISION_WORKBOOK_PLAN.md` |
+| Database Schema | ✅ Complete | `supabase/migrations/20241129_workbook_schema.sql` |
+| TypeScript Types | ✅ Complete | Added to `types.ts` |
+| Template Seed Data | ✅ Complete | 4 product templates seeded |
+| PDF Generation | 🔲 Pending | `generate-workbook-pdf` Edge Function |
+| Knowledge Base Compiler | 🔲 Pending | Aggregate user data |
+| Frontend UI | 🔲 Pending | WorkbookOrderModal component |
+| Prodigi Integration | 🔲 Pending | GLOBAL-NTB-* SKUs |
+
+### Database Tables
+
+```
+workbook_templates    ✅ Product catalog with pricing
+workbook_orders       ✅ Order tracking with Prodigi
+workbook_sections     ✅ Generated PDF sections
+user_knowledge_base   ✅ Aggregated user data for AI/print
+```
+
+### Revenue Potential
+
+- **Margin**: $15-50 per workbook (after Prodigi costs)
+- **Conversion Target**: 5% of active users
+- **Upsell Path**: Elite subscribers get free softcover annually
+- **Gift Market**: Couples ordering for each other
+
+---
+
+## 7. Additional Product Enhancements (v2.5+)
 
 > **TL;DR:** Visionary has strong foundational features but lacks engagement loops and completion pathways. Key enhancements should focus on reducing friction between dream definition and execution, enabling couple collaboration, improving AI reliability, and building micro-monetization patterns that feel natural rather than punitive.
 
@@ -289,7 +360,7 @@ Let users choose focus on landing based on life stage:
 
 ---
 
-## 7. Category Dominance Features (v2.0+)
+## 8. Category Dominance Features (v3.0+)
 
 These features would push Visionary into true category leadership:
 
@@ -336,7 +407,7 @@ These features would push Visionary into true category leadership:
 
 ---
 
-## 8. Technical Considerations
+## 9. Technical Considerations
 
 ### API Key Security
 Current: Gemini API key exposed in client bundle via Vercel env vars.
@@ -361,7 +432,7 @@ Current credit model feels transactional. Recommended hybrid approach:
 
 ---
 
-## 9. Quick Reference: Next Actions
+## 10. Quick Reference: Next Actions
 
 ### Immediate (Today)
 1. ✅ ~~Apply AI Agent database schema~~ DONE
@@ -375,6 +446,12 @@ Current credit model feels transactional. Recommended hybrid approach:
 7. 🔲 Set GEMINI_API_KEY as Supabase secret
 
 ### Next Week
-7. 🔲 Move Gemini API to Edge Function (security)
-8. 🔲 Implement habit tracking frontend
-9. 🔲 Add streak visualization
+8. 🔲 Move Gemini API to Edge Function (security)
+9. 🔲 Implement habit tracking frontend
+10. 🔲 Add streak visualization
+
+### Vision Workbook (v1.5)
+11. 🔲 Apply workbook database schema (`npx supabase db push`)
+12. 🔲 Verify Prodigi notebook SKUs
+13. 🔲 Create `generate-workbook-pdf` Edge Function
+14. 🔲 Build WorkbookOrderModal component

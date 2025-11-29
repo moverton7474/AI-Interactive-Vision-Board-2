@@ -336,3 +336,171 @@ export const BADGE_DEFINITIONS: Record<string, { name: string; description: stri
   'action_plan': { name: 'Action Taker', description: 'Generated your action plan', icon: '📋' },
   'couple_sync': { name: 'Dream Team', description: 'Connected with your partner', icon: '💑' },
 };
+
+// ============================================
+// VISION WORKBOOK TYPES
+// ============================================
+
+export type WorkbookBinding = 'softcover' | 'hardcover';
+export type WorkbookOrderStatus =
+  | 'draft'
+  | 'generating'
+  | 'ready'
+  | 'pending_payment'
+  | 'paid'
+  | 'submitted'
+  | 'printing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
+
+export type WorkbookSectionType =
+  | 'cover'
+  | 'title_page'
+  | 'dedication'
+  | 'coach_letter'
+  | 'vision_gallery'
+  | 'financial_snapshot'
+  | 'action_plan'
+  | 'habit_tracker'
+  | 'weekly_journal'
+  | 'appendix'
+  | 'notes'
+  | 'back_cover';
+
+export interface WorkbookTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  sku: string;
+  page_count: number;
+  size: string;
+  binding: WorkbookBinding;
+  base_price: number;
+  shipping_estimate: number;
+  preview_image_url?: string;
+  features: string[];
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface WorkbookOrder {
+  id: string;
+  user_id: string;
+  template_id: string;
+  status: WorkbookOrderStatus;
+
+  // Content References
+  vision_board_ids: string[];
+  action_plan_id?: string;
+  financial_snapshot: Record<string, any>;
+  included_habits: string[];
+
+  // Generated Assets
+  cover_pdf_url?: string;
+  interior_pdf_url?: string;
+  merged_pdf_url?: string;
+  preview_images: string[];
+
+  // Customization
+  title?: string;
+  subtitle?: string;
+  dedication_text?: string;
+  cover_style: string;
+  include_weekly_journal: boolean;
+  include_habit_tracker: boolean;
+
+  // Shipping
+  shipping_address?: ShippingAddress;
+
+  // Pricing
+  subtotal: number;
+  discount_amount: number;
+  shipping_cost: number;
+  total_price: number;
+  discount_code?: string;
+  discount_applied: boolean;
+
+  // Prodigi
+  prodigi_order_id?: string;
+  prodigi_status?: string;
+  tracking_number?: string;
+  tracking_url?: string;
+  estimated_delivery?: string;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+  generation_started_at?: string;
+  generation_completed_at?: string;
+  paid_at?: string;
+  submitted_at?: string;
+  shipped_at?: string;
+  delivered_at?: string;
+
+  // Joined data
+  template?: WorkbookTemplate;
+}
+
+export interface WorkbookSection {
+  id: string;
+  workbook_order_id: string;
+  section_type: WorkbookSectionType;
+  section_order: number;
+  page_start?: number;
+  page_end?: number;
+  title?: string;
+  content: Record<string, any>;
+  html_template?: string;
+  pdf_url?: string;
+  status: 'pending' | 'generating' | 'complete' | 'error';
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserKnowledgeBase {
+  id: string;
+  user_id: string;
+
+  // Profile
+  names?: string;
+  retirement_year?: number;
+  dream_locations: string[];
+
+  // Financial
+  financial_summary: Record<string, any>;
+  plaid_accounts_summary: Record<string, any>;
+  monthly_budget?: number;
+  retirement_goal?: number;
+
+  // Visions
+  vision_statements: string[];
+  top_priorities: string[];
+  vision_board_count: number;
+
+  // Goals
+  goals_summary: Record<string, any>;
+  milestones: Array<{ year: number; title: string; tasks: string[] }>;
+  active_tasks_count: number;
+  completed_tasks_count: number;
+
+  // Habits
+  habits_summary: Record<string, any>;
+  active_habits_count: number;
+  total_streak_days: number;
+
+  // AI Context
+  conversation_insights?: string;
+  recommended_focus_areas: string[];
+  agent_notes?: string;
+  sentiment_trend?: string;
+
+  // Metadata
+  data_sources: string[];
+  last_plaid_sync?: string;
+  last_compiled_at?: string;
+  created_at: string;
+  updated_at: string;
+}
