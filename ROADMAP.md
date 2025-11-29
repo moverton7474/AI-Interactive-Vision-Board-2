@@ -82,7 +82,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [x] **Agent Chat Edge Function:** `agent-chat` deployed and operational
 - [x] **Chat UI Component:** `AgentChat.tsx` with conversation history
 - [ ] **Habit Tracking UI:** Frontend components
-- [ ] **Twilio Integration:** SMS/Voice check-ins
+- [x] **Twilio Integration:** Account configured, secrets set (SMS/Voice ready)
 
 ### v1.5: Vision Workbook (Physical Print Products) 🆕 PLANNED
 - [x] **Feature Plan:** Complete implementation roadmap in `docs/VISION_WORKBOOK_PLAN.md`
@@ -125,6 +125,11 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `PLAID_ENV` | ✅ Set (sandbox) |
 | `PRODIGI_API_KEY` | ✅ Set |
 | `GEMINI_API_KEY` | ✅ Set (Vercel) |
+| `TWILIO_ACCOUNT_SID` | ✅ Set |
+| `TWILIO_AUTH_TOKEN` | ✅ Set |
+| `TWILIO_PHONE_NUMBER` | ✅ Set (+18885905074) |
+| `TWILIO_API_KEY_SID` | ✅ Set |
+| `TWILIO_API_KEY_SECRET` | ✅ Set |
 
 ### Database Tables (21 Total)
 
@@ -230,7 +235,7 @@ progress_predictions ✅ Pace analytics
 | Service | Purpose | Status |
 |---------|---------|--------|
 | Gemini AI | Text/Voice chat | ✅ Configured |
-| Twilio | SMS & Voice calls | 🔲 Need account |
+| Twilio | SMS & Voice calls | ✅ Configured (+18885905074) |
 | Resend | Transactional email | 🔲 Need account |
 | n8n/Zapier | Workflow automation | 🔲 Optional |
 
@@ -442,7 +447,7 @@ Current credit model feels transactional. Recommended hybrid approach:
 ### This Week
 4. ✅ ~~Create `agent-chat` Edge Function~~ DONE
 5. ✅ ~~Build basic chat UI component~~ DONE
-6. 🔲 Sign up for Twilio account
+6. ✅ ~~Sign up for Twilio account~~ DONE (+18885905074)
 7. 🔲 Set GEMINI_API_KEY as Supabase secret
 
 ### Next Week
