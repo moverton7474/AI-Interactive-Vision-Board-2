@@ -150,7 +150,64 @@ supabase functions deploy stripe-webhook
 
 ---
 
-## 6. Product Enhancement Recommendations
+## 6. AI Agent Assistant (KEY DIFFERENTIATOR)
+
+> **This is Visionary's market differentiator.** Unlike passive goal-tracking apps, the AI Agent ("Vision Coach") proactively engages users through voice, text, and calls to help them execute their vision goals.
+
+### Implementation Status: PLANNED
+
+**Database Schema:** `supabase/migrations/20241129_ai_agent_schema.sql`
+**Full Plan:** `docs/AI_AGENT_IMPLEMENTATION_PLAN.md`
+
+### Core Capabilities
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Text Chat | Real-time conversation with AI Coach | 🔲 Pending |
+| Voice Chat | Gemini Live integration for voice | 🔲 Pending |
+| Proactive Outreach | SMS/Email/Push notifications | 🔲 Pending |
+| Voice Calls | Twilio-powered check-in calls | 🔲 Pending |
+| Habit Tracking | Daily micro-actions with streaks | 🔲 Pending |
+| Weekly Reviews | AI-generated progress summaries | 🔲 Pending |
+| Predictive Coaching | Pace warnings & recommendations | 🔲 Pending |
+| Agentic Actions | Execute tasks on user's behalf | 🔲 Pending |
+
+### New Database Tables
+
+```
+agent_sessions       - Conversation context
+agent_messages       - Chat history
+user_comm_preferences - Communication settings
+habits               - Micro-habits
+habit_completions    - Streak tracking
+user_achievements    - Badges & levels
+scheduled_checkins   - Proactive outreach
+agent_actions        - Agentic operations
+weekly_reviews       - Progress summaries
+progress_predictions - Pace analytics
+```
+
+### External Integrations Required
+
+| Service | Purpose | Account Needed |
+|---------|---------|----------------|
+| Twilio | SMS & Voice calls | Yes |
+| Resend | Transactional email | Yes |
+| n8n/Zapier | Workflow automation | Optional |
+| Gemini Live | Voice AI | Uses existing key |
+
+### Implementation Phases
+
+**Phase 1 (Week 1-2):** Database schema + basic text chat
+**Phase 2 (Week 3-4):** Habit system + streak tracking
+**Phase 3 (Week 5-6):** Twilio SMS + scheduled notifications
+**Phase 4 (Week 7-8):** Voice integration (Gemini Live)
+**Phase 5 (Week 9-10):** Weekly reviews + predictions
+**Phase 6 (Week 11-12):** Polish + n8n workflows
+
+---
+
+## 7. Additional Product Enhancements
 
 > **TL;DR:** Visionary has strong foundational features but lacks engagement loops and completion pathways. Key enhancements should focus on reducing friction between dream definition and execution, enabling couple collaboration, improving AI reliability, and building micro-monetization patterns that feel natural rather than punitive.
 
@@ -209,7 +266,7 @@ Let users choose focus on landing based on life stage:
 
 ---
 
-## 7. Category Dominance Features (v2.0+)
+## 8. Category Dominance Features (v2.0+)
 
 These features would push Visionary into true category leadership:
 
@@ -256,7 +313,7 @@ These features would push Visionary into true category leadership:
 
 ---
 
-## 8. Further Technical Considerations
+## 9. Further Technical Considerations
 
 ### Financial Integration Depth
 Cost-of-Living API currently on roadmap but underutilized:

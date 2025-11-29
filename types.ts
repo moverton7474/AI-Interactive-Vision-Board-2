@@ -148,3 +148,191 @@ export interface VisionTemplate {
   basePrompt: string; // The "Magic" prompt
   previewColor: string;
 }
+
+// ============================================
+// AI AGENT ASSISTANT TYPES
+// ============================================
+
+export type SessionType = 'voice' | 'text' | 'scheduled_call' | 'push';
+export type SessionStatus = 'active' | 'completed' | 'abandoned';
+export type MessageRole = 'user' | 'agent' | 'system';
+export type ContentType = 'text' | 'audio' | 'action';
+export type ChannelType = 'voice' | 'sms' | 'email' | 'push' | 'in_app' | 'call';
+export type HabitFrequency = 'daily' | 'weekly' | 'weekdays' | 'custom';
+export type CheckinType = 'weekly_review' | 'daily_habit' | 'milestone_reminder' | 'custom';
+export type ActionStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
+
+export interface AgentSession {
+  id: string;
+  user_id: string;
+  session_type: SessionType;
+  status: SessionStatus;
+  context: Record<string, any>;
+  started_at: string;
+  ended_at?: string;
+  summary?: string;
+  sentiment_score?: number;
+  action_items: AgentActionItem[];
+  created_at: string;
+}
+
+export interface AgentActionItem {
+  type: string;
+  description: string;
+  completed: boolean;
+}
+
+export interface AgentMessage {
+  id: string;
+  session_id: string;
+  role: MessageRole;
+  content: string;
+  content_type: ContentType;
+  audio_url?: string;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+export interface UserCommPreferences {
+  id: string;
+  user_id: string;
+  phone_number?: string;
+  phone_verified: boolean;
+  preferred_channel: ChannelType;
+  preferred_times: {
+    morning: boolean;
+    afternoon: boolean;
+    evening: boolean;
+  };
+  timezone: string;
+  weekly_review_day: string;
+  weekly_review_time: string;
+  voice_enabled: boolean;
+  call_enabled: boolean;
+  quiet_hours: {
+    start: string;
+    end: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Habit {
+  id: string;
+  user_id: string;
+  task_id?: string;
+  title: string;
+  description?: string;
+  frequency: HabitFrequency;
+  custom_days: number[]; // 0-6 for Sunday-Saturday
+  reminder_time?: string;
+  is_active: boolean;
+  created_at: string;
+  // Computed fields (from joins/functions)
+  current_streak?: number;
+  last_completed?: string;
+}
+
+export interface HabitCompletion {
+  id: string;
+  habit_id: string;
+  completed_at: string;
+  notes?: string;
+  mood_rating?: number; // 1-5
+  created_at: string;
+}
+
+export interface UserAchievement {
+  id: string;
+  user_id: string;
+  achievement_type: 'streak' | 'badge' | 'level';
+  achievement_key: string;
+  value: number;
+  earned_at: string;
+  metadata: Record<string, any>;
+}
+
+export interface ScheduledCheckin {
+  id: string;
+  user_id: string;
+  checkin_type: CheckinType;
+  scheduled_for: string;
+  channel: ChannelType;
+  status: 'pending' | 'sent' | 'completed' | 'failed' | 'skipped';
+  content: Record<string, any>;
+  response: Record<string, any>;
+  created_at: string;
+}
+
+export interface AgentAction {
+  id: string;
+  user_id: string;
+  action_type: string;
+  action_status: ActionStatus;
+  input_params: Record<string, any>;
+  output_result: Record<string, any>;
+  requires_approval: boolean;
+  approved_at?: string;
+  executed_at?: string;
+  error_message?: string;
+  created_at: string;
+}
+
+export interface WeeklyReview {
+  id: string;
+  user_id: string;
+  week_start: string;
+  week_end: string;
+  wins: string[];
+  blockers: string[];
+  next_steps: string[];
+  habit_completion_rate: number;
+  tasks_completed: number;
+  tasks_total: number;
+  mood_average?: number;
+  ai_insights?: string;
+  video_url?: string;
+  created_at: string;
+}
+
+export interface ProgressPrediction {
+  id: string;
+  user_id: string;
+  goal_type: string;
+  target_date: string;
+  current_pace: number; // 0 to 1+ (above 1 = ahead of schedule)
+  predicted_completion_date: string;
+  confidence_score: number;
+  recommendations: string[];
+  calculated_at: string;
+}
+
+// Agent Tool Definitions
+export type AgentToolName =
+  | 'create_task'
+  | 'adjust_timeline'
+  | 'create_habit'
+  | 'send_reminder'
+  | 'draft_email'
+  | 'schedule_call'
+  | 'research_location'
+  | 'transfer_funds'
+  | 'generate_report';
+
+export interface AgentToolCall {
+  tool: AgentToolName;
+  params: Record<string, any>;
+  requires_approval: boolean;
+}
+
+// Badge Definitions
+export const BADGE_DEFINITIONS: Record<string, { name: string; description: string; icon: string }> = {
+  'first_vision': { name: 'Visionary', description: 'Created your first vision board', icon: '🌟' },
+  '7_day_streak': { name: 'Week Warrior', description: '7 day habit streak', icon: '🔥' },
+  '30_day_streak': { name: 'Monthly Master', description: '30 day habit streak', icon: '💪' },
+  '100_day_streak': { name: 'Century Club', description: '100 day habit streak', icon: '🏆' },
+  'financial_check': { name: 'Reality Checker', description: 'Completed financial reality check', icon: '💰' },
+  'first_goal': { name: 'Goal Setter', description: 'Set your first retirement goal', icon: '🎯' },
+  'action_plan': { name: 'Action Taker', description: 'Generated your action plan', icon: '📋' },
+  'couple_sync': { name: 'Dream Team', description: 'Connected with your partner', icon: '💑' },
+};
