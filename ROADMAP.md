@@ -92,8 +92,8 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [x] **Feature Plan:** Complete implementation roadmap in `docs/VISION_WORKBOOK_PLAN.md`
 - [x] **Database Schema:** 4 new tables for workbook orders and templates
 - [x] **TypeScript Types:** Interfaces for workbook data models
+- [x] **Knowledge Base Compiler:** `compile-knowledge-base` Edge Function for AI context & workbooks
 - [ ] **PDF Generation:** `generate-workbook-pdf` Edge Function
-- [ ] **Knowledge Base Compiler:** Aggregate user data for workbook content
 - [ ] **Workbook Order UI:** Template selection and customization modal
 - [ ] **Prodigi Notebook Integration:** Support for GLOBAL-NTB-* SKUs
 
@@ -106,7 +106,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (11 Active)
+### Supabase Edge Functions (12 Active)
 
 | Function | Status | Purpose |
 |----------|--------|---------|
@@ -121,6 +121,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `make-call` | ✅ Active | Twilio voice calls |
 | `schedule-notification` | ✅ Active | AI Agent notification triggers |
 | `habit-service` | ✅ Active | Habit CRUD, completions, streaks, stats |
+| `compile-knowledge-base` | ✅ Active | Aggregate user data for AI/workbooks |
 
 ### Environment Secrets Configured
 
