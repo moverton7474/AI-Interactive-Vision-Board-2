@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile, ShippingAddress } from '../types';
+import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile, ShippingAddress, Habit, HabitCompletion, HabitFrequency } from '../types';
 
 /**
  * Service to handle persistence of Vision Board and Reference data using Supabase.
@@ -434,5 +434,305 @@ export const updateTaskStatus = async (id: string, isCompleted: boolean): Promis
     await supabase.from('action_tasks').update({ is_completed: isCompleted }).eq('id', id);
   } catch (error) {
     console.error("Failed to update task", error);
+  }
+};
+
+/* --- HABIT TRACKING --- */
+
+export const getHabits = async (): Promise<Habit[]> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('habits')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((row: any) => ({
+      id: row.id,
+      user_id: row.user_id,
+      task_id: row.task_id,
+      title: row.title,
+      description: row.description,
+      frequency: row.frequency as HabitFrequency,
+      custom_days: row.custom_days || [],
+      reminder_time: row.reminder_time,
+      is_active: row.is_active,
+      created_at: row.created_at,
+      current_streak: row.current_streak || 0,
+      last_completed: row.last_completed
+    }));
+  } catch (error) {
+    console.error("Failed to get habits", error);
+    return [];
+  }
+};
+
+export const createHabit = async (habit: Omit<Habit, 'id' | 'user_id' | 'created_at' | 'current_streak' | 'last_completed'>): Promise<Habit | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('habits')
+      .insert([{
+        user_id: user.id,
+        task_id: habit.task_id,
+        title: habit.title,
+        description: habit.description,
+        frequency: habit.frequency,
+        custom_days: habit.custom_days,
+        reminder_time: habit.reminder_time,
+        is_active: habit.is_active ?? true,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      id: data.id,
+      user_id: data.user_id,
+      task_id: data.task_id,
+      title: data.title,
+      description: data.description,
+      frequency: data.frequency,
+      custom_days: data.custom_days || [],
+      reminder_time: data.reminder_time,
+      is_active: data.is_active,
+      created_at: data.created_at,
+      current_streak: 0,
+      last_completed: undefined
+    };
+  } catch (error) {
+    console.error("Failed to create habit", error);
+    return null;
+  }
+};
+
+export const updateHabit = async (id: string, updates: Partial<Habit>): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('habits')
+      .update({
+        title: updates.title,
+        description: updates.description,
+        frequency: updates.frequency,
+        custom_days: updates.custom_days,
+        reminder_time: updates.reminder_time,
+        is_active: updates.is_active
+      })
+      .eq('id', id);
+
+    return !error;
+  } catch (error) {
+    console.error("Failed to update habit", error);
+    return false;
+  }
+};
+
+export const deleteHabit = async (id: string): Promise<boolean> => {
+  try {
+    // Soft delete by setting is_active to false
+    const { error } = await supabase
+      .from('habits')
+      .update({ is_active: false })
+      .eq('id', id);
+
+    return !error;
+  } catch (error) {
+    console.error("Failed to delete habit", error);
+    return false;
+  }
+};
+
+export const completeHabit = async (habitId: string, notes?: string, moodRating?: number): Promise<HabitCompletion | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Record the completion
+    const { data, error } = await supabase
+      .from('habit_completions')
+      .insert([{
+        habit_id: habitId,
+        completed_at: new Date().toISOString(),
+        notes: notes,
+        mood_rating: moodRating,
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Update streak via edge function or compute locally
+    await updateHabitStreak(habitId);
+
+    return {
+      id: data.id,
+      habit_id: data.habit_id,
+      completed_at: data.completed_at,
+      notes: data.notes,
+      mood_rating: data.mood_rating,
+      created_at: data.created_at
+    };
+  } catch (error) {
+    console.error("Failed to complete habit", error);
+    return null;
+  }
+};
+
+export const getHabitCompletions = async (habitId: string, days: number = 30): Promise<HabitCompletion[]> => {
+  try {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const { data, error } = await supabase
+      .from('habit_completions')
+      .select('*')
+      .eq('habit_id', habitId)
+      .gte('completed_at', startDate.toISOString())
+      .order('completed_at', { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((row: any) => ({
+      id: row.id,
+      habit_id: row.habit_id,
+      completed_at: row.completed_at,
+      notes: row.notes,
+      mood_rating: row.mood_rating,
+      created_at: row.created_at
+    }));
+  } catch (error) {
+    console.error("Failed to get habit completions", error);
+    return [];
+  }
+};
+
+export const getTodayCompletions = async (): Promise<string[]> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const { data, error } = await supabase
+      .from('habit_completions')
+      .select('habit_id, habits!inner(user_id)')
+      .eq('habits.user_id', user.id)
+      .gte('completed_at', today.toISOString());
+
+    if (error || !data) return [];
+
+    return data.map((row: any) => row.habit_id);
+  } catch (error) {
+    console.error("Failed to get today's completions", error);
+    return [];
+  }
+};
+
+const updateHabitStreak = async (habitId: string): Promise<void> => {
+  try {
+    // Get completions in descending order
+    const { data: completions } = await supabase
+      .from('habit_completions')
+      .select('completed_at')
+      .eq('habit_id', habitId)
+      .order('completed_at', { ascending: false });
+
+    if (!completions || completions.length === 0) return;
+
+    // Calculate streak
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let currentDate = today;
+
+    for (const completion of completions) {
+      const completedDate = new Date(completion.completed_at);
+      completedDate.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.floor((currentDate.getTime() - completedDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0 || diffDays === 1) {
+        streak++;
+        currentDate = completedDate;
+      } else {
+        break;
+      }
+    }
+
+    // Update habit with new streak
+    await supabase
+      .from('habits')
+      .update({
+        current_streak: streak,
+        last_completed: completions[0].completed_at
+      })
+      .eq('id', habitId);
+
+  } catch (error) {
+    console.error("Failed to update streak", error);
+  }
+};
+
+export const getHabitStats = async (): Promise<{
+  totalHabits: number;
+  totalCompletions: number;
+  longestStreak: number;
+  currentStreakTotal: number;
+  weeklyCompletionRate: number;
+}> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { totalHabits: 0, totalCompletions: 0, longestStreak: 0, currentStreakTotal: 0, weeklyCompletionRate: 0 };
+
+    // Get habits
+    const habits = await getHabits();
+
+    // Get all completions for the past 7 days
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const { count: weeklyCount } = await supabase
+      .from('habit_completions')
+      .select('*, habits!inner(user_id)', { count: 'exact', head: true })
+      .eq('habits.user_id', user.id)
+      .gte('completed_at', weekAgo.toISOString());
+
+    // Get total completions
+    const { count: totalCount } = await supabase
+      .from('habit_completions')
+      .select('*, habits!inner(user_id)', { count: 'exact', head: true })
+      .eq('habits.user_id', user.id);
+
+    const totalHabits = habits.length;
+    const currentStreakTotal = habits.reduce((sum, h) => sum + (h.current_streak || 0), 0);
+    const longestStreak = Math.max(...habits.map(h => h.current_streak || 0), 0);
+
+    // Calculate weekly completion rate (completions / expected)
+    const expectedWeekly = totalHabits * 7; // Simplified calculation
+    const weeklyCompletionRate = expectedWeekly > 0 ? Math.round(((weeklyCount || 0) / expectedWeekly) * 100) : 0;
+
+    return {
+      totalHabits,
+      totalCompletions: totalCount || 0,
+      longestStreak,
+      currentStreakTotal,
+      weeklyCompletionRate: Math.min(weeklyCompletionRate, 100)
+    };
+  } catch (error) {
+    console.error("Failed to get habit stats", error);
+    return { totalHabits: 0, totalCompletions: 0, longestStreak: 0, currentStreakTotal: 0, weeklyCompletionRate: 0 };
   }
 };

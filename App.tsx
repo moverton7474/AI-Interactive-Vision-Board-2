@@ -13,7 +13,8 @@ import OrderHistory from './components/OrderHistory';
 import Pricing from './components/Pricing';
 import SubscriptionModal from './components/SubscriptionModal';
 import OnboardingWizard from './components/OnboardingWizard';
-import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon } from './components/Icons';
+import HabitTracker from './components/HabitTracker';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -301,6 +302,8 @@ const App = () => {
         return <TrustCenter />;
       case AppView.ORDER_HISTORY:
         return <OrderHistory />;
+      case AppView.HABITS:
+        return <HabitTracker onBack={() => setView(AppView.LANDING)} />;
       default:
         return null;
     }
@@ -524,6 +527,9 @@ USING (auth.uid() = id);
               <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Visualize</button>
               <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Gallery</button>
               <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Execute</button>
+              <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <FireIcon className="w-4 h-4" /> Habits
+              </button>
               <button onClick={() => setView(AppView.ORDER_HISTORY)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.ORDER_HISTORY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                 <ReceiptIcon className="w-4 h-4" /> Orders
               </button>
