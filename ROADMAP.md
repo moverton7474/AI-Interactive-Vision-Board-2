@@ -88,14 +88,14 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [x] **Habit Service API:** `habit-service` Edge Function (create, complete, list, stats, delete)
 - [x] **Habit Tracking UI:** Frontend components (HabitTracker.tsx with stats, streaks, calendar view)
 
-### v1.5: Vision Workbook (Physical Print Products) 🆕 PLANNED
+### v1.5: Vision Workbook (Physical Print Products) ✅ COMPLETED
 - [x] **Feature Plan:** Complete implementation roadmap in `docs/VISION_WORKBOOK_PLAN.md`
 - [x] **Database Schema:** 4 new tables for workbook orders and templates
 - [x] **TypeScript Types:** Interfaces for workbook data models
 - [x] **Knowledge Base Compiler:** `compile-knowledge-base` Edge Function for AI context & workbooks
-- [ ] **PDF Generation:** `generate-workbook-pdf` Edge Function
-- [ ] **Workbook Order UI:** Template selection and customization modal
-- [ ] **Prodigi Notebook Integration:** Support for GLOBAL-NTB-* SKUs
+- [x] **PDF Generation:** `generate-workbook-pdf` Edge Function deployed
+- [x] **Workbook Order UI:** `WorkbookOrderModal.tsx` with 5-step wizard
+- [x] **Prodigi Notebook Integration:** Support for GLOBAL-NTB-* SKUs via `submit-to-prodigi`
 
 ### v2.0: The Immersive Vision Board (FUTURE)
 - [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
@@ -106,7 +106,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (14 Active)
+### Supabase Edge Functions (15 Active)
 
 | Function | Status | Purpose |
 |----------|--------|---------|
@@ -124,6 +124,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | `compile-knowledge-base` | ✅ Active | Aggregate user data for AI/workbooks |
 | `generate-weekly-review` | ✅ Active | AI-powered weekly progress summaries |
 | `gemini-proxy` | ✅ Active | Secure Gemini API proxy (removes client exposure) |
+| `generate-workbook-pdf` | ✅ Active | Vision Workbook PDF generation |
 
 ### Environment Secrets Configured
 
@@ -321,10 +322,10 @@ The Vision Workbook is a personalized, AI-generated physical journal containing:
 | Database Schema | ✅ Complete | `supabase/migrations/20241129_workbook_schema.sql` |
 | TypeScript Types | ✅ Complete | Added to `types.ts` |
 | Template Seed Data | ✅ Complete | 4 product templates seeded |
-| PDF Generation | 🔲 Pending | `generate-workbook-pdf` Edge Function |
-| Knowledge Base Compiler | 🔲 Pending | Aggregate user data |
-| Frontend UI | 🔲 Pending | WorkbookOrderModal component |
-| Prodigi Integration | 🔲 Pending | GLOBAL-NTB-* SKUs |
+| PDF Generation | ✅ Complete | `generate-workbook-pdf` Edge Function deployed |
+| Knowledge Base Compiler | ✅ Complete | `compile-knowledge-base` Edge Function |
+| Frontend UI | ✅ Complete | `WorkbookOrderModal.tsx` with 5-step wizard |
+| Prodigi Integration | ✅ Complete | GLOBAL-NTB-* SKUs via `submit-to-prodigi` |
 
 ### Database Tables
 
@@ -493,11 +494,11 @@ Current credit model feels transactional. Recommended hybrid approach:
 9. ✅ ~~Implement habit tracking frontend~~ DONE
 10. ✅ ~~Add streak visualization~~ DONE
 
-### Vision Workbook (v1.5)
-11. 🔲 Apply workbook database schema (`npx supabase db push`)
-12. 🔲 Verify Prodigi notebook SKUs
-13. 🔲 Create `generate-workbook-pdf` Edge Function
-14. 🔲 Build WorkbookOrderModal component
+### Vision Workbook (v1.5) ✅ COMPLETED
+11. ✅ ~~Apply workbook database schema~~ DONE
+12. ✅ ~~Verify Prodigi notebook SKUs~~ DONE
+13. ✅ ~~Create `generate-workbook-pdf` Edge Function~~ DONE
+14. ✅ ~~Build WorkbookOrderModal component~~ DONE
 
 ---
 

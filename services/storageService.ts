@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile, ShippingAddress, Habit, HabitCompletion, HabitFrequency } from '../types';
+import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile, ShippingAddress, Habit, HabitCompletion, HabitFrequency, WorkbookTemplate, WorkbookOrder } from '../types';
 
 /**
  * Service to handle persistence of Vision Board and Reference data using Supabase.
@@ -734,5 +734,210 @@ export const getHabitStats = async (): Promise<{
   } catch (error) {
     console.error("Failed to get habit stats", error);
     return { totalHabits: 0, totalCompletions: 0, longestStreak: 0, currentStreakTotal: 0, weeklyCompletionRate: 0 };
+  }
+};
+
+/* --- VISION WORKBOOK --- */
+
+export const getWorkbookTemplates = async (): Promise<WorkbookTemplate[]> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('generate-workbook-pdf', {
+      body: {},
+      method: 'GET',
+    });
+
+    // Fallback to direct query if edge function fails
+    if (error || !data?.templates) {
+      const { data: templates, error: dbError } = await supabase
+        .from('workbook_templates')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+      if (dbError) throw dbError;
+
+      return templates?.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        sku: t.sku,
+        page_count: t.page_count,
+        size: t.size,
+        binding: t.binding,
+        base_price: parseFloat(t.base_price),
+        shipping_estimate: parseFloat(t.shipping_estimate),
+        preview_image_url: t.preview_image_url,
+        features: typeof t.features === 'string' ? JSON.parse(t.features) : t.features || [],
+        is_active: t.is_active,
+        sort_order: t.sort_order,
+        created_at: t.created_at
+      })) || [];
+    }
+
+    return data.templates;
+  } catch (error) {
+    console.error("Failed to get workbook templates", error);
+    return [];
+  }
+};
+
+export const createWorkbookOrder = async (orderData: {
+  template_id: string;
+  title?: string;
+  subtitle?: string;
+  dedication_text?: string;
+  cover_style?: string;
+  include_weekly_journal?: boolean;
+  include_habit_tracker?: boolean;
+  vision_board_ids?: string[];
+  included_habits?: string[];
+  shipping_address?: ShippingAddress;
+}): Promise<WorkbookOrder | null> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('generate-workbook-pdf?action=create_order', {
+      body: orderData
+    });
+
+    if (error) throw error;
+    return data.order;
+  } catch (error) {
+    console.error("Failed to create workbook order", error);
+    return null;
+  }
+};
+
+export const generateWorkbookPdf = async (orderId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('generate-workbook-pdf?action=generate', {
+      body: { order_id: orderId }
+    });
+
+    if (error) throw error;
+    return data.success;
+  } catch (error) {
+    console.error("Failed to generate workbook PDF", error);
+    return false;
+  }
+};
+
+export const getWorkbookOrder = async (orderId: string): Promise<WorkbookOrder | null> => {
+  try {
+    const { data, error } = await supabase.functions.invoke(`generate-workbook-pdf?action=get_order&order_id=${orderId}`, {
+      method: 'GET'
+    });
+
+    if (error) throw error;
+    return data.order;
+  } catch (error) {
+    console.error("Failed to get workbook order", error);
+    return null;
+  }
+};
+
+export const getWorkbookOrders = async (): Promise<WorkbookOrder[]> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('workbook_orders')
+      .select('*, template:workbook_templates(name, sku, size, binding)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return data?.map((o: any) => ({
+      ...o,
+      subtotal: parseFloat(o.subtotal),
+      discount_amount: parseFloat(o.discount_amount),
+      shipping_cost: parseFloat(o.shipping_cost),
+      total_price: parseFloat(o.total_price)
+    })) || [];
+  } catch (error) {
+    console.error("Failed to get workbook orders", error);
+    return [];
+  }
+};
+
+export const updateWorkbookOrderStatus = async (orderId: string, status: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('workbook_orders')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', orderId);
+
+    return !error;
+  } catch (error) {
+    console.error("Failed to update workbook order status", error);
+    return false;
+  }
+};
+
+export const submitWorkbookToProdigi = async (orderId: string): Promise<{ success: boolean; prodigiOrderId?: string; error?: string }> => {
+  try {
+    // Get order details
+    const { data: order, error: orderError } = await supabase
+      .from('workbook_orders')
+      .select('*, template:workbook_templates(*)')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      throw new Error('Order not found');
+    }
+
+    if (!order.shipping_address) {
+      throw new Error('Shipping address is required');
+    }
+
+    // Prepare Prodigi payload
+    const prodigiPayload = {
+      orderId: orderId,
+      recipient: {
+        name: order.shipping_address.name,
+        address: {
+          line1: order.shipping_address.line1,
+          line2: order.shipping_address.line2,
+          townOrCity: order.shipping_address.city,
+          stateOrCounty: order.shipping_address.state,
+          postalOrZipCode: order.shipping_address.postalCode,
+          countryCode: order.shipping_address.country
+        }
+      },
+      items: [{
+        sku: order.template?.sku || 'GLOBAL-NTB-A5-SC-100',
+        copies: 1,
+        sizing: 'fillPrintArea',
+        assets: [{
+          printArea: 'default',
+          url: order.merged_pdf_url || order.interior_pdf_url || 'https://visionary.app/placeholder-workbook.pdf'
+        }]
+      }]
+    };
+
+    // Submit to Prodigi
+    const { data, error } = await supabase.functions.invoke('submit-to-prodigi', {
+      body: prodigiPayload
+    });
+
+    if (error) throw error;
+
+    // Update order with Prodigi info
+    await supabase
+      .from('workbook_orders')
+      .update({
+        status: 'submitted',
+        prodigi_order_id: data.orderId,
+        prodigi_status: data.status,
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId);
+
+    return { success: true, prodigiOrderId: data.orderId };
+  } catch (error: any) {
+    console.error("Failed to submit to Prodigi", error);
+    return { success: false, error: error.message };
   }
 };

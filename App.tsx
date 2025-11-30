@@ -14,7 +14,8 @@ import Pricing from './components/Pricing';
 import SubscriptionModal from './components/SubscriptionModal';
 import OnboardingWizard from './components/OnboardingWizard';
 import HabitTracker from './components/HabitTracker';
-import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon } from './components/Icons';
+import WorkbookOrderModal from './components/WorkbookOrderModal';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -41,6 +42,9 @@ const App = () => {
   // Subscription State
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [selectedTier, setSelectedTier] = useState<'PRO' | 'ELITE'>('PRO');
+
+  // Workbook State
+  const [showWorkbookModal, setShowWorkbookModal] = useState(false);
 
   // Shared State
   const [activeVisionPrompt, setActiveVisionPrompt] = useState('');
@@ -530,6 +534,9 @@ USING (auth.uid() = id);
               <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                 <FireIcon className="w-4 h-4" /> Habits
               </button>
+              <button onClick={() => setShowWorkbookModal(true)} className="text-sm font-medium flex items-center gap-1 text-gray-500 hover:text-navy-900 transition-colors">
+                <BookOpenIcon className="w-4 h-4" /> Workbook
+              </button>
               <button onClick={() => setView(AppView.ORDER_HISTORY)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.ORDER_HISTORY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                 <ReceiptIcon className="w-4 h-4" /> Orders
               </button>
@@ -594,6 +601,13 @@ USING (auth.uid() = id);
 
       {showUpgradeModal && (
         <SubscriptionModal tier={selectedTier} onClose={() => setShowUpgradeModal(false)} />
+      )}
+
+      {showWorkbookModal && (
+        <WorkbookOrderModal
+          onClose={() => setShowWorkbookModal(false)}
+          onSuccess={() => setView(AppView.ORDER_HISTORY)}
+        />
       )}
     </div>
   );
