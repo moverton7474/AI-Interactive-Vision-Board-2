@@ -18,7 +18,8 @@ import WorkbookOrderModal from './components/WorkbookOrderModal';
 import ThemeSelector from './components/ThemeSelector';
 import MasterPromptQnA from './components/MasterPromptQnA';
 import WeeklyReviews from './components/WeeklyReviews';
-import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon } from './components/Icons';
+import KnowledgeBase from './components/KnowledgeBase';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -349,6 +350,8 @@ const App = () => {
         return <HabitTracker onBack={() => setView(AppView.LANDING)} />;
       case AppView.WEEKLY_REVIEWS:
         return <WeeklyReviews onBack={() => setView(AppView.LANDING)} />;
+      case AppView.KNOWLEDGE_BASE:
+        return <KnowledgeBase onBack={() => setView(AppView.LANDING)} />;
       default:
         return null;
     }
@@ -577,6 +580,9 @@ USING (auth.uid() = id);
               </button>
               <button onClick={() => setView(AppView.WEEKLY_REVIEWS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.WEEKLY_REVIEWS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                 <CalendarIcon className="w-4 h-4" /> Reviews
+              </button>
+              <button onClick={() => setView(AppView.KNOWLEDGE_BASE)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.KNOWLEDGE_BASE ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <FolderIcon className="w-4 h-4" /> Knowledge
               </button>
               <button onClick={() => setShowWorkbookModal(true)} className="text-sm font-medium flex items-center gap-1 text-gray-500 hover:text-navy-900 transition-colors">
                 <BookOpenIcon className="w-4 h-4" /> Workbook

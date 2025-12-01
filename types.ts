@@ -14,6 +14,7 @@ export enum AppView {
   ORDER_HISTORY = 'ORDER_HISTORY',
   HABITS = 'HABITS',
   WEEKLY_REVIEWS = 'WEEKLY_REVIEWS', // Weekly Review History
+  KNOWLEDGE_BASE = 'KNOWLEDGE_BASE', // Personal Knowledge Base
 }
 
 export interface ChatMessage {
