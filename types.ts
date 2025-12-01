@@ -15,6 +15,7 @@ export enum AppView {
   HABITS = 'HABITS',
   WEEKLY_REVIEWS = 'WEEKLY_REVIEWS', // Weekly Review History
   KNOWLEDGE_BASE = 'KNOWLEDGE_BASE', // Personal Knowledge Base
+  VOICE_COACH = 'VOICE_COACH', // Voice Coaching Sessions
 }
 
 export interface ChatMessage {
