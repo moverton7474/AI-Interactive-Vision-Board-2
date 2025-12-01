@@ -13,6 +13,7 @@ export enum AppView {
   TRUST_CENTER = 'TRUST_CENTER',
   ORDER_HISTORY = 'ORDER_HISTORY',
   HABITS = 'HABITS',
+  WEEKLY_REVIEWS = 'WEEKLY_REVIEWS', // Weekly Review History
 }
 
 export interface ChatMessage {
