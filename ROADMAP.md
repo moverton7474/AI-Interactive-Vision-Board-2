@@ -1,8 +1,66 @@
-# Visionary SaaS - PR & Development Roadmap
+# VISIONARY AI — MASTER PRODUCT & DEVELOPMENT ROADMAP
 
-**Last Updated:** November 30, 2024
+**Version:** 2.0
+**Maintainer:** Milton Overton
+**Distribution:** Internal Strategy & Engineering
+**Last Updated:** December 1, 2025
 
-## Project Overview
+---
+
+## Product Mission & Positioning
+
+Visionary AI is an **agentic success platform** combining emotional visualization, financial intelligence, and autonomous AI execution across web, mobile, Apple Watch, voice, and print.
+
+### Mission
+Enable ambitious professionals, executives, athletes, families, and teams to achieve goals faster through identity-aligned, AI-driven execution.
+
+### Positioning
+> "The only identity-driven AI achievement system connecting your vision, finances, and daily execution."
+
+---
+
+## Target Users & Market Focus
+
+### Core Segments
+- Ambitious professionals & entrepreneurs
+- Executives & founders
+- High-intent couples & families
+- Enterprise teams
+
+### Market Categories
+- Productivity systems
+- Identity & coaching tools
+- Financial planning
+- Agentic AI workflow automation
+- Digital-to-physical execution systems
+
+---
+
+## Strategic Differentiators
+
+| Differentiator | Description |
+|----------------|-------------|
+| **AMIE** | Adaptive Motivational Identity Engine — personalized coaching themes |
+| **Agentic Action Engine** | Tasks, calendar, automation on behalf of users |
+| **Multi-channel Execution** | Voice, watch, SMS, email, push, in-app |
+| **Notebook-LM Style Knowledge Base** | Personal context ingestion from resumes, docs, conversations |
+| **Print Ecosystem** | Workbooks, posters, habit pads, sticker sheets |
+| **Enterprise Alignment** | Team goals, shared dashboards, Slack/Teams integration |
+
+---
+
+## Product Pillars
+
+1. **Vision & Identity** — AMIE-powered onboarding and theme-based coaching
+2. **Financial Planning** — Plaid integration, retirement gap analysis, cost-of-living
+3. **Execution & Accountability** — Habits, streaks, action plans, predictive pace warnings
+4. **Wearable & Voice Coaching** — Apple Watch companion, Gemini Live voice sessions
+5. **Print & Physical Reinforcement** — Workbooks, daily pads, habit cards, posters
+6. **Team & Enterprise Enablement** — Shared goals, dashboards, Slack/Teams bots
+
+---
+
+## Project Overview (Legacy Context)
 Visionary is a high-end, AI-first SaaS platform designed to help couples and individuals visualize, plan, and manifest their dream retirement. By combining financial reality checks with generative AI vision boarding, Visionary offers a unique emotional and practical approach to retirement planning.
 
 ---AI Interactive Vision Board is the first agentic success platform that turns visions into reality by combining emotional visualization, financial intelligence, and autonomous AI execution—backed by physical products that reinforce identity and commitment.
@@ -101,6 +159,754 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
 - [ ] **Video Generation:** Use Veo to generate a 10-second video of the couple walking on the beach.
 - [ ] **Face Mapping 2.0:** Advanced consistency of user identity across multiple generated scenarios.
+
+---
+
+## 2.5 Feature Release Roadmap (v1.6 → v3.0) — NEW FEATURES
+
+> This section defines the next phases of development based on the updated Master Product Roadmap.
+
+### v1.6 — AMIE Identity Foundation & Voice Coach 🔲 NEXT
+
+**Theme:** Identity-Driven Coaching + Voice Execution
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **AMIE Base Layer** | Adaptive Motivational Identity Engine with theme selection | 🔲 Pending |
+| **Motivational Themes** | Christian, Business Executive, Health & Fitness, Retirement themes | 🔲 Pending |
+| **Master Prompt Q&A** | Guided onboarding questions to build user identity profile | 🔲 Pending |
+| **Personal Knowledge Base** | Notebook-LM style document ingestion (resume, materials) | 🔲 Pending |
+| **Apple Watch Companion** | Micro-coaching at habit trigger moments | 🔲 Pending |
+| **Twilio Voice/SMS/Email Routing** | Unified messaging router with fallback channels | 🔲 Pending |
+| **Daily Focus Pads** | Print product: tear-off daily action pads | 🔲 Pending |
+| **Habit Cue Cards** | Print product: trigger cards for behavior change | 🔲 Pending |
+
+### v2.0 — Enterprise & Team Tier 🔲 FUTURE
+
+**Theme:** Team Collaboration + Shared Accountability
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Shared Goals & Dashboards** | Team goal alignment with visibility controls | 🔲 Pending |
+| **Slack Bot Integration** | Daily habit prompts and goal updates in Slack | 🔲 Pending |
+| **Microsoft Teams Bot** | Enterprise integration for Teams workspaces | 🔲 Pending |
+| **Team Leaderboards** | Gamified team competition for habit streaks | 🔲 Pending |
+| **Manager Dashboard** | Team progress overview for enterprise admins | 🔲 Pending |
+| **Partner Collaboration** | Full couple/partner shared workspace (upgrade from v1.5) | 🔲 Pending |
+
+### v3.0 — Marketplace & Certification 🔲 FUTURE
+
+**Theme:** Platform Ecosystem Expansion
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Templates Marketplace** | User-generated and curated vision board templates | 🔲 Pending |
+| **Certified Coach Ecosystem** | Third-party coaches can offer services through platform | 🔲 Pending |
+| **White-Label Enterprise** | Custom-branded deployments for large organizations | 🔲 Pending |
+| **API Access Tier** | Developer API for third-party integrations | 🔲 Pending |
+
+---
+
+## 2.6 AMIE — Adaptive Motivational Identity Engine (NEW)
+
+> **AMIE is the core differentiator** that makes Visionary AI unique. It's a personalized coaching layer that adapts AI communication style, motivation techniques, and content based on user identity.
+
+### AMIE Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                          AMIE ENGINE                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐   │
+│  │ Theme Selection │   │ Master Prompt   │   │ Knowledge Base  │   │
+│  │ (Onboarding)    │───│ Q&A Builder     │───│ Compiler        │   │
+│  └────────┬────────┘   └────────┬────────┘   └────────┬────────┘   │
+│           │                     │                     │             │
+│           ▼                     ▼                     ▼             │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │              USER IDENTITY PROFILE                           │   │
+│  │  - Theme: Christian/Business/Health/Retirement               │   │
+│  │  - Master Prompt: Custom AI persona configuration            │   │
+│  │  - Knowledge Chunks: Embedded user documents                 │   │
+│  │  - Conversation Insights: Learned preferences                │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                │                                    │
+│                                ▼                                    │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │              AMIE PROMPT BUILDER                             │   │
+│  │  Generates context-aware prompts for Claude/Gemini           │   │
+│  │  with theme-specific motivation, user knowledge, and goals   │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Motivational Themes
+
+| Theme | Description | AI Personality Traits |
+|-------|-------------|----------------------|
+| **Christian** | Faith-based motivation with scripture references | Encouragement from biblical principles, prayer prompts, stewardship mindset |
+| **Business Executive** | Performance-driven, metrics-focused coaching | ROI language, strategic thinking, leadership development |
+| **Health & Fitness** | Physical wellness and energy optimization | Athletic metaphors, body-mind connection, discipline focus |
+| **Retirement** | Life transition and legacy planning | Wisdom perspective, family focus, fulfillment over achievement |
+| **Custom** | User-defined theme with uploaded materials | Fully personalized based on user's master prompt |
+
+### AMIE Database Schema (NEW TABLES)
+
+```sql
+-- ============================================
+-- AMIE - ADAPTIVE MOTIVATIONAL IDENTITY ENGINE
+-- Migration: 20251201_amie_identity_schema.sql
+-- ============================================
+
+-- 1. Motivational Themes Catalog
+CREATE TABLE motivational_themes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  description TEXT,
+  icon TEXT, -- emoji or icon identifier
+  color_scheme JSONB DEFAULT '{}', -- {"primary": "#hex", "secondary": "#hex"}
+
+  -- AI Configuration
+  system_prompt_template TEXT NOT NULL, -- Base prompt for this theme
+  motivation_style TEXT, -- 'encouraging', 'challenging', 'analytical', 'spiritual'
+  vocabulary_examples JSONB DEFAULT '[]', -- Example phrases AI should use
+  content_sources JSONB DEFAULT '[]', -- ["bible_verses", "business_quotes", etc.]
+
+  -- Feature Flags
+  include_scripture BOOLEAN DEFAULT FALSE,
+  include_metrics BOOLEAN DEFAULT FALSE,
+  include_wellness BOOLEAN DEFAULT FALSE,
+  include_legacy BOOLEAN DEFAULT FALSE,
+
+  is_active BOOLEAN DEFAULT TRUE,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed motivational themes
+INSERT INTO motivational_themes (name, display_name, description, icon, motivation_style, system_prompt_template, include_scripture, include_metrics, include_wellness, include_legacy) VALUES
+('christian', 'Faith & Purpose', 'Faith-based motivation with biblical wisdom and stewardship principles', '✝️', 'spiritual',
+ 'You are a faith-based Vision Coach who integrates biblical principles, scripture references, and Christian values into your guidance. Encourage users with hope, purpose, and stewardship mindset. Reference relevant Bible verses when appropriate. Approach goals as God-given purposes to be fulfilled with diligence and faith.',
+ TRUE, FALSE, FALSE, TRUE),
+('business_executive', 'Executive Performance', 'High-performance coaching for ambitious professionals and leaders', '💼', 'challenging',
+ 'You are an executive performance coach who speaks the language of business strategy, ROI, and leadership development. Be direct, metrics-focused, and challenge users to think bigger. Use frameworks, accountability structures, and strategic thinking. Treat goals as investments with expected returns.',
+ FALSE, TRUE, FALSE, FALSE),
+('health_fitness', 'Health & Vitality', 'Wellness-focused motivation for physical and mental optimization', '💪', 'encouraging',
+ 'You are a holistic wellness coach who emphasizes the mind-body connection, sustainable habits, and energy optimization. Use athletic metaphors, celebrate physical wins, and connect health to overall life performance. Encourage discipline while maintaining compassion for setbacks.',
+ FALSE, FALSE, TRUE, FALSE),
+('retirement', 'Legacy & Wisdom', 'Life transition coaching for meaningful retirement and legacy building', '🌅', 'analytical',
+ 'You are a life transition coach specializing in retirement planning and legacy creation. Balance practical financial guidance with deeper questions about purpose, family relationships, and meaningful contribution. Help users see retirement as a new chapter of impact, not an ending.',
+ FALSE, TRUE, FALSE, TRUE),
+('custom', 'Custom Theme', 'Fully personalized coaching based on your uploaded materials and preferences', '⚙️', 'encouraging',
+ 'You are a personalized Vision Coach adapted to this user''s specific background, values, and communication style. Reference their uploaded materials and stated preferences in your guidance.',
+ FALSE, FALSE, FALSE, FALSE);
+
+-- 2. User Identity Profiles (AMIE Core)
+CREATE TABLE user_identity_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+
+  -- Theme Selection
+  theme_id UUID REFERENCES motivational_themes(id),
+  theme_customizations JSONB DEFAULT '{}', -- User overrides for theme settings
+
+  -- Master Prompt (ChatGPT-style custom instructions)
+  master_prompt TEXT, -- User's custom instructions for AI
+  master_prompt_responses JSONB DEFAULT '[]', -- Answers to onboarding Q&A
+
+  -- Identity Attributes (from onboarding)
+  core_values TEXT[] DEFAULT '{}',
+  life_roles TEXT[] DEFAULT '{}', -- ['parent', 'entrepreneur', 'athlete', etc.]
+  communication_style TEXT, -- 'direct', 'supportive', 'analytical', 'storytelling'
+  motivation_drivers TEXT[] DEFAULT '{}', -- ['family', 'legacy', 'achievement', 'freedom']
+
+  -- AI Voice Preferences
+  preferred_ai_voice TEXT DEFAULT 'default', -- For voice coach
+  formality_level TEXT DEFAULT 'casual', -- 'formal', 'casual', 'professional'
+  encouragement_frequency TEXT DEFAULT 'moderate', -- 'high', 'moderate', 'minimal'
+
+  -- Computed Context
+  identity_summary TEXT, -- AI-generated summary of user identity
+  coaching_focus_areas TEXT[] DEFAULT '{}',
+
+  -- Status
+  onboarding_completed BOOLEAN DEFAULT FALSE,
+  last_identity_update TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. User Knowledge Sources (Notebook-LM Style)
+CREATE TABLE user_knowledge_sources (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  -- Source Info
+  source_type TEXT NOT NULL CHECK (source_type IN (
+    'resume', 'document', 'url', 'manual_entry',
+    'conversation', 'vision_board', 'financial_doc'
+  )),
+  source_name TEXT NOT NULL,
+  source_url TEXT, -- For uploaded files or web URLs
+
+  -- Content
+  raw_content TEXT, -- Original text content
+  processed_content TEXT, -- Cleaned/normalized content
+  content_summary TEXT, -- AI-generated summary
+
+  -- Metadata
+  file_type TEXT, -- 'pdf', 'docx', 'txt', 'url'
+  file_size INT,
+  word_count INT,
+
+  -- Processing Status
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+  error_message TEXT,
+  processed_at TIMESTAMPTZ,
+
+  -- Flags
+  is_active BOOLEAN DEFAULT TRUE,
+  include_in_context BOOLEAN DEFAULT TRUE, -- User can exclude sources
+
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. User Knowledge Chunks (For Embedding/Retrieval)
+CREATE TABLE user_knowledge_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  source_id UUID REFERENCES user_knowledge_sources(id) ON DELETE CASCADE,
+
+  -- Chunk Content
+  chunk_text TEXT NOT NULL,
+  chunk_index INT NOT NULL, -- Order within source
+
+  -- Embedding (pgvector)
+  embedding vector(1536), -- OpenAI ada-002 or similar
+
+  -- Metadata
+  token_count INT,
+  metadata JSONB DEFAULT '{}', -- Additional context
+
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. Voice Coach Sessions
+CREATE TABLE voice_coach_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  -- Session Type
+  session_type TEXT NOT NULL CHECK (session_type IN (
+    'on_demand', 'habit_trigger', 'weekly_review',
+    'milestone_celebration', 'pace_warning', 'check_in'
+  )),
+  trigger_context JSONB DEFAULT '{}', -- What triggered this session
+
+  -- Device & Channel
+  device_type TEXT, -- 'apple_watch', 'iphone', 'web', 'phone_call'
+  channel TEXT DEFAULT 'voice', -- 'voice', 'text_fallback'
+
+  -- Session Data
+  duration_seconds INT,
+  transcript TEXT,
+  audio_url TEXT,
+
+  -- AI Analysis
+  sentiment_score FLOAT, -- -1 to 1
+  key_topics TEXT[] DEFAULT '{}',
+  action_items_generated JSONB DEFAULT '[]',
+  coaching_notes TEXT, -- AI-generated session notes
+
+  -- Status
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'interrupted', 'failed')),
+  ended_reason TEXT, -- 'user_ended', 'timeout', 'error', 'goal_achieved'
+
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
+-- INDEXES FOR AMIE TABLES
+-- ============================================
+
+CREATE INDEX idx_user_identity_user ON user_identity_profiles(user_id);
+CREATE INDEX idx_user_identity_theme ON user_identity_profiles(theme_id);
+CREATE INDEX idx_knowledge_sources_user ON user_knowledge_sources(user_id);
+CREATE INDEX idx_knowledge_sources_type ON user_knowledge_sources(source_type);
+CREATE INDEX idx_knowledge_chunks_user ON user_knowledge_chunks(user_id);
+CREATE INDEX idx_knowledge_chunks_source ON user_knowledge_chunks(source_id);
+CREATE INDEX idx_knowledge_chunks_embedding ON user_knowledge_chunks USING ivfflat (embedding vector_cosine_ops);
+CREATE INDEX idx_voice_sessions_user ON voice_coach_sessions(user_id);
+CREATE INDEX idx_voice_sessions_type ON voice_coach_sessions(session_type);
+
+-- ============================================
+-- ROW LEVEL SECURITY FOR AMIE
+-- ============================================
+
+ALTER TABLE motivational_themes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_identity_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_knowledge_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_knowledge_chunks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE voice_coach_sessions ENABLE ROW LEVEL SECURITY;
+
+-- Themes are public read
+CREATE POLICY "Themes are publicly readable" ON motivational_themes
+  FOR SELECT USING (true);
+
+-- Users own their identity profiles
+CREATE POLICY "Users own their identity profiles" ON user_identity_profiles
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Users own their knowledge sources
+CREATE POLICY "Users own their knowledge sources" ON user_knowledge_sources
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Users own their knowledge chunks
+CREATE POLICY "Users own their knowledge chunks" ON user_knowledge_chunks
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Users own their voice sessions
+CREATE POLICY "Users own their voice sessions" ON voice_coach_sessions
+  FOR ALL USING (auth.uid() = user_id);
+```
+
+### AMIE API Endpoints (NEW)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/onboarding/themes` | GET | List available motivational themes |
+| `/onboarding/theme` | POST | Select user's motivational theme |
+| `/onboarding/master-prompt-qna` | GET | Get master prompt questions for theme |
+| `/onboarding/master-prompt-qna` | POST | Submit master prompt Q&A responses |
+| `/identity/profile` | GET | Get user's identity profile |
+| `/identity/profile` | PUT | Update identity profile |
+| `/knowledge/sources` | GET | List user's knowledge sources |
+| `/knowledge/sources` | POST | Upload new knowledge source |
+| `/knowledge/sources/:id` | DELETE | Remove knowledge source |
+| `/knowledge/personal-context` | GET | Get compiled personal context for AI |
+| `/coach/amie-prompt` | GET | Generate AMIE-enhanced prompt for AI |
+
+### AMIE TypeScript Types (NEW)
+
+```typescript
+// Add to types.ts
+
+export type MotivationStyle = 'encouraging' | 'challenging' | 'analytical' | 'spiritual';
+export type CommunicationStyle = 'direct' | 'supportive' | 'analytical' | 'storytelling';
+export type FormalityLevel = 'formal' | 'casual' | 'professional';
+export type EncouragementFrequency = 'high' | 'moderate' | 'minimal';
+
+export interface MotivationalTheme {
+  id: string;
+  name: string;
+  display_name: string;
+  description?: string;
+  icon: string;
+  color_scheme: { primary: string; secondary: string };
+  system_prompt_template: string;
+  motivation_style: MotivationStyle;
+  vocabulary_examples: string[];
+  content_sources: string[];
+  include_scripture: boolean;
+  include_metrics: boolean;
+  include_wellness: boolean;
+  include_legacy: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface UserIdentityProfile {
+  id: string;
+  user_id: string;
+  theme_id?: string;
+  theme_customizations: Record<string, any>;
+  master_prompt?: string;
+  master_prompt_responses: Array<{ question: string; answer: string }>;
+  core_values: string[];
+  life_roles: string[];
+  communication_style?: CommunicationStyle;
+  motivation_drivers: string[];
+  preferred_ai_voice: string;
+  formality_level: FormalityLevel;
+  encouragement_frequency: EncouragementFrequency;
+  identity_summary?: string;
+  coaching_focus_areas: string[];
+  onboarding_completed: boolean;
+  last_identity_update?: string;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  theme?: MotivationalTheme;
+}
+
+export type KnowledgeSourceType =
+  | 'resume' | 'document' | 'url' | 'manual_entry'
+  | 'conversation' | 'vision_board' | 'financial_doc';
+
+export interface UserKnowledgeSource {
+  id: string;
+  user_id: string;
+  source_type: KnowledgeSourceType;
+  source_name: string;
+  source_url?: string;
+  raw_content?: string;
+  processed_content?: string;
+  content_summary?: string;
+  file_type?: string;
+  file_size?: number;
+  word_count?: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error_message?: string;
+  processed_at?: string;
+  is_active: boolean;
+  include_in_context: boolean;
+  created_at: string;
+}
+
+export interface UserKnowledgeChunk {
+  id: string;
+  user_id: string;
+  source_id: string;
+  chunk_text: string;
+  chunk_index: number;
+  embedding?: number[];
+  token_count?: number;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+export type VoiceSessionType =
+  | 'on_demand' | 'habit_trigger' | 'weekly_review'
+  | 'milestone_celebration' | 'pace_warning' | 'check_in';
+
+export interface VoiceCoachSession {
+  id: string;
+  user_id: string;
+  session_type: VoiceSessionType;
+  trigger_context: Record<string, any>;
+  device_type?: string;
+  channel: 'voice' | 'text_fallback';
+  duration_seconds?: number;
+  transcript?: string;
+  audio_url?: string;
+  sentiment_score?: number;
+  key_topics: string[];
+  action_items_generated: Array<{ type: string; description: string }>;
+  coaching_notes?: string;
+  status: 'active' | 'completed' | 'interrupted' | 'failed';
+  ended_reason?: string;
+  started_at: string;
+  ended_at?: string;
+  created_at: string;
+}
+```
+
+---
+
+## 2.7 Voice Coach & Apple Watch Integration (NEW)
+
+> **Visionary Voice Coach** brings AI coaching to the wrist with micro-coaching at habit trigger moments.
+
+### Voice Coach Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    VOICE COACH SYSTEM                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐        │
+│  │ Apple Watch  │────▶│ iPhone App   │────▶│ Voice Coach  │        │
+│  │ Companion    │     │ (Bridge)     │     │ Backend      │        │
+│  └──────────────┘     └──────────────┘     └──────┬───────┘        │
+│                                                    │                 │
+│  Features:                                         ▼                 │
+│  • Habit reminders                        ┌──────────────┐          │
+│  • Quick completions                      │ Gemini Live  │          │
+│  • "Talk to Coach"                        │ API          │          │
+│  • Micro check-ins                        └──────────────┘          │
+│                                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                     FALLBACK CHANNELS                                │
+│                                                                      │
+│       watch ──▶ sms ──▶ email ──▶ push ──▶ in-app                   │
+│                                                                      │
+│  If watch unavailable, automatically routes to next channel          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Voice Coach Features
+
+| Feature | Description | Trigger |
+|---------|-------------|---------|
+| **Habit Trigger Coaching** | Short motivational prompt when habit reminder fires | Scheduled time |
+| **Quick Win Celebration** | Voice congratulation when completing habit streak milestones | Habit completion |
+| **Weekly Voice Review** | 3-5 minute voice conversation reviewing week's progress | Sunday morning |
+| **Talk to My Coach** | On-demand voice conversation with AI Coach | User initiated |
+| **Pace Warning Alert** | Proactive alert when falling behind on goals | Pace analysis trigger |
+| **Morning Intention Setting** | Quick voice check-in to set daily focus | Morning routine |
+
+### Voice Coach API Endpoints (NEW)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/coach/voice-session/start` | POST | Initiate voice coaching session |
+| `/coach/voice-session/:id/end` | POST | End active voice session |
+| `/coach/voice-session/:id/transcript` | GET | Get session transcript |
+| `/coach/voice-sessions` | GET | List user's voice sessions |
+| `/coach/voice-settings` | GET/PUT | Voice coach preferences |
+| `/coach/watch/sync` | POST | Sync data with Apple Watch |
+| `/coach/watch/habit-prompt` | GET | Get habit prompt for watch |
+
+---
+
+## 2.8 AI Strategy (NEW)
+
+> **Dual-LLM approach** using Claude for reasoning/coaching and Gemini for voice/media.
+
+### LLM Routing Strategy
+
+| Use Case | Primary LLM | Fallback | Rationale |
+|----------|-------------|----------|-----------|
+| **Text Coaching** | Claude Sonnet | Gemini Pro | Superior reasoning and empathy |
+| **Voice Conversations** | Gemini Live | Claude (text) | Native voice streaming |
+| **Image Generation** | Gemini Pro Vision | Imagen | Integrated with chat context |
+| **Document Processing** | Claude Sonnet | Gemini Pro | Better at extraction |
+| **Embeddings** | OpenAI ada-002 | Gemini | Industry standard for pgvector |
+
+### Retrieval-Augmented Prompting
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    AMIE PROMPT BUILDER                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  1. BASE SYSTEM PROMPT (from theme)                                  │
+│     └─▶ "You are a faith-based Vision Coach..."                     │
+│                                                                      │
+│  2. USER IDENTITY CONTEXT                                            │
+│     └─▶ Core values, life roles, communication style                │
+│                                                                      │
+│  3. MASTER PROMPT INSTRUCTIONS                                       │
+│     └─▶ User's custom AI instructions                               │
+│                                                                      │
+│  4. RETRIEVED KNOWLEDGE CHUNKS (via pgvector similarity)            │
+│     └─▶ Relevant passages from user's documents                     │
+│                                                                      │
+│  5. CURRENT CONTEXT                                                  │
+│     └─▶ Active goals, recent habits, current pace                   │
+│                                                                      │
+│  6. CONVERSATION HISTORY                                             │
+│     └─▶ Recent messages for continuity                              │
+│                                                                      │
+│                         ║                                            │
+│                         ▼                                            │
+│              ┌────────────────────┐                                  │
+│              │  COMPILED PROMPT   │                                  │
+│              │  (sent to LLM)     │                                  │
+│              └────────────────────┘                                  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Environment Secrets Required (NEW)
+
+```bash
+# Add to Supabase secrets
+ANTHROPIC_API_KEY=sk-ant-xxxxx     # Claude API access
+OPENAI_API_KEY=sk-xxxxx            # For embeddings (ada-002)
+```
+
+---
+
+## 2.9 Extended Print Ecosystem (NEW)
+
+> Expanding beyond workbooks to a complete **physical reinforcement system**.
+
+### Print Products Catalog
+
+| Product | SKU Pattern | Size | Price | Use Case |
+|---------|-------------|------|-------|----------|
+| **Annual Vision Workbook** | GLOBAL-NTB-* | A5-Letter | $29.99-$79.99 | ✅ Implemented |
+| **Daily Focus Pads** | GLOBAL-PAD-A5 | A5 (50 sheets) | $14.99 | Morning routine |
+| **Habit Cue Cards** | GLOBAL-CRD-3x5 | 3x5" (25 cards) | $9.99 | Behavior triggers |
+| **Quarterly Review Kit** | BUNDLE-QTR | Mixed | $34.99 | Elite subscription |
+| **Wall Poster** | GLOBAL-FAP-* | 18x24" | $24.99 | Vision reminder |
+| **Sticker Sheets** | GLOBAL-STK-A4 | A4 | $9.99 | Achievement rewards |
+| **Canvas Print** | GLOBAL-CAN-* | 16x20" | $49.99 | Premium display |
+
+### Print Products Database Schema (NEW)
+
+```sql
+-- ============================================
+-- EXTENDED PRINT PRODUCTS CATALOG
+-- Migration: 20251201_print_products_schema.sql
+-- ============================================
+
+CREATE TABLE print_products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  product_type TEXT NOT NULL CHECK (product_type IN (
+    'workbook', 'pad', 'cards', 'poster', 'sticker', 'canvas', 'bundle'
+  )),
+  prodigi_sku TEXT NOT NULL,
+  size TEXT NOT NULL,
+  base_price DECIMAL(10,2) NOT NULL,
+  shipping_estimate DECIMAL(10,2),
+  preview_image_url TEXT,
+
+  -- Customization Options
+  personalization_fields JSONB DEFAULT '[]', -- ['title', 'subtitle', 'dedication']
+  color_options JSONB DEFAULT '[]',
+
+  -- Business Rules
+  requires_content BOOLEAN DEFAULT TRUE, -- Needs user content to generate
+  min_content_items INT DEFAULT 0, -- Min vision boards/habits needed
+  elite_exclusive BOOLEAN DEFAULT FALSE,
+
+  is_active BOOLEAN DEFAULT TRUE,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed print products
+INSERT INTO print_products (name, description, product_type, prodigi_sku, size, base_price, shipping_estimate, personalization_fields, min_content_items) VALUES
+('Daily Focus Pad', 'Tear-off A5 desk pad with your top 3 daily actions', 'pad', 'GLOBAL-PAD-A5-50', 'A5 (5.8"x8.3")', 14.99, 4.99, '["title"]', 1),
+('Habit Cue Cards', 'Pocket-sized trigger cards for each of your habits', 'cards', 'GLOBAL-CRD-3x5-25', '3x5" (25 cards)', 9.99, 2.99, '[]', 3),
+('Vision Poster 18x24', 'Large format print of your primary vision board', 'poster', 'GLOBAL-FAP-18x24', '18"x24"', 24.99, 6.99, '["title"]', 1),
+('Achievement Stickers', 'Reward stickers for habit streaks and milestones', 'sticker', 'GLOBAL-STK-A4', 'A4 Sheet', 9.99, 2.99, '[]', 0),
+('Vision Canvas', 'Gallery-wrapped canvas of your vision board', 'canvas', 'GLOBAL-CAN-16x20', '16"x20"', 49.99, 9.99, '["title"]', 1),
+('Quarterly Review Kit', 'Bundled review booklet, stickers, and celebration cards', 'bundle', 'BUNDLE-QTR-KIT', 'Mixed', 34.99, 6.99, '["quarter", "year"]', 5);
+```
+
+---
+
+## 2.10 Enterprise & Team Features (v2.0)
+
+> **Team tier** enables organizations to use Visionary AI for goal alignment and accountability.
+
+### Enterprise Database Schema (NEW)
+
+```sql
+-- ============================================
+-- ENTERPRISE & TEAM FEATURES
+-- Migration: 20251201_enterprise_schema.sql
+-- ============================================
+
+-- 1. Teams/Organizations
+CREATE TABLE teams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  description TEXT,
+  logo_url TEXT,
+
+  -- Ownership
+  owner_id UUID REFERENCES auth.users(id),
+
+  -- Settings
+  settings JSONB DEFAULT '{}',
+  allowed_domains TEXT[] DEFAULT '{}', -- Email domains for auto-join
+
+  -- Subscription
+  subscription_tier TEXT DEFAULT 'team', -- 'team', 'enterprise'
+  max_members INT DEFAULT 10,
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Team Memberships
+CREATE TABLE team_memberships (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
+
+  -- Visibility Settings
+  share_goals BOOLEAN DEFAULT TRUE,
+  share_habits BOOLEAN DEFAULT TRUE,
+  share_progress BOOLEAN DEFAULT TRUE,
+
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(team_id, user_id)
+);
+
+-- 3. Shared Goals
+CREATE TABLE team_goals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES auth.users(id),
+
+  title TEXT NOT NULL,
+  description TEXT,
+  target_date DATE,
+
+  -- Progress
+  progress_percentage INT DEFAULT 0,
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'archived')),
+
+  -- Assignments
+  assigned_members UUID[] DEFAULT '{}',
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Slack/Teams Integration
+CREATE TABLE team_integrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+
+  integration_type TEXT NOT NULL CHECK (integration_type IN ('slack', 'teams', 'webhook')),
+
+  -- Credentials (encrypted)
+  webhook_url TEXT,
+  access_token TEXT,
+  channel_id TEXT,
+
+  -- Settings
+  notifications_enabled BOOLEAN DEFAULT TRUE,
+  daily_summary_enabled BOOLEAN DEFAULT TRUE,
+  daily_summary_time TIME DEFAULT '09:00',
+
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_team_memberships_team ON team_memberships(team_id);
+CREATE INDEX idx_team_memberships_user ON team_memberships(user_id);
+CREATE INDEX idx_team_goals_team ON team_goals(team_id);
+CREATE INDEX idx_team_integrations_team ON team_integrations(team_id);
+
+-- RLS
+ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_memberships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_integrations ENABLE ROW LEVEL SECURITY;
+
+-- Team members can see their teams
+CREATE POLICY "Team members can view teams" ON teams
+  FOR SELECT USING (
+    id IN (SELECT team_id FROM team_memberships WHERE user_id = auth.uid())
+  );
+
+-- Team members can see memberships
+CREATE POLICY "Team members can view memberships" ON team_memberships
+  FOR SELECT USING (
+    team_id IN (SELECT team_id FROM team_memberships WHERE user_id = auth.uid())
+  );
+
+-- Team members can view goals
+CREATE POLICY "Team members can view goals" ON team_goals
+  FOR SELECT USING (
+    team_id IN (SELECT team_id FROM team_memberships WHERE user_id = auth.uid())
+  );
+```
 
 ---
 
@@ -1077,3 +1883,407 @@ Before each phase goes live:
 - [ ] Mobile responsive design verified
 - [ ] Payment flow tested (if applicable)
 - [ ] Notification delivery confirmed (if applicable)
+
+---
+
+## 13. QA & Testing Strategy (NEW - Best Practices)
+
+> Comprehensive testing ensures Visionary AI meets enterprise-grade quality standards.
+
+### Testing Pyramid
+
+```
+                    ┌─────────────┐
+                    │    E2E      │  5-10 critical user journeys
+                    │   Tests     │
+                    ├─────────────┤
+                    │ Integration │  API contracts, DB operations
+                    │   Tests     │
+                    ├─────────────┤
+                    │    Unit     │  Business logic, utils, hooks
+                    │   Tests     │
+                    └─────────────┘
+```
+
+### Unit Tests Required (NEW FEATURES)
+
+```typescript
+// src/test/amie-identity.test.ts
+describe('AMIE Identity Engine', () => {
+  describe('Theme Selection', () => {
+    it('returns all active themes from motivational_themes');
+    it('creates user_identity_profile on theme selection');
+    it('applies theme system_prompt_template to AI context');
+  });
+
+  describe('Master Prompt Builder', () => {
+    it('generates Q&A flow based on selected theme');
+    it('stores responses in master_prompt_responses');
+    it('compiles identity_summary from responses');
+  });
+
+  describe('Knowledge Base Ingestion', () => {
+    it('chunks documents into 512-token segments');
+    it('generates embeddings for each chunk');
+    it('retrieves relevant chunks via cosine similarity');
+  });
+});
+
+// src/test/voice-coach.test.ts
+describe('Voice Coach Service', () => {
+  describe('Session Management', () => {
+    it('creates voice_coach_session on start');
+    it('updates duration_seconds on end');
+    it('stores transcript after processing');
+  });
+
+  describe('Habit Trigger Coaching', () => {
+    it('generates micro-prompt for habit reminder');
+    it('falls back to SMS when watch unavailable');
+    it('tracks device_type for analytics');
+  });
+
+  describe('Weekly Review Voice', () => {
+    it('compiles weekly data into coaching script');
+    it('generates audio via Gemini Live');
+    it('stores action_items_generated');
+  });
+});
+
+// src/test/enterprise-teams.test.ts
+describe('Enterprise Team Features', () => {
+  describe('Team Management', () => {
+    it('creates team with owner membership');
+    it('enforces max_members limit');
+    it('auto-joins users with allowed_domains');
+  });
+
+  describe('Shared Goals', () => {
+    it('creates team_goal visible to all members');
+    it('updates progress_percentage on task completion');
+    it('respects share_goals privacy setting');
+  });
+
+  describe('Slack Integration', () => {
+    it('posts daily summary at configured time');
+    it('handles webhook failures gracefully');
+    it('queues retries on 429 rate limits');
+  });
+});
+```
+
+### Load Testing Targets
+
+| Component | Concurrent Users | Response Time | Throughput |
+|-----------|-----------------|---------------|------------|
+| AMIE Prompt Builder | 100 | < 500ms | 200 req/s |
+| Knowledge Base Search | 50 | < 200ms | 100 req/s |
+| Voice Session Start | 25 | < 1s | 50 req/s |
+| Habit Completion | 500 | < 100ms | 1000 req/s |
+| Weekly Review Gen | 10 | < 5s | 20 req/s |
+
+### WatchOS Error Recovery Tests
+
+| Scenario | Expected Behavior | Fallback |
+|----------|-------------------|----------|
+| Watch disconnected | Queue action, sync on reconnect | SMS notification |
+| Voice API timeout | Retry 2x, then text fallback | In-app message |
+| Habit sync failure | Local cache, background sync | Push notification |
+| Network unavailable | Offline queue, batch upload | Email digest |
+
+### Webhook Edge-Case Handling
+
+| Webhook | Edge Case | Handling |
+|---------|-----------|----------|
+| Stripe | Duplicate event | Idempotency key check |
+| Prodigi | Status change race | Optimistic locking |
+| Twilio | Delivery failure | Retry queue + fallback |
+| Slack | Rate limited | Exponential backoff |
+
+---
+
+## 14. Key Performance Indicators (KPIs)
+
+> Track success metrics aligned with business objectives.
+
+### User Engagement KPIs
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Weekly Active Users (WAU) | 60%+ of registered | `profiles` activity logs |
+| Daily Active Users (DAU) | 30%+ of registered | Session tracking |
+| Habit Completion Rate | 70%+ | `habit_completions` / expected |
+| Average Streak Length | 14+ days | `habits.current_streak` |
+| Voice Coach Adoption | 25%+ of active users | `voice_coach_sessions` count |
+
+### Revenue KPIs
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Conversion Rate (Free → Pro) | 8%+ | `profiles.subscription_tier` changes |
+| Print Revenue Per User | $15+ annually | `workbook_orders` + `print_products` |
+| Enterprise Team Seats | 10%+ of revenue | `teams.subscription_tier` |
+| Churn Rate | < 5% monthly | Subscription cancellations |
+
+### Quality KPIs
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| API Uptime | 99.9%+ | Monitoring alerts |
+| Error Rate | < 0.1% | Exception tracking |
+| AI Response Quality | 4.5+/5 | User feedback |
+| Print Order Success | 99%+ | Prodigi fulfillment |
+
+---
+
+## 15. Risks & Mitigations
+
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|------------|
+| **Complexity Creep** | High | Medium | Feature flags, vertical slices, MVP-first |
+| **LLM Reliability** | High | Medium | Response caching, fallback models, retry logic |
+| **Sensitive Data** | Critical | Low | Encryption at rest, consent flows, GDPR compliance |
+| **User Overwhelm** | Medium | Medium | Progressive onboarding, smart defaults |
+| **Apple Watch Fragmentation** | Medium | Medium | Graceful degradation, SMS fallback |
+| **Enterprise Integration Complexity** | High | Medium | Slack-first strategy, phased rollout |
+| **Embedding Cost Scaling** | Medium | High | Batch processing, cache frequently used |
+| **Voice API Costs** | Medium | Medium | Session time limits, text fallback options |
+
+---
+
+## 16. 7-Day Sprint Plan (v1.6 Foundation)
+
+> Accelerated implementation of AMIE Identity Engine core features.
+
+### Day 1-2: Identity Schema + Themes
+
+**Deliverables:**
+- [ ] Apply `20251201_amie_identity_schema.sql` migration
+- [ ] Seed `motivational_themes` with 5 themes
+- [ ] Create `onboarding-themes` Edge Function
+- [ ] Build `ThemeSelector.tsx` component
+- [ ] Add theme selection to onboarding flow
+
+**Database:**
+```sql
+-- Verify migration
+SELECT * FROM motivational_themes;
+SELECT * FROM user_identity_profiles LIMIT 1;
+```
+
+**Tests:**
+```bash
+npm run test -- --grep "Theme Selection"
+```
+
+### Day 3: Master-Prompt Q&A Workflow
+
+**Deliverables:**
+- [ ] Create `onboarding-master-prompt` Edge Function
+- [ ] Define Q&A questions per theme (5-7 questions each)
+- [ ] Build `MasterPromptQnA.tsx` wizard component
+- [ ] Store responses in `user_identity_profiles.master_prompt_responses`
+- [ ] Generate `identity_summary` from responses
+
+**API Contract:**
+```typescript
+// GET /onboarding/master-prompt-qna?theme_id=xxx
+{
+  questions: [
+    { id: 'q1', text: 'What drives you most?', options: ['Family', 'Achievement', ...] },
+    ...
+  ]
+}
+
+// POST /onboarding/master-prompt-qna
+{
+  theme_id: 'xxx',
+  responses: [{ question_id: 'q1', answer: 'Family' }, ...]
+}
+```
+
+### Day 4: Personal-Context Retrieval
+
+**Deliverables:**
+- [ ] Create `knowledge-ingest` Edge Function
+- [ ] Implement document chunking (512 tokens)
+- [ ] Set up OpenAI embeddings integration
+- [ ] Build `KnowledgeSourceUpload.tsx` component
+- [ ] Create `knowledge-search` Edge Function with pgvector
+
+**Testing:**
+```bash
+# Test embedding generation
+curl -X POST /knowledge/sources \
+  -d '{"source_type": "resume", "content": "..."}'
+
+# Test retrieval
+curl "/knowledge/personal-context?query=career+goals"
+```
+
+### Day 5: AMIE Daily Coach Prompt
+
+**Deliverables:**
+- [ ] Create `amie-prompt-builder` Edge Function
+- [ ] Integrate theme system prompt + user identity + knowledge chunks
+- [ ] Update `agent-chat` to use AMIE prompt builder
+- [ ] Add Claude API integration (with Gemini fallback)
+- [ ] Test coaching with different themes
+
+**Prompt Structure:**
+```
+[THEME SYSTEM PROMPT]
+[USER IDENTITY CONTEXT]
+[MASTER PROMPT INSTRUCTIONS]
+[RETRIEVED KNOWLEDGE (top 3 chunks)]
+[CURRENT CONTEXT (goals, habits, pace)]
+[CONVERSATION HISTORY]
+```
+
+### Day 6: Voice Coach Backend
+
+**Deliverables:**
+- [ ] Create `voice-coach-session` Edge Function
+- [ ] Integrate Gemini Live API for voice streaming
+- [ ] Create `voice_coach_sessions` table operations
+- [ ] Build `VoiceCoachButton.tsx` component
+- [ ] Implement session transcript storage
+
+**API Contract:**
+```typescript
+// POST /coach/voice-session/start
+{
+  session_type: 'on_demand' | 'habit_trigger' | 'weekly_review',
+  trigger_context: { habit_id?: string, ... }
+}
+
+// Response: WebSocket URL for voice stream
+{ ws_url: 'wss://...', session_id: 'xxx' }
+```
+
+### Day 7: Test + Internal Pilot
+
+**Deliverables:**
+- [ ] Run full test suite: `npm run test:run`
+- [ ] Deploy all Edge Functions to production
+- [ ] Internal team pilot with 3-5 users
+- [ ] Document bugs and feedback
+- [ ] Prepare v1.6 release notes
+
+**Pilot Checklist:**
+- [ ] Complete onboarding with theme selection
+- [ ] Answer master prompt questions
+- [ ] Upload 1 knowledge source
+- [ ] Have 3 AI coaching conversations
+- [ ] Try voice coach (if available)
+- [ ] Rate experience 1-5
+
+---
+
+## 17. Development Sequence Summary
+
+### v1.6 Implementation Order
+
+| Priority | Component | Effort | Dependencies |
+|----------|-----------|--------|--------------|
+| 1 | Identity onboarding + AMIE schema | 2 days | None |
+| 2 | Knowledge base ingestion pipeline | 1 day | AMIE schema |
+| 3 | AMIE prompt builder | 1 day | Knowledge base |
+| 4 | Voice Coach backend + watch connectivity | 2 days | AMIE prompt |
+| 5 | Print Center & SKU expansion | 1 day | None (parallel) |
+| 6 | Enterprise shared goals system | 3 days | v2.0 scope |
+
+### Edge Functions to Create (v1.6)
+
+| Function | Purpose | Priority |
+|----------|---------|----------|
+| `onboarding-themes` | Theme selection API | P0 |
+| `onboarding-master-prompt` | Q&A workflow | P0 |
+| `knowledge-ingest` | Document processing | P0 |
+| `knowledge-search` | Embedding retrieval | P0 |
+| `amie-prompt-builder` | Compile AI prompts | P0 |
+| `voice-coach-session` | Voice session management | P1 |
+| `generate-focus-pad` | Daily pad PDF | P2 |
+| `generate-habit-cards` | Cue card PDF | P2 |
+
+### UI Components to Build (v1.6)
+
+| Component | Location | Priority |
+|-----------|----------|----------|
+| `ThemeSelector.tsx` | Onboarding | P0 |
+| `MasterPromptQnA.tsx` | Onboarding | P0 |
+| `KnowledgeSourceUpload.tsx` | Settings | P1 |
+| `KnowledgeSourceList.tsx` | Settings | P1 |
+| `VoiceCoachButton.tsx` | Agent Chat | P1 |
+| `IdentityProfileCard.tsx` | Dashboard | P2 |
+| `PrintCenter.tsx` | New nav item | P2 |
+
+---
+
+## 18. Monetization & Pricing Tiers (Updated)
+
+| Tier | Monthly | Annual | Features |
+|------|---------|--------|----------|
+| **Free** | $0 | $0 | 3 vision boards/mo, basic habits, text chat |
+| **Pro** | $19.99 | $179.99 | Unlimited visions, AMIE themes, SMS notifications |
+| **Elite** | $49.99 | $449.99 | Voice coach, priority AI, free annual workbook |
+| **Enterprise** | Custom | Custom | Team features, Slack/Teams, admin dashboard |
+
+### Add-ons
+
+| Add-on | Price | Notes |
+|--------|-------|-------|
+| Print Kits | $14.99-$79.99 | À la carte ordering |
+| Marketplace Templates | $2.99-$9.99 | Revenue share with creators |
+| Coaching Sessions | $29.99/session | Certified coach marketplace |
+| Additional Team Seats | $9.99/user/mo | Enterprise tier |
+
+---
+
+## 19. GTM & PR Strategy (Updated)
+
+### Launch Plan
+
+| Phase | Timing | Activities |
+|-------|--------|------------|
+| **Pre-launch** | 4 weeks before | Waitlist with referral engine, early access invites |
+| **Resolution Window** | Jan 1-15 | New Year campaign, "2025 Vision" messaging |
+| **Product Hunt** | Week 2 | Coordinated launch with influencer support |
+| **Enterprise Pilot** | Month 2 | Free 3-month trials for 10 companies |
+
+### Messaging Pillars
+
+1. **Identity-Driven Coaching** — "AI that knows who you are"
+2. **Vision → Plan → Action** — "Turn dreams into done"
+3. **Physical Reinforcement** — "Hold your future in your hands"
+4. **Accountable AI** — "The coach that never gives up on you"
+
+---
+
+## 20. Conclusion & Next Steps
+
+### Immediate Actions (This Week)
+
+1. **Apply AMIE database migration** — Foundation for all v1.6 features
+2. **Create `onboarding-themes` Edge Function** — Enable theme selection
+3. **Set up Anthropic API** — Add Claude for enhanced coaching
+4. **Verify Stripe webhook** — Revenue enablement blocker
+
+### Success Criteria for v1.6
+
+- [ ] 100% of new users select a motivational theme
+- [ ] 50%+ complete master prompt Q&A
+- [ ] 25%+ upload at least 1 knowledge source
+- [ ] Voice coach beta tested with 10+ users
+- [ ] 2 new print products available (focus pads, cue cards)
+
+### Long-term Vision
+
+Visionary AI becomes the **category-defining platform** for identity-driven goal achievement, uniquely combining:
+- Emotional visualization (AI-generated vision boards)
+- Financial intelligence (Plaid integration, retirement gap)
+- Autonomous execution (agentic AI that acts on your behalf)
+- Physical reinforcement (print products that reinforce identity)
+- Multi-channel coaching (watch, voice, SMS, email, push)
+
+**Target:** 100,000 active users by end of 2026, with 15% paid conversion and $2M ARR.
