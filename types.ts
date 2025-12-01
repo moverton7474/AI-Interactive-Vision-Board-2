@@ -1,7 +1,8 @@
 
 export enum AppView {
   LANDING = 'LANDING',
-  ONBOARDING = 'ONBOARDING', // New View
+  THEME_SELECTION = 'THEME_SELECTION', // AMIE Identity Theme Selection
+  ONBOARDING = 'ONBOARDING', // Vision Style/Category Selection
   DISCOVERY = 'DISCOVERY',
   FINANCIAL = 'FINANCIAL',
   VISION_BOARD = 'VISION_BOARD',

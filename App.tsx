@@ -15,6 +15,7 @@ import SubscriptionModal from './components/SubscriptionModal';
 import OnboardingWizard from './components/OnboardingWizard';
 import HabitTracker from './components/HabitTracker';
 import WorkbookOrderModal from './components/WorkbookOrderModal';
+import ThemeSelector from './components/ThemeSelector';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
@@ -45,6 +46,9 @@ const App = () => {
 
   // Workbook State
   const [showWorkbookModal, setShowWorkbookModal] = useState(false);
+
+  // AMIE Identity State
+  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
 
   // Shared State
   const [activeVisionPrompt, setActiveVisionPrompt] = useState('');
@@ -178,7 +182,7 @@ const App = () => {
                     Start Your Journey
                   </button>
                   <button
-                    onClick={() => setView(AppView.ONBOARDING)}
+                    onClick={() => setView(AppView.THEME_SELECTION)}
                     className="text-navy-900 font-bold border-2 border-navy-900 px-10 py-3 rounded-full hover:bg-navy-50 transition-all flex items-center justify-center gap-2"
                   >
                     Launch Vision Wizard
@@ -255,6 +259,17 @@ const App = () => {
             {/* Pricing Section */}
             <Pricing onUpgrade={handleUpgradeClick} />
           </>
+        );
+      case AppView.THEME_SELECTION:
+        return (
+          <ThemeSelector
+            onSelect={(theme) => {
+              setSelectedThemeId(theme.id);
+              setView(AppView.ONBOARDING);
+            }}
+            onSkip={() => setView(AppView.ONBOARDING)}
+            selectedThemeId={selectedThemeId || undefined}
+          />
         );
       case AppView.ONBOARDING:
         return (
