@@ -18,6 +18,7 @@ export enum AppView {
   VOICE_COACH = 'VOICE_COACH', // Voice Coaching Sessions
   PRINT_PRODUCTS = 'PRINT_PRODUCTS', // Print Shop (Focus Pads, Cards, etc.)
   PARTNER = 'PARTNER', // Partner Collaboration Workspace
+  INTEGRATIONS = 'INTEGRATIONS', // Slack, Teams integrations
 }
 
 export interface ChatMessage {
