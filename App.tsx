@@ -16,6 +16,7 @@ import OnboardingWizard from './components/OnboardingWizard';
 import HabitTracker from './components/HabitTracker';
 import WorkbookOrderModal from './components/WorkbookOrderModal';
 import ThemeSelector from './components/ThemeSelector';
+import MasterPromptQnA from './components/MasterPromptQnA';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
@@ -49,6 +50,7 @@ const App = () => {
 
   // AMIE Identity State
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
+  const [selectedThemeName, setSelectedThemeName] = useState<string | null>(null);
 
   // Shared State
   const [activeVisionPrompt, setActiveVisionPrompt] = useState('');
@@ -265,10 +267,31 @@ const App = () => {
           <ThemeSelector
             onSelect={(theme) => {
               setSelectedThemeId(theme.id);
-              setView(AppView.ONBOARDING);
+              setSelectedThemeName(theme.display_name || theme.name);
+              setView(AppView.IDENTITY_QNA);
             }}
             onSkip={() => setView(AppView.ONBOARDING)}
             selectedThemeId={selectedThemeId || undefined}
+          />
+        );
+      case AppView.IDENTITY_QNA:
+        return selectedThemeId ? (
+          <MasterPromptQnA
+            themeId={selectedThemeId}
+            themeName={selectedThemeName || undefined}
+            onComplete={() => setView(AppView.ONBOARDING)}
+            onSkip={() => setView(AppView.ONBOARDING)}
+            onBack={() => setView(AppView.THEME_SELECTION)}
+          />
+        ) : (
+          // Redirect to theme selection if no theme selected
+          <ThemeSelector
+            onSelect={(theme) => {
+              setSelectedThemeId(theme.id);
+              setSelectedThemeName(theme.display_name || theme.name);
+              setView(AppView.IDENTITY_QNA);
+            }}
+            onSkip={() => setView(AppView.ONBOARDING)}
           />
         );
       case AppView.ONBOARDING:

@@ -2,6 +2,7 @@
 export enum AppView {
   LANDING = 'LANDING',
   THEME_SELECTION = 'THEME_SELECTION', // AMIE Identity Theme Selection
+  IDENTITY_QNA = 'IDENTITY_QNA', // AMIE Master Prompt Q&A
   ONBOARDING = 'ONBOARDING', // Vision Style/Category Selection
   DISCOVERY = 'DISCOVERY',
   FINANCIAL = 'FINANCIAL',
