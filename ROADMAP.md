@@ -575,25 +575,25 @@ Layer in smaller, high-utility pieces that can be added to orders as upsells or 
 
 ### Print Feature Roadmap
 
-#### v1.5 – Vision Workbook MVP
-- [ ] Complete `generate-workbook-pdf` Edge Function that composes sections from:
+#### v1.5 – Vision Workbook MVP ✅ COMPLETED
+- [x] Complete `generate-workbook-pdf` Edge Function that composes sections from:
   - `workbook_sections`
   - `user_knowledge_base`
   - `action_tasks`
   - `habits`
   - `weekly_reviews`
   - `progress_predictions`
-- [ ] Extend `workbook_templates` to tag product type:
+- [x] Extend `workbook_templates` to tag product type:
   - journal, companion, habit-only, poster, sticker sheet
   - Map to specific Prodigi SKUs (GLOBAL-NTB, NB-A5-PB-C-P, poster SKUs, sticker SKUs)
-- [ ] Implement `WorkbookOrderModal` allowing users to select:
+- [x] Implement `WorkbookOrderModal` allowing users to select:
   - Format (softcover/hardcover/leather-look)
   - Size
   - Personalization text
   - Quantity
-- [ ] Trigger `submit-to-prodigi` with custom metadata
+- [x] Trigger `submit-to-prodigi` with custom metadata
 
-#### v1.6 – Execution Toolkit (Pads, Posters, Stickers)
+#### v1.6 – Execution Toolkit (Pads, Posters, Stickers) 🔲 NEXT
 - [ ] Add product lines in `workbook_templates` or new `print_products` table for:
   - Daily pads
   - Wall posters
@@ -751,3 +751,329 @@ Reuse the same PDF pipeline to create a "Business Plan" variant.
 | Upsell attach rate (pads, stickers) | 20% |
 | Repeat orders (6 months) | 25% |
 | Elite tier auto-renewal retention | 80% |
+
+---
+
+## 12. Feature Integration Plan (Database Backend)
+
+> **Master Plan:** This section maps all upcoming features to their database requirements, Edge Functions, and UI components for seamless integration.
+
+### Phase 1: Proactive Outreach (v1.6) - READY TO BUILD
+
+**Goal:** Activate the existing Twilio infrastructure to send habit reminders, pace warnings, and milestone celebrations.
+
+| Component | Status | Database Tables | Edge Functions | UI Components |
+|-----------|--------|-----------------|----------------|---------------|
+| Habit Reminders | 🔲 Pending | `habits`, `user_comm_preferences`, `scheduled_checkins` | `send-sms`, `schedule-notification` | Settings toggle |
+| Pace Warnings | 🔲 Pending | `progress_predictions`, `action_tasks` | `send-sms`, `schedule-notification` | Notification preferences |
+| Milestone Celebrations | 🔲 Pending | `user_achievements`, `habit_completions` | `send-sms` | Achievement modal |
+
+**Database Schema Required:**
+```sql
+-- No new tables needed - uses existing:
+-- scheduled_checkins: stores pending notifications
+-- user_comm_preferences: opt-in settings
+-- progress_predictions: pace data for warnings
+```
+
+**Implementation Steps:**
+1. Create notification scheduler cron job (Supabase pg_cron or external)
+2. Add SMS opt-in toggle to user settings UI
+3. Build notification template library in `schedule-notification`
+4. Add pace warning logic to `generate-weekly-review`
+
+---
+
+### Phase 2: Weekly Review UI (v1.6)
+
+**Goal:** Display AI-generated weekly summaries in the app and deliver via email.
+
+| Component | Status | Database Tables | Edge Functions | UI Components |
+|-----------|--------|-----------------|----------------|---------------|
+| Weekly Summary Display | 🔲 Pending | `weekly_reviews` | `generate-weekly-review` | WeeklyReviewCard.tsx |
+| Email Delivery | 🔲 Pending | `weekly_reviews`, `user_comm_preferences` | `send-email` (new) | Email preferences |
+| Review History | 🔲 Pending | `weekly_reviews` | - | ReviewHistory.tsx |
+
+**Database Schema Required:**
+```sql
+-- Existing table: weekly_reviews
+-- Add email service integration (Resend)
+
+ALTER TABLE user_comm_preferences ADD COLUMN IF NOT EXISTS
+  weekly_review_email BOOLEAN DEFAULT true;
+```
+
+**Implementation Steps:**
+1. Create `WeeklyReviewCard.tsx` component
+2. Add "Reviews" section to dashboard
+3. Sign up for Resend account
+4. Create `send-email` Edge Function
+5. Schedule weekly review generation (Sunday evenings)
+
+---
+
+### Phase 3: Voice Integration (v2.0)
+
+**Goal:** Enable real-time voice conversations with the AI Coach using Gemini Live.
+
+| Component | Status | Database Tables | Edge Functions | UI Components |
+|-----------|--------|-----------------|----------------|---------------|
+| Voice Chat | 🔲 Pending | `agent_sessions`, `agent_messages` | `voice-chat` (new) | VoiceChat.tsx |
+| Voice Check-ins | 🔲 Pending | `scheduled_checkins` | `make-call` | - |
+| Voice Transcripts | 🔲 Pending | `agent_messages` | `voice-chat` | TranscriptView.tsx |
+
+**Database Schema Required:**
+```sql
+-- Add voice-specific columns to agent_messages
+ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS
+  message_type TEXT DEFAULT 'text', -- 'text', 'voice', 'call'
+  audio_url TEXT,
+  duration_seconds INT;
+
+-- Add voice preferences
+ALTER TABLE user_comm_preferences ADD COLUMN IF NOT EXISTS
+  voice_enabled BOOLEAN DEFAULT false,
+  preferred_voice TEXT DEFAULT 'default';
+```
+
+**Implementation Steps:**
+1. Research Gemini Live API requirements
+2. Create `voice-chat` Edge Function with WebSocket support
+3. Build `VoiceChat.tsx` with microphone permissions
+4. Add voice message storage to Supabase Storage
+5. Implement voice-to-text transcription for searchability
+
+---
+
+### Phase 4: Couple Collaboration (v2.0)
+
+**Goal:** Allow partners to share vision boards and co-manage goals.
+
+| Component | Status | Database Tables | Edge Functions | UI Components |
+|-----------|--------|-----------------|----------------|---------------|
+| Partner Invites | 🔲 Pending | `partner_links` (new) | `invite-partner` (new) | InviteModal.tsx |
+| Shared Workspace | 🔲 Pending | `vision_boards`, `action_tasks` | - | SharedDashboard.tsx |
+| Comment System | 🔲 Pending | `comments` (new) | - | CommentThread.tsx |
+
+**Database Schema Required:**
+```sql
+-- New table: partner_links
+CREATE TABLE partner_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id UUID REFERENCES auth.users(id),
+  partner_id UUID REFERENCES auth.users(id),
+  invite_email TEXT,
+  invite_token TEXT UNIQUE,
+  status TEXT DEFAULT 'pending', -- pending, accepted, revoked
+  permissions JSONB DEFAULT '{"read": true, "comment": true, "edit": false}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  accepted_at TIMESTAMPTZ
+);
+
+-- New table: comments
+CREATE TABLE comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id),
+  entity_type TEXT NOT NULL, -- 'vision_board', 'action_task', 'habit'
+  entity_id UUID NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Add shared flag to vision_boards
+ALTER TABLE vision_boards ADD COLUMN IF NOT EXISTS
+  shared_with_partner BOOLEAN DEFAULT false;
+```
+
+**Implementation Steps:**
+1. Create partner_links table and RLS policies
+2. Build `invite-partner` Edge Function with email invite
+3. Create `InviteModal.tsx` for sending invites
+4. Modify dashboard to show partner's shared items
+5. Add comment system to vision boards and action tasks
+
+---
+
+### Phase 5: Execution Toolkit Print Products (v1.6)
+
+**Goal:** Expand print product line with pads, posters, and stickers.
+
+| Component | Status | Database Tables | Edge Functions | UI Components |
+|-----------|--------|-----------------|----------------|---------------|
+| Print Products Catalog | 🔲 Pending | `print_products` (new) | - | PrintCenter.tsx |
+| Daily Focus Pads | 🔲 Pending | `workbook_orders` | `generate-workbook-pdf` | PadOrderModal.tsx |
+| Wall Posters | 🔲 Pending | `poster_orders` | `submit-to-prodigi` | PosterOrderModal.tsx |
+| Sticker Sheets | 🔲 Pending | `workbook_orders` | `generate-workbook-pdf` | StickerOrderModal.tsx |
+
+**Database Schema Required:**
+```sql
+-- New table: print_products (unified catalog)
+CREATE TABLE print_products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  product_type TEXT NOT NULL, -- 'workbook', 'pad', 'poster', 'sticker', 'canvas'
+  prodigi_sku TEXT NOT NULL,
+  size TEXT,
+  base_price DECIMAL(10,2) NOT NULL,
+  shipping_estimate DECIMAL(10,2),
+  preview_image_url TEXT,
+  is_active BOOLEAN DEFAULT true,
+  sort_order INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insert initial products
+INSERT INTO print_products (name, product_type, prodigi_sku, size, base_price, shipping_estimate) VALUES
+  ('Daily Focus Pad', 'pad', 'GLOBAL-PAD-A5', 'A5', 14.99, 4.99),
+  ('Vision Poster 18x24', 'poster', 'GLOBAL-FAP-18x24', '18x24', 24.99, 6.99),
+  ('Achievement Stickers', 'sticker', 'GLOBAL-STK-A4', 'A4', 9.99, 2.99),
+  ('Gallery Canvas 16x20', 'canvas', 'GLOBAL-CAN-16x20', '16x20', 49.99, 9.99);
+```
+
+**Implementation Steps:**
+1. Create `print_products` table with seed data
+2. Build `PrintCenter.tsx` as unified print ordering hub
+3. Create product-specific order modals
+4. Extend `generate-workbook-pdf` to support pad layouts
+5. Add upsell prompts after workbook purchase
+
+---
+
+### Phase 6: Predictive Coaching (v2.0)
+
+**Goal:** AI proactively warns users when falling behind pace and suggests adjustments.
+
+| Component | Status | Database Tables | Edge Functions | UI Components |
+|-----------|--------|-----------------|----------------|---------------|
+| Pace Analysis | 🔲 Pending | `progress_predictions`, `action_tasks` | `analyze-pace` (new) | PaceWarning.tsx |
+| Smart Recommendations | 🔲 Pending | `progress_predictions`, `agent_actions` | `generate-recommendations` (new) | RecommendationCard.tsx |
+| Intervention Triggers | 🔲 Pending | `scheduled_checkins` | `schedule-notification` | - |
+
+**Database Schema Required:**
+```sql
+-- Enhance progress_predictions table
+ALTER TABLE progress_predictions ADD COLUMN IF NOT EXISTS
+  recommendation_text TEXT,
+  suggested_actions JSONB,
+  severity TEXT DEFAULT 'info', -- 'info', 'warning', 'critical'
+  acknowledged_at TIMESTAMPTZ;
+```
+
+**Implementation Steps:**
+1. Create `analyze-pace` Edge Function that runs weekly
+2. Build pace analysis algorithm comparing actual vs. expected progress
+3. Generate recommendations based on user behavior patterns
+4. Create `PaceWarning.tsx` component for dashboard
+5. Add intervention triggers to `schedule-notification`
+
+---
+
+### Phase 7: Gamification System (v2.5)
+
+**Goal:** Add levels, XP, and badges to make goal achievement fun.
+
+| Component | Status | Database Tables | Edge Functions | UI Components |
+|-----------|--------|-----------------|----------------|---------------|
+| XP System | 🔲 Pending | `user_achievements`, `profiles` | `award-xp` (new) | XPBar.tsx |
+| Level Progression | 🔲 Pending | `profiles` | `award-xp` | LevelBadge.tsx |
+| Achievement Badges | 🔲 Pending | `user_achievements` | `unlock-achievement` (new) | AchievementModal.tsx |
+| Leaderboards | 🔲 Pending | `profiles` | - | Leaderboard.tsx |
+
+**Database Schema Required:**
+```sql
+-- Add gamification columns to profiles
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS
+  xp INT DEFAULT 0,
+  level INT DEFAULT 1,
+  level_title TEXT DEFAULT 'Dreamer';
+
+-- Enhance user_achievements
+ALTER TABLE user_achievements ADD COLUMN IF NOT EXISTS
+  xp_awarded INT DEFAULT 0,
+  badge_image_url TEXT;
+
+-- Create achievements catalog
+CREATE TABLE achievement_definitions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT, -- 'habit', 'vision', 'financial', 'milestone'
+  xp_value INT DEFAULT 10,
+  badge_image_url TEXT,
+  unlock_criteria JSONB, -- e.g., {"type": "streak", "count": 7}
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insert initial achievements
+INSERT INTO achievement_definitions (name, description, category, xp_value, unlock_criteria) VALUES
+  ('First Vision', 'Create your first vision board', 'vision', 50, '{"type": "vision_count", "count": 1}'),
+  ('Week Warrior', '7-day habit streak', 'habit', 100, '{"type": "streak", "count": 7}'),
+  ('Month Master', '30-day habit streak', 'habit', 500, '{"type": "streak", "count": 30}'),
+  ('Action Taker', 'Complete 10 action tasks', 'milestone', 200, '{"type": "tasks_completed", "count": 10}'),
+  ('Visionary', 'Reach Level 10', 'milestone', 1000, '{"type": "level", "count": 10}');
+```
+
+**Implementation Steps:**
+1. Add XP and level columns to profiles
+2. Create `award-xp` Edge Function with level-up logic
+3. Create `achievement_definitions` table with unlock criteria
+4. Build `unlock-achievement` Edge Function
+5. Create gamification UI components (XPBar, LevelBadge, AchievementModal)
+6. Add XP triggers to habit completions, vision creation, etc.
+
+---
+
+### Database Migration Priority Order
+
+| Priority | Migration | Tables Affected | Effort |
+|----------|-----------|-----------------|--------|
+| 1 | Proactive Outreach | user_comm_preferences | Low |
+| 2 | Weekly Review Email | user_comm_preferences | Low |
+| 3 | Print Products Catalog | print_products | Medium |
+| 4 | Gamification | profiles, user_achievements, achievement_definitions | Medium |
+| 5 | Voice Integration | agent_messages, user_comm_preferences | Medium |
+| 6 | Couple Collaboration | partner_links, comments, vision_boards | High |
+| 7 | Predictive Coaching | progress_predictions | Medium |
+
+---
+
+### Edge Function Development Queue
+
+| Priority | Function | Purpose | Dependencies |
+|----------|----------|---------|--------------|
+| 1 | `send-email` | Transactional email via Resend | Resend account |
+| 2 | `analyze-pace` | Weekly pace analysis | `progress_predictions` |
+| 3 | `award-xp` | XP and level management | Gamification migration |
+| 4 | `unlock-achievement` | Badge unlocking | `achievement_definitions` |
+| 5 | `voice-chat` | Gemini Live integration | Gemini Live API access |
+| 6 | `invite-partner` | Partner invitation system | `partner_links` table |
+
+---
+
+### UI Component Development Queue
+
+| Priority | Component | Location | Dependencies |
+|----------|-----------|----------|--------------|
+| 1 | WeeklyReviewCard.tsx | Dashboard | `generate-weekly-review` |
+| 2 | NotificationSettings.tsx | Settings | SMS opt-in |
+| 3 | PrintCenter.tsx | New nav item | `print_products` table |
+| 4 | XPBar.tsx | Header | Gamification migration |
+| 5 | PaceWarning.tsx | Dashboard | `analyze-pace` function |
+| 6 | VoiceChat.tsx | Agent Chat | `voice-chat` function |
+
+---
+
+### Integration Testing Checklist
+
+Before each phase goes live:
+
+- [ ] Database migration applied successfully
+- [ ] Edge Function deployed and tested
+- [ ] RLS policies verified for security
+- [ ] UI component renders correctly
+- [ ] Error handling covers edge cases
+- [ ] Mobile responsive design verified
+- [ ] Payment flow tested (if applicable)
+- [ ] Notification delivery confirmed (if applicable)
