@@ -505,3 +505,249 @@ export interface UserKnowledgeBase {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================
+// AMIE - ADAPTIVE MOTIVATIONAL IDENTITY ENGINE
+// ============================================
+
+export type MotivationStyle = 'encouraging' | 'challenging' | 'analytical' | 'spiritual';
+export type CommunicationStyle = 'direct' | 'supportive' | 'analytical' | 'storytelling';
+export type FormalityLevel = 'formal' | 'casual' | 'professional';
+export type EncouragementFrequency = 'high' | 'moderate' | 'minimal';
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'text' | 'scale';
+
+export interface MotivationalTheme {
+  id: string;
+  name: string;
+  display_name: string;
+  description?: string;
+  icon: string;
+  color_scheme: {
+    primary: string;
+    secondary: string;
+  };
+  system_prompt_template: string;
+  motivation_style: MotivationStyle;
+  vocabulary_examples: string[];
+  content_sources: string[];
+  include_scripture: boolean;
+  include_metrics: boolean;
+  include_wellness: boolean;
+  include_legacy: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface MasterPromptQuestion {
+  id: string;
+  theme_id: string;
+  question_text: string;
+  question_type: QuestionType;
+  options: string[];
+  prompt_contribution: string;
+  sort_order: number;
+  is_required: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface MasterPromptResponse {
+  question_id: string;
+  question_text: string;
+  answer: string | string[];
+}
+
+export interface UserIdentityProfile {
+  id: string;
+  user_id: string;
+
+  // Theme
+  theme_id?: string;
+  theme_customizations: Record<string, any>;
+  theme?: MotivationalTheme; // Joined
+
+  // Master Prompt
+  master_prompt?: string;
+  master_prompt_responses: MasterPromptResponse[];
+
+  // Identity Attributes
+  core_values: string[];
+  life_roles: string[];
+  communication_style?: CommunicationStyle;
+  motivation_drivers: string[];
+
+  // AI Voice Preferences
+  preferred_ai_voice: string;
+  formality_level: FormalityLevel;
+  encouragement_frequency: EncouragementFrequency;
+
+  // Computed
+  identity_summary?: string;
+  coaching_focus_areas: string[];
+
+  // Status
+  onboarding_step: number;
+  onboarding_completed: boolean;
+  last_identity_update?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
+// KNOWLEDGE BASE (Notebook-LM Style)
+// ============================================
+
+export type KnowledgeSourceType =
+  | 'resume'
+  | 'document'
+  | 'url'
+  | 'manual_entry'
+  | 'conversation'
+  | 'vision_board'
+  | 'financial_doc'
+  | 'notes';
+
+export type KnowledgeSourceStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface UserKnowledgeSource {
+  id: string;
+  user_id: string;
+  source_type: KnowledgeSourceType;
+  source_name: string;
+  source_url?: string;
+  raw_content?: string;
+  processed_content?: string;
+  content_summary?: string;
+  file_type?: string;
+  file_size?: number;
+  word_count?: number;
+  language: string;
+  status: KnowledgeSourceStatus;
+  error_message?: string;
+  processed_at?: string;
+  is_active: boolean;
+  include_in_context: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserKnowledgeChunk {
+  id: string;
+  user_id: string;
+  source_id: string;
+  chunk_text: string;
+  chunk_index: number;
+  embedding?: number[];
+  token_count?: number;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+export interface KnowledgeSearchResult {
+  chunk_id: string;
+  chunk_text: string;
+  source_name: string;
+  source_type: KnowledgeSourceType;
+  similarity: number;
+}
+
+// ============================================
+// VOICE COACH
+// ============================================
+
+export type VoiceSessionType =
+  | 'on_demand'
+  | 'habit_trigger'
+  | 'weekly_review'
+  | 'milestone_celebration'
+  | 'pace_warning'
+  | 'check_in'
+  | 'morning_intention';
+
+export type VoiceDeviceType = 'apple_watch' | 'iphone' | 'android' | 'web' | 'phone_call';
+export type VoiceSessionStatus = 'active' | 'completed' | 'interrupted' | 'failed';
+
+export interface VoiceCoachSession {
+  id: string;
+  user_id: string;
+  session_type: VoiceSessionType;
+  trigger_context: Record<string, any>;
+  device_type?: VoiceDeviceType;
+  channel: 'voice' | 'text_fallback';
+  duration_seconds?: number;
+  transcript?: string;
+  audio_url?: string;
+  sentiment_score?: number;
+  key_topics: string[];
+  action_items_generated: Array<{
+    type: string;
+    description: string;
+    completed?: boolean;
+  }>;
+  coaching_notes?: string;
+  theme_used?: string;
+  knowledge_chunks_used: string[];
+  status: VoiceSessionStatus;
+  ended_reason?: string;
+  started_at: string;
+  ended_at?: string;
+  created_at: string;
+}
+
+// ============================================
+// AMIE CONTEXT (Compiled for AI)
+// ============================================
+
+export interface AMIEContext {
+  theme: {
+    name: string;
+    system_prompt: string;
+    style: MotivationStyle;
+    include_scripture: boolean;
+    include_metrics: boolean;
+    include_wellness: boolean;
+    include_legacy: boolean;
+  };
+  identity: {
+    master_prompt?: string;
+    core_values: string[];
+    life_roles: string[];
+    communication_style?: CommunicationStyle;
+    motivation_drivers: string[];
+    identity_summary?: string;
+    coaching_focus_areas: string[];
+  };
+  preferences: {
+    formality_level: FormalityLevel;
+    encouragement_frequency: EncouragementFrequency;
+    preferred_ai_voice: string;
+  };
+  knowledge_chunks?: KnowledgeSearchResult[];
+}
+
+// ============================================
+// PRINT PRODUCTS (Extended Catalog)
+// ============================================
+
+export type PrintProductType = 'workbook' | 'pad' | 'cards' | 'poster' | 'sticker' | 'canvas' | 'bundle';
+
+export interface PrintProduct {
+  id: string;
+  name: string;
+  description?: string;
+  product_type: PrintProductType;
+  prodigi_sku: string;
+  size: string;
+  base_price: number;
+  shipping_estimate?: number;
+  preview_image_url?: string;
+  personalization_fields: string[];
+  color_options: string[];
+  requires_content: boolean;
+  min_content_items: number;
+  elite_exclusive: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
