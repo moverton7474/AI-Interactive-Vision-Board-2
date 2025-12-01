@@ -21,7 +21,8 @@ import WeeklyReviews from './components/WeeklyReviews';
 import KnowledgeBase from './components/KnowledgeBase';
 import VoiceCoach from './components/VoiceCoach';
 import PrintProducts from './components/PrintProducts';
-import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon } from './components/Icons';
+import PartnerDashboard from './components/PartnerDashboard';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -358,6 +359,8 @@ const App = () => {
         return <VoiceCoach onBack={() => setView(AppView.LANDING)} />;
       case AppView.PRINT_PRODUCTS:
         return <PrintProducts onBack={() => setView(AppView.LANDING)} />;
+      case AppView.PARTNER:
+        return <PartnerDashboard onBack={() => setView(AppView.LANDING)} />;
       default:
         return null;
     }
@@ -595,6 +598,9 @@ USING (auth.uid() = id);
               </button>
               <button onClick={() => setView(AppView.PRINT_PRODUCTS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PRINT_PRODUCTS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                 <PrinterIcon className="w-4 h-4" /> Shop
+              </button>
+              <button onClick={() => setView(AppView.PARTNER)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PARTNER ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <HeartIcon className="w-4 h-4" /> Partner
               </button>
               <button onClick={() => setShowWorkbookModal(true)} className="text-sm font-medium flex items-center gap-1 text-gray-500 hover:text-navy-900 transition-colors">
                 <BookOpenIcon className="w-4 h-4" /> Workbook

@@ -17,6 +17,7 @@ export enum AppView {
   KNOWLEDGE_BASE = 'KNOWLEDGE_BASE', // Personal Knowledge Base
   VOICE_COACH = 'VOICE_COACH', // Voice Coaching Sessions
   PRINT_PRODUCTS = 'PRINT_PRODUCTS', // Print Shop (Focus Pads, Cards, etc.)
+  PARTNER = 'PARTNER', // Partner Collaboration Workspace
 }
 
 export interface ChatMessage {
