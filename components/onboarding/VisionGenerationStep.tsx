@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 interface Props {
   visionText: string;
   themeName?: string;
+  photoRefId?: string;
   onVisionGenerated: (visionId: string, visionUrl: string) => void;
-  generateVision: (prompt: string) => Promise<{ id: string; url: string }>;
+  generateVision: (prompt: string, photoRef?: string) => Promise<{ id: string; url: string }>;
 }
 
 const GENERATION_MESSAGES = [
@@ -18,6 +19,7 @@ const GENERATION_MESSAGES = [
 const VisionGenerationStep: React.FC<Props> = ({
   visionText,
   themeName,
+  photoRefId,
   onVisionGenerated,
   generateVision
 }) => {
@@ -48,7 +50,7 @@ Style: photorealistic, aspirational, warm lighting, lifestyle imagery.
 Theme: ${themeName || 'balanced and harmonious'}.
 Make it feel achievable yet inspiring.`;
 
-        const result = await generateVision(enhancedPrompt);
+        const result = await generateVision(enhancedPrompt, photoRefId);
         setGeneratedVision(result);
         onVisionGenerated(result.id, result.url);
       } catch (err: any) {
@@ -60,7 +62,7 @@ Make it feel achievable yet inspiring.`;
     };
 
     generate();
-  }, [visionText, themeName]);
+  }, [visionText, themeName, photoRefId, generateVision, onVisionGenerated]);
 
   const handleRegenerate = async () => {
     setIsGenerating(true);
@@ -73,7 +75,7 @@ Style: photorealistic, aspirational, warm lighting, lifestyle imagery.
 Theme: ${themeName || 'balanced and harmonious'}.
 Make it feel achievable yet inspiring. Try a different perspective or composition.`;
 
-      const result = await generateVision(enhancedPrompt);
+      const result = await generateVision(enhancedPrompt, photoRefId);
       setGeneratedVision(result);
       onVisionGenerated(result.id, result.url);
     } catch (err: any) {
