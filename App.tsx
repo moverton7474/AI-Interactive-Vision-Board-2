@@ -288,21 +288,179 @@ const App = () => {
     );
   }, []);
 
-  // Mock functions for onboarding (replace with real implementations)
+  // Generate vision image using Gemini API
   const generateVisionImage = useCallback(async (prompt: string, photoRef?: string) => {
-    // This should call your actual vision generation service
-    // For now, return a placeholder
-    return { id: 'vision-' + Date.now(), url: 'https://via.placeholder.com/800x600/1E3A5F/FFFFFF?text=Your+Vision' };
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Please sign in to generate visions');
+      }
+
+      // Build request with optional photo reference
+      const requestBody: any = {
+        action: 'generate_image',
+        prompt,
+        images: []
+      };
+
+      // If photo reference provided, fetch it and include
+      if (photoRef) {
+        try {
+          // Try to get the reference image from storage
+          const { data: refData } = await supabase
+            .from('reference_images')
+            .select('image_url')
+            .eq('id', photoRef)
+            .single();
+
+          if (refData?.image_url) {
+            // Fetch and convert to base64
+            const response = await fetch(refData.image_url);
+            const blob = await response.blob();
+            const base64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+            requestBody.images.push(base64);
+          }
+        } catch (refError) {
+          console.warn('Could not load reference image:', refError);
+        }
+      }
+
+      // Call Gemini proxy edge function
+      const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+        body: requestBody,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      if (error) {
+        console.error('Vision generation error:', error);
+        throw new Error(error.message || 'Failed to generate vision');
+      }
+
+      if (!data?.success || !data?.image) {
+        throw new Error(data?.error || 'No image generated');
+      }
+
+      // Upload the generated image to storage
+      const imageData = data.image;
+      const base64Data = imageData.includes('base64,') ? imageData.split(',')[1] : imageData;
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+
+      const fileName = `visions/${session.user.id}/${Date.now()}.png`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('visions')
+        .upload(fileName, blob, { upsert: true });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('visions')
+        .getPublicUrl(fileName);
+
+      // Save to vision_boards table
+      const { data: visionData, error: visionError } = await supabase
+        .from('vision_boards')
+        .insert({
+          user_id: session.user.id,
+          image_url: urlData.publicUrl,
+          title: 'My Vision',
+          description: prompt,
+          metadata: { generatedAt: new Date().toISOString(), prompt }
+        })
+        .select()
+        .single();
+
+      if (visionError) {
+        console.warn('Vision save error:', visionError);
+      }
+
+      return {
+        id: visionData?.id || `vision-${Date.now()}`,
+        url: urlData.publicUrl
+      };
+    } catch (error: any) {
+      console.error('generateVisionImage error:', error);
+      throw error;
+    }
   }, []);
 
   const generateActionPlan = useCallback(async (context: { vision: string; target?: number; theme?: string }) => {
-    // This should call your AI service to generate tasks
-    // For now, return placeholder tasks
-    return [
-      { id: 'task-1', title: 'Define your goals', description: 'Set clear, measurable objectives', type: 'ADMIN' as const, isCompleted: false, dueDate: new Date().toISOString() },
-      { id: 'task-2', title: 'Create savings plan', description: 'Automate monthly contributions', type: 'FINANCE' as const, isCompleted: false, dueDate: new Date().toISOString() },
-      { id: 'task-3', title: 'Research your dream', description: 'Explore costs and timelines', type: 'LIFESTYLE' as const, isCompleted: false, dueDate: new Date().toISOString() }
-    ];
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Please sign in to generate action plan');
+      }
+
+      // Call Gemini proxy for action plan generation
+      const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+        body: {
+          action: 'action_plan',
+          visionContext: context.vision,
+          financialContext: context.target
+            ? `Target: $${context.target.toLocaleString()}`
+            : 'No specific target set'
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      if (error) {
+        console.error('Action plan generation error:', error);
+        throw new Error(error.message || 'Failed to generate action plan');
+      }
+
+      if (!data?.success || !data?.plan) {
+        throw new Error(data?.error || 'No action plan generated');
+      }
+
+      // Flatten tasks from all milestones
+      const allTasks: ActionTask[] = [];
+      for (const milestone of data.plan) {
+        if (milestone.tasks) {
+          for (const task of milestone.tasks) {
+            allTasks.push({
+              id: task.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              title: task.title,
+              description: task.description || '',
+              type: (task.type?.toUpperCase() || 'ADMIN') as ActionTask['type'],
+              isCompleted: false,
+              dueDate: task.dueDate || new Date().toISOString(),
+              aiMetadata: task.aiMetadata
+            });
+          }
+        }
+      }
+
+      return allTasks.length > 0 ? allTasks : [
+        { id: 'task-1', title: 'Define your goals', description: 'Set clear, measurable objectives', type: 'ADMIN' as const, isCompleted: false, dueDate: new Date().toISOString() },
+        { id: 'task-2', title: 'Create savings plan', description: 'Automate monthly contributions', type: 'FINANCE' as const, isCompleted: false, dueDate: new Date().toISOString() },
+        { id: 'task-3', title: 'Research your dream', description: 'Explore costs and timelines', type: 'LIFESTYLE' as const, isCompleted: false, dueDate: new Date().toISOString() }
+      ];
+    } catch (error: any) {
+      console.error('generateActionPlan error:', error);
+      // Return fallback tasks on error
+      return [
+        { id: 'task-1', title: 'Define your goals', description: 'Set clear, measurable objectives', type: 'ADMIN' as const, isCompleted: false, dueDate: new Date().toISOString() },
+        { id: 'task-2', title: 'Create savings plan', description: 'Automate monthly contributions', type: 'FINANCE' as const, isCompleted: false, dueDate: new Date().toISOString() },
+        { id: 'task-3', title: 'Research your dream', description: 'Explore costs and timelines', type: 'LIFESTYLE' as const, isCompleted: false, dueDate: new Date().toISOString() }
+      ];
+    }
   }, []);
 
   const uploadPhoto = useCallback(async (file: File) => {
