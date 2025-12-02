@@ -382,13 +382,7 @@ const App = () => {
       .insert({
         user_id: session.user.id,
         image_url: imageUrl,
-        title: 'My Vision',
-        description: prompt,
-        metadata: {
-          generatedAt: new Date().toISOString(),
-          prompt,
-          isPlaceholder: !generatedImage
-        }
+        prompt: prompt
       })
       .select()
       .single();
