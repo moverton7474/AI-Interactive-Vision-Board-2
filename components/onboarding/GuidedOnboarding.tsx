@@ -1,0 +1,306 @@
+import React, { useState, useCallback } from 'react';
+import { OnboardingStep, OnboardingState, ActionTask, AppView } from '../../types';
+import OnboardingLayout from './OnboardingLayout';
+import ThemeSelectorStep from './ThemeSelectorStep';
+import CoachIntroStep from './CoachIntroStep';
+import VisionCaptureStep from './VisionCaptureStep';
+import PhotoUploadStep from './PhotoUploadStep';
+import FinancialTargetStep from './FinancialTargetStep';
+import VisionGenerationStep from './VisionGenerationStep';
+import ActionPlanPreviewStep from './ActionPlanPreviewStep';
+import HabitsSetupStep from './HabitsSetupStep';
+import PrintOfferStep from './PrintOfferStep';
+import CompletionStep from './CompletionStep';
+
+interface Props {
+  userId: string;
+  onComplete: (state: OnboardingState) => void;
+  onNavigate: (view: AppView) => void;
+  // AI Functions
+  generateVisionImage: (prompt: string, photoRef?: string) => Promise<{ id: string; url: string }>;
+  generateActionPlan: (context: { vision: string; target?: number; theme?: string }) => Promise<ActionTask[]>;
+  // Storage Functions
+  uploadPhoto: (file: File) => Promise<string>;
+  // Persistence
+  saveOnboardingState: (state: Partial<OnboardingState>) => Promise<void>;
+}
+
+const STEPS: OnboardingStep[] = [
+  'THEME',
+  'COACH_INTRO',
+  'VISION_CAPTURE',
+  'PHOTO_UPLOAD',
+  'FINANCIAL_TARGET',
+  'VISION_GENERATION',
+  'ACTION_PLAN_PREVIEW',
+  'HABITS_SETUP',
+  'PRINT_OFFER',
+  'COMPLETION'
+];
+
+const STEP_CONFIG: Record<OnboardingStep, { title: string; subtitle: string }> = {
+  THEME: {
+    title: 'Choose Your Coaching Style',
+    subtitle: 'Select the approach that resonates with your values'
+  },
+  COACH_INTRO: {
+    title: 'Meet Your Coach',
+    subtitle: 'Your personalized guide for this journey'
+  },
+  VISION_CAPTURE: {
+    title: 'Capture Your Vision',
+    subtitle: 'Describe your ideal future in your own words'
+  },
+  PHOTO_UPLOAD: {
+    title: 'Add a Reference Photo',
+    subtitle: 'Optional: Include yourself in your vision'
+  },
+  FINANCIAL_TARGET: {
+    title: 'Set Your Financial Goal',
+    subtitle: 'What are you working toward?'
+  },
+  VISION_GENERATION: {
+    title: 'Creating Your Vision',
+    subtitle: 'Our AI is bringing your dream to life'
+  },
+  ACTION_PLAN_PREVIEW: {
+    title: 'Your Action Plan',
+    subtitle: 'Personalized steps to achieve your vision'
+  },
+  HABITS_SETUP: {
+    title: 'Daily Habits',
+    subtitle: 'Build the routines that support your goals'
+  },
+  PRINT_OFFER: {
+    title: 'Make It Real',
+    subtitle: 'Print your vision and keep it visible'
+  },
+  COMPLETION: {
+    title: 'Welcome to Visionary!',
+    subtitle: 'Your journey starts now'
+  }
+};
+
+const GuidedOnboarding: React.FC<Props> = ({
+  userId,
+  onComplete,
+  onNavigate,
+  generateVisionImage,
+  generateActionPlan,
+  uploadPhoto,
+  saveOnboardingState
+}) => {
+  const [state, setState] = useState<OnboardingState>({
+    currentStep: 'THEME',
+    selectedHabits: []
+  });
+
+  const currentStepIndex = STEPS.indexOf(state.currentStep);
+  const stepConfig = STEP_CONFIG[state.currentStep];
+
+  const updateState = useCallback((updates: Partial<OnboardingState>) => {
+    setState(prev => ({ ...prev, ...updates }));
+  }, []);
+
+  const goToStep = useCallback((step: OnboardingStep) => {
+    setState(prev => ({ ...prev, currentStep: step }));
+  }, []);
+
+  const goNext = useCallback(() => {
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex < STEPS.length) {
+      goToStep(STEPS[nextIndex]);
+    }
+  }, [currentStepIndex, goToStep]);
+
+  const goBack = useCallback(() => {
+    const prevIndex = currentStepIndex - 1;
+    if (prevIndex >= 0) {
+      goToStep(STEPS[prevIndex]);
+    }
+  }, [currentStepIndex, goToStep]);
+
+  const canProceed = useCallback(() => {
+    switch (state.currentStep) {
+      case 'THEME':
+        return !!state.themeId;
+      case 'COACH_INTRO':
+        return true;
+      case 'VISION_CAPTURE':
+        return !!state.visionText && state.visionText.length >= 20;
+      case 'PHOTO_UPLOAD':
+        return true; // Optional step
+      case 'FINANCIAL_TARGET':
+        return state.financialTarget !== undefined;
+      case 'VISION_GENERATION':
+        return !!state.primaryVisionUrl;
+      case 'ACTION_PLAN_PREVIEW':
+        return (state.generatedTasks?.length ?? 0) > 0;
+      case 'HABITS_SETUP':
+        return (state.selectedHabits?.length ?? 0) > 0;
+      case 'PRINT_OFFER':
+        return true;
+      case 'COMPLETION':
+        return true;
+      default:
+        return false;
+    }
+  }, [state]);
+
+  const handleComplete = useCallback(async () => {
+    await saveOnboardingState(state);
+    onComplete(state);
+  }, [state, saveOnboardingState, onComplete]);
+
+  const handleViewPrintOptions = useCallback(() => {
+    // Save state first
+    saveOnboardingState(state);
+    // Navigate to print shop
+    onNavigate(AppView.PRINT_PRODUCTS);
+  }, [state, saveOnboardingState, onNavigate]);
+
+  const renderStep = () => {
+    switch (state.currentStep) {
+      case 'THEME':
+        return (
+          <ThemeSelectorStep
+            selectedTheme={state.themeId}
+            onSelectTheme={(themeId, themeName) => {
+              updateState({ themeId, themeName });
+            }}
+          />
+        );
+
+      case 'COACH_INTRO':
+        return (
+          <CoachIntroStep
+            themeId={state.themeId}
+            themeName={state.themeName}
+          />
+        );
+
+      case 'VISION_CAPTURE':
+        return (
+          <VisionCaptureStep
+            visionText={state.visionText}
+            onVisionChange={(text) => updateState({ visionText: text })}
+          />
+        );
+
+      case 'PHOTO_UPLOAD':
+        return (
+          <PhotoUploadStep
+            photoRefId={state.photoRefId}
+            onPhotoUploaded={(photoId) => updateState({ photoRefId: photoId })}
+            uploadPhoto={uploadPhoto}
+          />
+        );
+
+      case 'FINANCIAL_TARGET':
+        return (
+          <FinancialTargetStep
+            selectedTarget={state.financialTarget}
+            onSelectTarget={(target, label) => {
+              updateState({ financialTarget: target, financialTargetLabel: label });
+            }}
+          />
+        );
+
+      case 'VISION_GENERATION':
+        return (
+          <VisionGenerationStep
+            visionText={state.visionText || ''}
+            photoRefId={state.photoRefId}
+            themeName={state.themeName}
+            onVisionGenerated={(id, url) => {
+              updateState({ primaryVisionId: id, primaryVisionUrl: url });
+            }}
+            generateVision={async (prompt, photoRef) => {
+              const result = await generateVisionImage(prompt, photoRef);
+              return result;
+            }}
+          />
+        );
+
+      case 'ACTION_PLAN_PREVIEW':
+        return (
+          <ActionPlanPreviewStep
+            visionText={state.visionText || ''}
+            financialTarget={state.financialTarget}
+            themeName={state.themeName}
+            onTasksGenerated={(tasks) => updateState({ generatedTasks: tasks })}
+            generateActionPlan={generateActionPlan}
+          />
+        );
+
+      case 'HABITS_SETUP':
+        return (
+          <HabitsSetupStep
+            themeId={state.themeId}
+            selectedHabits={state.selectedHabits || []}
+            onHabitsChange={(habits) => updateState({ selectedHabits: habits })}
+          />
+        );
+
+      case 'PRINT_OFFER':
+        return (
+          <PrintOfferStep
+            visionImageUrl={state.primaryVisionUrl}
+            onViewPrintOptions={handleViewPrintOptions}
+            onSkip={goNext}
+          />
+        );
+
+      case 'COMPLETION':
+        return (
+          <CompletionStep
+            themeName={state.themeName}
+            visionImageUrl={state.primaryVisionUrl}
+            tasksCount={state.generatedTasks?.length ?? 0}
+            habitsCount={state.selectedHabits?.length ?? 0}
+            onComplete={handleComplete}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  // Determine if we should show navigation buttons
+  const showBackButton = currentStepIndex > 0 && state.currentStep !== 'COMPLETION';
+  const showNextButton = state.currentStep !== 'VISION_GENERATION' &&
+                         state.currentStep !== 'PRINT_OFFER' &&
+                         state.currentStep !== 'COMPLETION';
+
+  return (
+    <OnboardingLayout
+      currentStep={currentStepIndex + 1}
+      totalSteps={STEPS.length}
+      title={stepConfig.title}
+      subtitle={stepConfig.subtitle}
+      onBack={showBackButton ? goBack : undefined}
+    >
+      {renderStep()}
+
+      {/* Navigation Buttons */}
+      {showNextButton && (
+        <div className="mt-8 flex justify-end">
+          <button
+            onClick={goNext}
+            disabled={!canProceed()}
+            className={`px-8 py-3 rounded-xl font-semibold transition-all ${
+              canProceed()
+                ? 'bg-navy-900 text-white hover:bg-navy-800 shadow-lg hover:shadow-xl'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {state.currentStep === 'PHOTO_UPLOAD' && !state.photoRefId ? 'Skip' : 'Continue'}
+          </button>
+        </div>
+      )}
+    </OnboardingLayout>
+  );
+};
+
+export default GuidedOnboarding;
