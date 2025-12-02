@@ -306,14 +306,37 @@ const App = () => {
   }, []);
 
   const uploadPhoto = useCallback(async (file: File) => {
-    // Upload to Supabase storage
-    const fileName = `${Date.now()}-${file.name}`;
+    // Upload to Supabase storage - use 'visions' bucket for reference images
+    const fileName = `references/${Date.now()}-${file.name}`;
     const { data, error } = await supabase.storage
-      .from('documents')
-      .upload(fileName, file);
+      .from('visions')
+      .upload(fileName, file, { upsert: true });
 
-    if (error) throw error;
-    return data?.path || '';
+    if (error) {
+      console.error('Upload error:', error);
+      throw error;
+    }
+
+    // Get public URL and save to reference_images table
+    const { data: urlData } = supabase.storage
+      .from('visions')
+      .getPublicUrl(fileName);
+
+    // Save reference to database
+    const { data: refData, error: refError } = await supabase
+      .from('reference_images')
+      .insert({
+        image_url: urlData.publicUrl,
+        tags: ['onboarding', 'reference']
+      })
+      .select()
+      .single();
+
+    if (refError) {
+      console.error('Reference save error:', refError);
+    }
+
+    return refData?.id || data?.path || '';
   }, []);
 
   const saveOnboardingState = useCallback(async (state: Partial<OnboardingState>) => {
