@@ -3,7 +3,7 @@
 **Version:** 2.0
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 1, 2025
+**Last Updated:** December 2, 2025
 
 ---
 
@@ -152,8 +152,15 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [x] **TypeScript Types:** Interfaces for workbook data models
 - [x] **Knowledge Base Compiler:** `compile-knowledge-base` Edge Function for AI context & workbooks
 - [x] **PDF Generation:** `generate-workbook-pdf` Edge Function deployed
-- [x] **Workbook Order UI:** `WorkbookOrderModal.tsx` with 5-step wizard
+- [x] **Workbook Order UI:** `WorkbookOrderModal.tsx` with enhanced 5-step wizard
 - [x] **Prodigi Notebook Integration:** Support for GLOBAL-NTB-* SKUs via `submit-to-prodigi`
+- [x] **Enhanced Wizard UX (Dec 2025):**
+    - Edition metadata with "Best for..." recommendations
+    - Character counters and smart defaults
+    - 7 configurable workbook sections
+    - Selection limits (4 vision boards, 3 habits)
+    - Desktop summary panel
+    - Image error handling with gradient placeholders
 
 ### v2.0: The Immersive Vision Board (FUTURE)
 - [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
@@ -166,33 +173,36 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 > This section defines the next phases of development based on the updated Master Product Roadmap.
 
-### v1.6 — AMIE Identity Foundation & Voice Coach 🔲 NEXT
+### v1.6 — AMIE Identity Foundation & Voice Coach 🚧 IN PROGRESS
 
 **Theme:** Identity-Driven Coaching + Voice Execution
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| **AMIE Base Layer** | Adaptive Motivational Identity Engine with theme selection | 🔲 Pending |
-| **Motivational Themes** | Christian, Business Executive, Health & Fitness, Retirement themes | 🔲 Pending |
-| **Master Prompt Q&A** | Guided onboarding questions to build user identity profile | 🔲 Pending |
-| **Personal Knowledge Base** | Notebook-LM style document ingestion (resume, materials) | 🔲 Pending |
-| **Apple Watch Companion** | Micro-coaching at habit trigger moments | 🔲 Pending |
+| **AMIE Database Schema** | 6 tables: motivational_themes, user_identity_profiles, user_knowledge_sources, user_knowledge_chunks, voice_coach_sessions, master_prompt_questions | ✅ Deployed |
+| **AMIE Base Layer** | Adaptive Motivational Identity Engine with theme selection | 🟡 Schema Ready |
+| **Motivational Themes** | Christian, Business Executive, Health & Fitness, Retirement themes (5 seeded) | ✅ Deployed |
+| **Master Prompt Q&A** | Guided onboarding questions to build user identity profile (25+ questions seeded) | ✅ Schema Ready |
+| **Personal Knowledge Base** | Notebook-LM style document ingestion with pgVector embeddings | ✅ Schema Ready |
+| **Theme Selector UI** | `ThemeSelector.tsx` component for onboarding | 🟡 Partial |
+| **Apple Watch Companion** | Micro-coaching at habit trigger moments. Backend complete: `watch-sync` + `watch-notifications` Edge Functions, database schema for device tokens, notifications, and sessions. iOS/watchOS native app pending. | 🟡 Backend Ready |
 | **Twilio Voice/SMS/Email Routing** | Unified messaging router with fallback channels | 🔲 Pending |
-| **Daily Focus Pads** | Print product: tear-off daily action pads | 🔲 Pending |
-| **Habit Cue Cards** | Print product: trigger cards for behavior change | 🔲 Pending |
+| **Daily Focus Pads** | Print product: tear-off daily action pads | ✅ Schema Ready |
+| **Habit Cue Cards** | Print product: trigger cards for behavior change | ✅ Schema Ready |
 
-### v2.0 — Enterprise & Team Tier 🔲 FUTURE
+### v2.0 — Enterprise & Team Tier 🟡 SCHEMA READY
 
 **Theme:** Team Collaboration + Shared Accountability
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| **Shared Goals & Dashboards** | Team goal alignment with visibility controls | 🔲 Pending |
-| **Slack Bot Integration** | Daily habit prompts and goal updates in Slack | 🔲 Pending |
-| **Microsoft Teams Bot** | Enterprise integration for Teams workspaces | 🔲 Pending |
-| **Team Leaderboards** | Gamified team competition for habit streaks | 🔲 Pending |
+| **Enterprise Database Schema** | 9 tables: partner_invitations, partner_connections, shared_goals, slack_installations, teams_installations, print_orders, teams, team_members, team_leaderboards | ✅ Deployed |
+| **Shared Goals & Dashboards** | Team goal alignment with visibility controls | 🟡 Schema Ready |
+| **Slack Bot Integration** | Daily habit prompts and goal updates in Slack | 🟡 Schema Ready |
+| **Microsoft Teams Bot** | Enterprise integration for Teams workspaces | 🟡 Schema Ready |
+| **Team Leaderboards** | Gamified team competition for habit streaks (with `calculate_team_leaderboard()` function) | 🟡 Schema Ready |
 | **Manager Dashboard** | Team progress overview for enterprise admins | 🔲 Pending |
-| **Partner Collaboration** | Full couple/partner shared workspace (upgrade from v1.5) | 🔲 Pending |
+| **Partner Collaboration** | Full couple/partner shared workspace with `get_partner_connection()` function | 🟡 Schema Ready |
 
 ### v3.0 — Marketplace & Certification 🔲 FUTURE
 

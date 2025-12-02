@@ -14,28 +14,110 @@ This folder contains the backend logic for Visionary SaaS.
     supabase secrets set PLAID_SECRET=your_secret
     supabase secrets set PLAID_ENV=sandbox
     ```
-5.  **Deploy Functions:**
+5.  **Deploy All Functions:**
     ```bash
-    supabase functions deploy create-link-token
-    supabase functions deploy exchange-public-token
+    supabase functions deploy
     ```
-
-## Functions
-
-*   `create-link-token`: Generating a temporary token for the frontend Plaid Widget.
-*   `exchange-public-token`: Swapping the temporary token for a permanent access token and storing it in the database.
 
 ---
 
-## Moving Plaid to Production
+## Functions Overview
 
-### Prerequisites
+### Financial Services
+| Function | Purpose |
+|----------|---------|
+| `create-link-token` | Generate temporary token for Plaid widget |
+| `exchange-public-token` | Swap temp token for permanent Plaid access token |
 
-1. **Plaid Dashboard Account**: [https://dashboard.plaid.com](https://dashboard.plaid.com)
-2. **Production Access**: Apply for production access in Plaid Dashboard (requires company verification)
-3. **Production Credentials**: Obtain production `client_id` and `secret` from Plaid
+### AI & Agent Services
+| Function | Purpose |
+|----------|---------|
+| `agent-chat` | AI agent conversation handler |
+| `gemini-proxy` | Proxy for Gemini API calls |
+| `amie-prompt-builder` | Build prompts for AMIE AI coach |
+| `compile-knowledge-base` | Aggregate user data for AI context |
+| `voice-coach-session` | Voice-based coaching sessions |
 
-### Environment Configuration
+### Habit & Progress
+| Function | Purpose |
+|----------|---------|
+| `habit-service` | CRUD operations for habits |
+| `generate-weekly-review` | Generate weekly progress summaries |
+| `schedule-notification` | Schedule and process habit reminders |
+
+### Communication
+| Function | Purpose |
+|----------|---------|
+| `send-sms` | Send SMS notifications via Twilio |
+| `make-call` | Initiate voice calls via Twilio |
+
+### Apple Watch (New)
+| Function | Purpose |
+|----------|---------|
+| `watch-sync` | Sync habits and completions with Watch app |
+| `watch-notifications` | Send APNs push notifications to Watch |
+
+### Print & Products
+| Function | Purpose |
+|----------|---------|
+| `print-products` | Print product catalog |
+| `generate-workbook-pdf` | Generate Vision Workbook PDFs |
+| `submit-to-prodigi` | Submit print orders to Prodigi |
+
+### Payments
+| Function | Purpose |
+|----------|---------|
+| `create-checkout-session` | Create Stripe checkout sessions |
+| `stripe-webhook` | Handle Stripe webhook events |
+
+### Integrations
+| Function | Purpose |
+|----------|---------|
+| `slack-bot` | Slack workspace integration |
+| `teams-bot` | Microsoft Teams integration |
+| `partner-collaboration` | Partner account features |
+| `knowledge-ingest` | Ingest documents for RAG |
+| `onboarding-themes` | Onboarding customization |
+
+---
+
+## Apple Watch Setup
+
+### Required Secrets for APNs
+
+```bash
+supabase secrets set APNS_KEY_ID=your_key_id
+supabase secrets set APNS_TEAM_ID=your_team_id
+supabase secrets set APNS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+supabase secrets set APNS_BUNDLE_ID=com.visionary.app
+supabase secrets set APNS_ENVIRONMENT=development  # or 'production'
+```
+
+### watch-sync Actions
+
+| Action | Description |
+|--------|-------------|
+| `get_habits` | Get active habits with today's completion status |
+| `complete_habit` | Log a habit completion from Watch |
+| `uncomplete_habit` | Undo a habit completion |
+| `get_stats` | Get habit statistics (streaks, counts) |
+| `register_device` | Register Watch device token for push |
+| `get_coach_prompt` | Get micro-coaching message |
+
+### watch-notifications Actions
+
+| Action | Description |
+|--------|-------------|
+| `send` | Send to specific device token |
+| `send_to_user` | Send to all user's devices |
+| `send_habit_reminder` | Send habit reminder notification |
+| `send_streak_celebration` | Send streak milestone celebration |
+| `send_coach_message` | Send coach tip notification |
+| `batch_send` | Send multiple notifications |
+
+---
+
+## Plaid Configuration
 
 | Environment | Use Case | API URL |
 |-------------|----------|---------|
@@ -43,33 +125,27 @@ This folder contains the backend logic for Visionary SaaS.
 | `development` | Testing with real banks (limited) | `https://development.plaid.com` |
 | `production` | Live production use | `https://production.plaid.com` |
 
-### Steps to Go Live
+### Production Checklist
 
-1. **Update Supabase Secrets for Production:**
-   ```bash
-   supabase secrets set PLAID_CLIENT_ID=your_production_client_id
-   supabase secrets set PLAID_SECRET=your_production_secret
-   supabase secrets set PLAID_ENV=production
-   ```
+- [ ] Access tokens encrypted in database
+- [ ] Error logging configured (no sensitive data)
+- [ ] Plaid webhooks set up
+- [ ] Rate limiting enabled
+- [ ] RLS policies reviewed
 
-2. **Redeploy Edge Functions:**
-   ```bash
-   supabase functions deploy create-link-token
-   supabase functions deploy exchange-public-token
-   ```
+---
 
-3. **Security Checklist for Production:**
-   - [ ] Access tokens should be encrypted before storing in database
-   - [ ] Implement proper error logging (avoid logging sensitive data)
-   - [ ] Set up Plaid webhooks for real-time updates
-   - [ ] Configure rate limiting on Edge Functions
-   - [ ] Review RLS policies on `plaid_items` table
-
-### Troubleshooting
+## Troubleshooting
 
 **CORS Errors:** Ensure Edge Functions are deployed and secrets are set correctly.
 
-**"Backend not ready" message:** The Edge Function is not responding. Check:
+**"Backend not ready" message:** Check:
 - Function deployment status: `supabase functions list`
 - Secrets are configured: `supabase secrets list`
-- Function logs: `supabase functions logs create-link-token`
+- Function logs: `supabase functions logs <function-name>`
+
+**APNs Not Working:**
+- Verify all APNS_* secrets are set
+- Check APNs key hasn't expired (keys expire after 1 year)
+- Confirm device token is valid
+- Check logs: `supabase functions logs watch-notifications`
