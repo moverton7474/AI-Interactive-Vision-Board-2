@@ -16,7 +16,14 @@ import OnboardingWizard from './components/OnboardingWizard';
 import HabitTracker from './components/HabitTracker';
 import WorkbookOrderModal from './components/WorkbookOrderModal';
 import ThemeSelector from './components/ThemeSelector';
-import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon } from './components/Icons';
+import MasterPromptQnA from './components/MasterPromptQnA';
+import WeeklyReviews from './components/WeeklyReviews';
+import KnowledgeBase from './components/KnowledgeBase';
+import VoiceCoach from './components/VoiceCoach';
+import PrintProducts from './components/PrintProducts';
+import PartnerDashboard from './components/PartnerDashboard';
+import SlackIntegration from './components/SlackIntegration';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -49,6 +56,7 @@ const App = () => {
 
   // AMIE Identity State
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
+  const [selectedThemeName, setSelectedThemeName] = useState<string | null>(null);
 
   // Shared State
   const [activeVisionPrompt, setActiveVisionPrompt] = useState('');
@@ -265,10 +273,31 @@ const App = () => {
           <ThemeSelector
             onSelect={(theme) => {
               setSelectedThemeId(theme.id);
-              setView(AppView.ONBOARDING);
+              setSelectedThemeName(theme.display_name || theme.name);
+              setView(AppView.IDENTITY_QNA);
             }}
             onSkip={() => setView(AppView.ONBOARDING)}
             selectedThemeId={selectedThemeId || undefined}
+          />
+        );
+      case AppView.IDENTITY_QNA:
+        return selectedThemeId ? (
+          <MasterPromptQnA
+            themeId={selectedThemeId}
+            themeName={selectedThemeName || undefined}
+            onComplete={() => setView(AppView.ONBOARDING)}
+            onSkip={() => setView(AppView.ONBOARDING)}
+            onBack={() => setView(AppView.THEME_SELECTION)}
+          />
+        ) : (
+          // Redirect to theme selection if no theme selected
+          <ThemeSelector
+            onSelect={(theme) => {
+              setSelectedThemeId(theme.id);
+              setSelectedThemeName(theme.display_name || theme.name);
+              setView(AppView.IDENTITY_QNA);
+            }}
+            onSkip={() => setView(AppView.ONBOARDING)}
           />
         );
       case AppView.ONBOARDING:
@@ -323,6 +352,18 @@ const App = () => {
         return <OrderHistory />;
       case AppView.HABITS:
         return <HabitTracker onBack={() => setView(AppView.LANDING)} />;
+      case AppView.WEEKLY_REVIEWS:
+        return <WeeklyReviews onBack={() => setView(AppView.LANDING)} />;
+      case AppView.KNOWLEDGE_BASE:
+        return <KnowledgeBase onBack={() => setView(AppView.LANDING)} />;
+      case AppView.VOICE_COACH:
+        return <VoiceCoach onBack={() => setView(AppView.LANDING)} />;
+      case AppView.PRINT_PRODUCTS:
+        return <PrintProducts onBack={() => setView(AppView.LANDING)} />;
+      case AppView.PARTNER:
+        return <PartnerDashboard onBack={() => setView(AppView.LANDING)} />;
+      case AppView.INTEGRATIONS:
+        return <SlackIntegration onBack={() => setView(AppView.LANDING)} />;
       default:
         return null;
     }
@@ -548,6 +589,24 @@ USING (auth.uid() = id);
               <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Execute</button>
               <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                 <FireIcon className="w-4 h-4" /> Habits
+              </button>
+              <button onClick={() => setView(AppView.WEEKLY_REVIEWS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.WEEKLY_REVIEWS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <CalendarIcon className="w-4 h-4" /> Reviews
+              </button>
+              <button onClick={() => setView(AppView.KNOWLEDGE_BASE)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.KNOWLEDGE_BASE ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <FolderIcon className="w-4 h-4" /> Knowledge
+              </button>
+              <button onClick={() => setView(AppView.VOICE_COACH)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.VOICE_COACH ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <MicIcon className="w-4 h-4" /> Coach
+              </button>
+              <button onClick={() => setView(AppView.PRINT_PRODUCTS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PRINT_PRODUCTS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <PrinterIcon className="w-4 h-4" /> Shop
+              </button>
+              <button onClick={() => setView(AppView.PARTNER)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PARTNER ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <HeartIcon className="w-4 h-4" /> Partner
+              </button>
+              <button onClick={() => setView(AppView.INTEGRATIONS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.INTEGRATIONS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <GlobeIcon className="w-4 h-4" /> Apps
               </button>
               <button onClick={() => setShowWorkbookModal(true)} className="text-sm font-medium flex items-center gap-1 text-gray-500 hover:text-navy-900 transition-colors">
                 <BookOpenIcon className="w-4 h-4" /> Workbook

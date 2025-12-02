@@ -2,6 +2,7 @@
 export enum AppView {
   LANDING = 'LANDING',
   THEME_SELECTION = 'THEME_SELECTION', // AMIE Identity Theme Selection
+  IDENTITY_QNA = 'IDENTITY_QNA', // AMIE Master Prompt Q&A
   ONBOARDING = 'ONBOARDING', // Vision Style/Category Selection
   DISCOVERY = 'DISCOVERY',
   FINANCIAL = 'FINANCIAL',
@@ -12,6 +13,12 @@ export enum AppView {
   TRUST_CENTER = 'TRUST_CENTER',
   ORDER_HISTORY = 'ORDER_HISTORY',
   HABITS = 'HABITS',
+  WEEKLY_REVIEWS = 'WEEKLY_REVIEWS', // Weekly Review History
+  KNOWLEDGE_BASE = 'KNOWLEDGE_BASE', // Personal Knowledge Base
+  VOICE_COACH = 'VOICE_COACH', // Voice Coaching Sessions
+  PRINT_PRODUCTS = 'PRINT_PRODUCTS', // Print Shop (Focus Pads, Cards, etc.)
+  PARTNER = 'PARTNER', // Partner Collaboration Workspace
+  INTEGRATIONS = 'INTEGRATIONS', // Slack, Teams integrations
 }
 
 export interface ChatMessage {
