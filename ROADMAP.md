@@ -185,7 +185,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | **Master Prompt Q&A** | Guided onboarding questions to build user identity profile (25+ questions seeded) | ✅ Schema Ready |
 | **Personal Knowledge Base** | Notebook-LM style document ingestion with pgVector embeddings | ✅ Schema Ready |
 | **Theme Selector UI** | `ThemeSelector.tsx` component for onboarding | 🟡 Partial |
-| **Apple Watch Companion** | Micro-coaching at habit trigger moments | 🔲 Pending |
+| **Apple Watch Companion** | Micro-coaching at habit trigger moments. Backend complete: `watch-sync` + `watch-notifications` Edge Functions, database schema for device tokens, notifications, and sessions. iOS/watchOS native app pending. | 🟡 Backend Ready |
 | **Twilio Voice/SMS/Email Routing** | Unified messaging router with fallback channels | 🔲 Pending |
 | **Daily Focus Pads** | Print product: tear-off daily action pads | ✅ Schema Ready |
 | **Habit Cue Cards** | Print product: trigger cards for behavior change | ✅ Schema Ready |
