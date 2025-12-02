@@ -337,6 +337,15 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Function-specific configurations
+# Slack bot needs to accept OAuth callbacks from Slack without JWT
+[functions.slack-bot]
+verify_jwt = false
+
+# Teams bot needs to accept OAuth callbacks from Microsoft without JWT
+[functions.teams-bot]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
