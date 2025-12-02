@@ -288,14 +288,18 @@ const App = () => {
     );
   }, []);
 
-  // Generate vision image using Gemini API
+  // Generate vision image using Gemini API with fallback
   const generateVisionImage = useCallback(async (prompt: string, photoRef?: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Please sign in to generate visions');
-      }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Please sign in to generate visions');
+    }
 
+    let imageUrl: string | null = null;
+    let generatedImage = false;
+
+    // Try to generate image via Gemini API
+    try {
       // Build request with optional photo reference
       const requestBody: any = {
         action: 'generate_image',
@@ -306,7 +310,6 @@ const App = () => {
       // If photo reference provided, fetch it and include
       if (photoRef) {
         try {
-          // Try to get the reference image from storage
           const { data: refData } = await supabase
             .from('reference_images')
             .select('image_url')
@@ -314,7 +317,6 @@ const App = () => {
             .single();
 
           if (refData?.image_url) {
-            // Fetch and convert to base64
             const response = await fetch(refData.image_url);
             const blob = await response.blob();
             const base64 = await new Promise<string>((resolve) => {
@@ -337,66 +339,68 @@ const App = () => {
         }
       });
 
-      if (error) {
-        console.error('Vision generation error:', error);
-        throw new Error(error.message || 'Failed to generate vision');
+      if (!error && data?.success && data?.image) {
+        // Upload the generated image to storage
+        const imageData = data.image;
+        const base64Data = imageData.includes('base64,') ? imageData.split(',')[1] : imageData;
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/png' });
+
+        const fileName = `visions/${session.user.id}/${Date.now()}.png`;
+        const { error: uploadError } = await supabase.storage
+          .from('visions')
+          .upload(fileName, blob, { upsert: true });
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('visions')
+            .getPublicUrl(fileName);
+          imageUrl = urlData.publicUrl;
+          generatedImage = true;
+        }
       }
-
-      if (!data?.success || !data?.image) {
-        throw new Error(data?.error || 'No image generated');
-      }
-
-      // Upload the generated image to storage
-      const imageData = data.image;
-      const base64Data = imageData.includes('base64,') ? imageData.split(',')[1] : imageData;
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/png' });
-
-      const fileName = `visions/${session.user.id}/${Date.now()}.png`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('visions')
-        .upload(fileName, blob, { upsert: true });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw uploadError;
-      }
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('visions')
-        .getPublicUrl(fileName);
-
-      // Save to vision_boards table
-      const { data: visionData, error: visionError } = await supabase
-        .from('vision_boards')
-        .insert({
-          user_id: session.user.id,
-          image_url: urlData.publicUrl,
-          title: 'My Vision',
-          description: prompt,
-          metadata: { generatedAt: new Date().toISOString(), prompt }
-        })
-        .select()
-        .single();
-
-      if (visionError) {
-        console.warn('Vision save error:', visionError);
-      }
-
-      return {
-        id: visionData?.id || `vision-${Date.now()}`,
-        url: urlData.publicUrl
-      };
-    } catch (error: any) {
-      console.error('generateVisionImage error:', error);
-      throw error;
+    } catch (genError: any) {
+      console.warn('Image generation failed, using placeholder:', genError.message);
     }
+
+    // Fallback: Use a high-quality placeholder image
+    if (!imageUrl) {
+      // Use Unsplash for beautiful placeholder images based on prompt keywords
+      const keywords = encodeURIComponent(prompt.slice(0, 50).replace(/[^a-zA-Z\s]/g, ''));
+      imageUrl = `https://source.unsplash.com/800x600/?${keywords},inspiration,success`;
+      console.log('Using placeholder image from Unsplash');
+    }
+
+    // Save to vision_boards table
+    const { data: visionData, error: visionError } = await supabase
+      .from('vision_boards')
+      .insert({
+        user_id: session.user.id,
+        image_url: imageUrl,
+        title: 'My Vision',
+        description: prompt,
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          prompt,
+          isPlaceholder: !generatedImage
+        }
+      })
+      .select()
+      .single();
+
+    if (visionError) {
+      console.warn('Vision save error:', visionError);
+    }
+
+    return {
+      id: visionData?.id || `vision-${Date.now()}`,
+      url: imageUrl
+    };
   }, []);
 
   const generateActionPlan = useCallback(async (context: { vision: string; target?: number; theme?: string }) => {

@@ -173,7 +173,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any) 
   // Build parts array
   const parts: any[] = []
 
-  // Add images
+  // Add images if provided
   for (const img of images) {
     if (!img) continue
 
@@ -197,30 +197,69 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any) 
     })
   }
 
-  // Build prompt
-  let finalPrompt = ''
-  if (parts.length > 1) {
-    finalPrompt = 'The FIRST image provided is the BASE scene to be edited. The SUBSEQUENT images are VISUAL REFERENCES. Apply the visual characteristics of the reference images to the base scene. '
+  // Build prompt for image generation
+  let finalPrompt = prompt || 'Create a beautiful, inspiring vision board image.'
+
+  if (parts.length > 0) {
+    finalPrompt = `Using the provided reference image(s), ${finalPrompt}`
   }
-  finalPrompt += `Edit the base image to match this description: ${prompt}. Maintain photorealism.`
 
   if (titleText) {
-    finalPrompt += ` HEADER: Render the title "${titleText}" prominently at the top of the image using an elegant, readable font.`
+    finalPrompt += ` Include the title "${titleText}" prominently in the image.`
   }
 
   if (embeddedText) {
-    finalPrompt += ` INTEGRATE TEXT: Render the text "${embeddedText}" naturally into the scene (e.g. on a sign, neon light, or object).`
+    finalPrompt += ` Include the text "${embeddedText}" naturally in the scene.`
   }
 
+  // Add text prompt to parts
   parts.push({ text: finalPrompt })
 
-  // Try Gemini 2.0 Flash for image generation
+  // Try Imagen 3 first (best for image generation)
   try {
+    console.log('Trying Imagen 3 for image generation...')
+    const imagenResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instances: [{ prompt: finalPrompt }],
+          parameters: {
+            sampleCount: 1,
+            aspectRatio: '4:3',
+            safetyFilterLevel: 'block_only_high',
+            personGeneration: 'allow_adult'
+          }
+        })
+      }
+    )
+
+    if (imagenResponse.ok) {
+      const imagenData = await imagenResponse.json()
+      if (imagenData.predictions?.[0]?.bytesBase64Encoded) {
+        const imageData = `data:image/png;base64,${imagenData.predictions[0].bytesBase64Encoded}`
+        return new Response(
+          JSON.stringify({ success: true, image: imageData }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    } else {
+      const errorText = await imagenResponse.text()
+      console.warn('Imagen 3 failed:', errorText)
+    }
+  } catch (imagenError: any) {
+    console.warn('Imagen 3 error:', imagenError.message)
+  }
+
+  // Fallback: Try Gemini 2.0 Flash with image output
+  try {
+    console.log('Trying Gemini 2.0 Flash experimental...')
     const response = await callGeminiAPI(apiKey, 'gemini-2.0-flash-exp', {
       contents: [{ parts }],
       generationConfig: {
-        responseModalities: ['image', 'text'],
-        imageDimension: '1024x1024'
+        temperature: 0.8,
+        maxOutputTokens: 8192
       }
     })
 
@@ -230,33 +269,20 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any) 
         JSON.stringify({ success: true, image: imageData }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // If no image but got text, it might be a description
+    const textResponse = response.candidates?.[0]?.content?.parts?.[0]?.text
+    if (textResponse) {
+      console.log('Got text response instead of image:', textResponse.substring(0, 100))
     }
   } catch (error: any) {
-    console.warn('Primary model failed, trying fallback:', error.message)
+    console.warn('Gemini 2.0 Flash failed:', error.message)
   }
 
-  // Fallback to imagen model
-  try {
-    const response = await callGeminiAPI(apiKey, 'imagen-3.0-generate-002', {
-      contents: [{ parts: [{ text: finalPrompt }] }],
-      generationConfig: {
-        imageCount: 1
-      }
-    })
-
-    const imageData = extractImageFromResponse(response)
-    if (imageData) {
-      return new Response(
-        JSON.stringify({ success: true, image: imageData }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-  } catch (fallbackError: any) {
-    console.error('Image generation failed:', fallbackError.message)
-    throw new Error('Image generation failed. Please try again.')
-  }
-
-  throw new Error('No image generated')
+  // Final fallback: Generate a placeholder response with error
+  console.error('All image generation methods failed')
+  throw new Error('Image generation is currently unavailable. Please ensure your Gemini API key has access to Imagen 3 or try again later.')
 }
 
 /**
