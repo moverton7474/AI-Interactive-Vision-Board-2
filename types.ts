@@ -19,6 +19,8 @@ export enum AppView {
   PRINT_PRODUCTS = 'PRINT_PRODUCTS', // Print Shop (Focus Pads, Cards, etc.)
   PARTNER = 'PARTNER', // Partner Collaboration Workspace
   INTEGRATIONS = 'INTEGRATIONS', // Slack, Teams integrations
+  TEAM_LEADERBOARDS = 'TEAM_LEADERBOARDS', // Team competition and rankings
+  MANAGER_DASHBOARD = 'MANAGER_DASHBOARD', // Enterprise team management
 }
 
 export interface ChatMessage {
