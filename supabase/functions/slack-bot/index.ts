@@ -100,6 +100,10 @@ async function handleOAuth(supabase: any, url: URL, clientId: string, clientSecr
   }
 
   // Exchange code for access token
+  // Use the exact redirect_uri that's registered in Slack app settings
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || 'https://edaigbnnofyxcfbpcvct.supabase.co'
+  const exactRedirectUri = `${SUPABASE_URL}/functions/v1/slack-bot?endpoint=oauth`
+
   const tokenResponse = await fetch('https://slack.com/api/oauth.v2.access', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -107,7 +111,7 @@ async function handleOAuth(supabase: any, url: URL, clientId: string, clientSecr
       client_id: clientId,
       client_secret: clientSecret,
       code,
-      redirect_uri: `${url.origin}${url.pathname}?endpoint=oauth`
+      redirect_uri: exactRedirectUri
     })
   })
 
