@@ -197,6 +197,18 @@ const GuidedOnboarding: React.FC<Props> = ({
     onNavigate(AppView.PRINT_PRODUCTS);
   }, [state, saveOnboardingState, onNavigate]);
 
+  // Auto-advance from VISION_GENERATION when primaryVisionUrl is available
+  useEffect(() => {
+    if (state.currentStep === 'VISION_GENERATION' && state.primaryVisionUrl) {
+      console.log('🚀 Auto-advancing from VISION_GENERATION step');
+      // Small delay to allow UI to settle
+      const timer = setTimeout(() => {
+        goNext();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [state.currentStep, state.primaryVisionUrl, goNext]);
+
   const renderStep = () => {
     switch (state.currentStep) {
       case 'THEME':
