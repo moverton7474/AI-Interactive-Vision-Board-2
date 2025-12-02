@@ -27,6 +27,8 @@ const VisionGenerationStep: React.FC<Props> = ({
   const [generatedVision, setGeneratedVision] = useState<{ id: string; url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [messageIndex, setMessageIndex] = useState(0);
+  const [usedPlaceholder, setUsedPlaceholder] = useState(false);
+  const [hasCalledCallback, setHasCalledCallback] = useState(false);
 
   useEffect(() => {
     // Cycle through messages while generating
@@ -43,6 +45,7 @@ const VisionGenerationStep: React.FC<Props> = ({
       try {
         setIsGenerating(true);
         setError(null);
+        setUsedPlaceholder(false);
 
         // Build enhanced prompt
         const enhancedPrompt = `Create a beautiful, inspiring vision board image that represents: ${visionText}.
@@ -50,24 +53,75 @@ Style: photorealistic, aspirational, warm lighting, lifestyle imagery.
 Theme: ${themeName || 'balanced and harmonious'}.
 Make it feel achievable yet inspiring.`;
 
+        console.log('[VisionGenerationStep] Starting vision generation...');
         const result = await generateVision(enhancedPrompt, photoRefId);
         setGeneratedVision(result);
-        onVisionGenerated(result.id, result.url);
+        
+        // Check if result is a placeholder (data URI)
+        const isPlaceholder = result.url.startsWith('data:image/svg+xml');
+        setUsedPlaceholder(isPlaceholder);
+        
+        if (isPlaceholder) {
+          console.log('[VisionGenerationStep] Using placeholder image (real generation failed)');
+        } else {
+          console.log('[VisionGenerationStep] Successfully generated real vision image');
+        }
+        
+        // Call callback once
+        if (!hasCalledCallback) {
+          onVisionGenerated(result.id, result.url);
+          setHasCalledCallback(true);
+        }
       } catch (err: any) {
-        console.error('Vision generation error:', err);
-        setError(err.message || 'Failed to generate vision. Please try again.');
+        console.error('[VisionGenerationStep] Vision generation error:', err);
+        
+        // Create a deterministic placeholder
+        const placeholderSvg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+            <defs>
+              <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#1e3a5f"/>
+                <stop offset="50%" style="stop-color:#2d4a6f"/>
+                <stop offset="100%" style="stop-color:#0d1b2a"/>
+              </linearGradient>
+              <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#d4af37"/>
+                <stop offset="100%" style="stop-color:#f4cf47"/>
+              </linearGradient>
+            </defs>
+            <rect fill="url(#bg)" width="800" height="600"/>
+            <text x="400" y="260" font-family="Georgia,serif" font-size="64" fill="url(#gold)" text-anchor="middle" opacity="0.9">✨</text>
+            <text x="400" y="320" font-family="Georgia,serif" font-size="28" fill="#ffffff" text-anchor="middle" opacity="0.9">Your Vision</text>
+            <text x="400" y="360" font-family="system-ui" font-size="14" fill="#8b9dc3" text-anchor="middle" opacity="0.7">Temporarily unavailable</text>
+          </svg>
+        `;
+        const placeholderUrl = 'data:image/svg+xml,' + encodeURIComponent(placeholderSvg);
+        const placeholderId = `placeholder-${Date.now()}`;
+        
+        console.log('[VisionGenerationStep] Using fallback placeholder due to error');
+        setGeneratedVision({ id: placeholderId, url: placeholderUrl });
+        setUsedPlaceholder(true);
+        setError('Generation is temporarily unavailable. Using a placeholder image.');
+        
+        // Call callback once with placeholder
+        if (!hasCalledCallback) {
+          onVisionGenerated(placeholderId, placeholderUrl);
+          setHasCalledCallback(true);
+        }
       } finally {
         setIsGenerating(false);
       }
     };
 
     generate();
-  }, [visionText, themeName, photoRefId, generateVision, onVisionGenerated]);
+  }, [visionText, themeName, photoRefId, generateVision, onVisionGenerated, hasCalledCallback]);
 
   const handleRegenerate = async () => {
     setIsGenerating(true);
     setGeneratedVision(null);
     setError(null);
+    setUsedPlaceholder(false);
+    setHasCalledCallback(false);
 
     try {
       const enhancedPrompt = `Create a different beautiful, inspiring vision board image that represents: ${visionText}.
@@ -75,37 +129,62 @@ Style: photorealistic, aspirational, warm lighting, lifestyle imagery.
 Theme: ${themeName || 'balanced and harmonious'}.
 Make it feel achievable yet inspiring. Try a different perspective or composition.`;
 
+      console.log('[VisionGenerationStep] Regenerating vision...');
       const result = await generateVision(enhancedPrompt, photoRefId);
       setGeneratedVision(result);
+      
+      // Check if result is a placeholder
+      const isPlaceholder = result.url.startsWith('data:image/svg+xml');
+      setUsedPlaceholder(isPlaceholder);
+      
+      if (isPlaceholder) {
+        console.log('[VisionGenerationStep] Regeneration used placeholder (real generation failed)');
+      } else {
+        console.log('[VisionGenerationStep] Successfully regenerated real vision image');
+      }
+      
       onVisionGenerated(result.id, result.url);
+      setHasCalledCallback(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to generate vision');
+      console.error('[VisionGenerationStep] Regeneration error:', err);
+      
+      // Create placeholder on error
+      const placeholderSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+          <defs>
+            <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#1e3a5f"/>
+              <stop offset="50%" style="stop-color:#2d4a6f"/>
+              <stop offset="100%" style="stop-color:#0d1b2a"/>
+            </linearGradient>
+            <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#d4af37"/>
+              <stop offset="100%" style="stop-color:#f4cf47"/>
+            </linearGradient>
+          </defs>
+          <rect fill="url(#bg)" width="800" height="600"/>
+          <text x="400" y="260" font-family="Georgia,serif" font-size="64" fill="url(#gold)" text-anchor="middle" opacity="0.9">✨</text>
+          <text x="400" y="320" font-family="Georgia,serif" font-size="28" fill="#ffffff" text-anchor="middle" opacity="0.9">Your Vision</text>
+          <text x="400" y="360" font-family="system-ui" font-size="14" fill="#8b9dc3" text-anchor="middle" opacity="0.7">Temporarily unavailable</text>
+        </svg>
+      `;
+      const placeholderUrl = 'data:image/svg+xml,' + encodeURIComponent(placeholderSvg);
+      const placeholderId = `placeholder-${Date.now()}`;
+      
+      console.log('[VisionGenerationStep] Using fallback placeholder after regeneration error');
+      setGeneratedVision({ id: placeholderId, url: placeholderUrl });
+      setUsedPlaceholder(true);
+      setError('Generation is temporarily unavailable. Using a placeholder image.');
+      
+      onVisionGenerated(placeholderId, placeholderUrl);
+      setHasCalledCallback(true);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  if (error) {
-    return (
-      <div className="text-center space-y-6">
-        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-          <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Generation Failed</h3>
-          <p className="text-gray-500 mb-6">{error}</p>
-          <button
-            onClick={handleRegenerate}
-            className="bg-navy-900 text-white px-6 py-3 rounded-xl font-medium hover:bg-navy-800 transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Error state now shows placeholder with retry option instead of blocking
+  // This allows the flow to continue while giving user option to retry
 
   if (isGenerating) {
     return (
@@ -168,20 +247,36 @@ Make it feel achievable yet inspiring. Try a different perspective or compositio
         </button>
       </div>
 
-      {/* Success Message */}
-      <div className="bg-green-50 rounded-xl p-4 border border-green-200 flex items-start gap-3">
-        <div className="w-8 h-8 bg-green-200 rounded-full flex items-center justify-center flex-shrink-0">
-          <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
+      {/* Success or Fallback Message */}
+      {!usedPlaceholder ? (
+        <div className="bg-green-50 rounded-xl p-4 border border-green-200 flex items-start gap-3">
+          <div className="w-8 h-8 bg-green-200 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-green-800">Vision created!</p>
+            <p className="text-sm text-green-700">
+              This will be your primary vision on the dashboard. You can create more visions later.
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-medium text-green-800">Vision created!</p>
-          <p className="text-sm text-green-700">
-            This will be your primary vision on the dashboard. You can create more visions later.
-          </p>
+      ) : (
+        <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 flex items-start gap-3">
+          <div className="w-8 h-8 bg-amber-200 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-amber-800">Using placeholder image</p>
+            <p className="text-sm text-amber-700">
+              Image generation is temporarily unavailable. You can continue and try regenerating from your dashboard later, or retry now.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

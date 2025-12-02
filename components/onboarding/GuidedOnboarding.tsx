@@ -126,6 +126,18 @@ const GuidedOnboarding: React.FC<Props> = ({
     }
   }, [state, userId]);
 
+  // Auto-advance from VISION_GENERATION step when primaryVisionUrl is available
+  useEffect(() => {
+    if (state.currentStep === 'VISION_GENERATION' && state.primaryVisionUrl) {
+      console.log('[GuidedOnboarding] Vision image ready, auto-advancing to ACTION_PLAN_PREVIEW');
+      // Brief delay to allow UI to settle before advancing
+      const timer = setTimeout(() => {
+        goNext();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [state.currentStep, state.primaryVisionUrl, goNext]);
+
   const currentStepIndex = STEPS.indexOf(state.currentStep);
   const stepConfig = STEP_CONFIG[state.currentStep];
 
