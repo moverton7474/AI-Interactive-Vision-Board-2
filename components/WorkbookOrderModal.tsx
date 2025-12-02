@@ -305,7 +305,29 @@ const WorkbookOrderModal: React.FC<Props> = ({ onClose, onSuccess }) => {
                     : 'border-transparent hover:border-gray-300'
                 }`}
               >
-                <img src={vision.url} alt={vision.prompt} className="w-full h-full object-cover" />
+                <img
+                  src={vision.url}
+                  alt={vision.prompt}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback to a gradient placeholder when image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null; // Prevent infinite loop
+                    target.src = 'data:image/svg+xml,' + encodeURIComponent(`
+                      <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+                        <defs>
+                          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#1e3a5f;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#0d1b2a;stop-opacity:1" />
+                          </linearGradient>
+                        </defs>
+                        <rect fill="url(#grad)" width="400" height="400"/>
+                        <text x="200" y="180" font-family="system-ui" font-size="48" fill="#d4af37" text-anchor="middle">✨</text>
+                        <text x="200" y="230" font-family="system-ui" font-size="14" fill="#8b9dc3" text-anchor="middle">Vision Board</text>
+                      </svg>
+                    `);
+                  }}
+                />
                 {selectedVisionBoards.includes(vision.id) && (
                   <div className="absolute top-2 right-2 w-6 h-6 bg-navy-900 rounded-full flex items-center justify-center">
                     <CheckBadgeIcon className="w-4 h-4 text-white" />

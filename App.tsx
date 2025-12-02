@@ -370,10 +370,29 @@ const App = () => {
 
     // Fallback: Use a high-quality placeholder image
     if (!imageUrl) {
-      // Use Unsplash for beautiful placeholder images based on prompt keywords
-      const keywords = encodeURIComponent(prompt.slice(0, 50).replace(/[^a-zA-Z\s]/g, ''));
-      imageUrl = `https://source.unsplash.com/800x600/?${keywords},inspiration,success`;
-      console.log('Using placeholder image from Unsplash');
+      // Use a beautiful gradient SVG placeholder with vision-themed styling
+      // Note: source.unsplash.com is deprecated, so we use an inline SVG
+      const placeholderSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+          <defs>
+            <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#1e3a5f"/>
+              <stop offset="50%" style="stop-color:#2d4a6f"/>
+              <stop offset="100%" style="stop-color:#0d1b2a"/>
+            </linearGradient>
+            <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#d4af37"/>
+              <stop offset="100%" style="stop-color:#f4cf47"/>
+            </linearGradient>
+          </defs>
+          <rect fill="url(#bg)" width="800" height="600"/>
+          <text x="400" y="260" font-family="Georgia,serif" font-size="64" fill="url(#gold)" text-anchor="middle" opacity="0.9">✨</text>
+          <text x="400" y="320" font-family="Georgia,serif" font-size="28" fill="#ffffff" text-anchor="middle" opacity="0.9">Your Vision</text>
+          <text x="400" y="360" font-family="system-ui" font-size="14" fill="#8b9dc3" text-anchor="middle" opacity="0.7">Image generation in progress...</text>
+        </svg>
+      `;
+      imageUrl = 'data:image/svg+xml,' + encodeURIComponent(placeholderSvg);
+      console.log('Using placeholder image (Gemini generation unavailable)');
     }
 
     // Save to vision_boards table
