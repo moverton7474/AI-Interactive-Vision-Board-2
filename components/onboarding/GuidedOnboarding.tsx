@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { OnboardingStep, OnboardingState, ActionTask, AppView } from '../../types';
 import OnboardingLayout from './OnboardingLayout';
 import ThemeSelectorStep from './ThemeSelectorStep';
@@ -81,6 +81,8 @@ const STEP_CONFIG: Record<OnboardingStep, { title: string; subtitle: string }> =
   }
 };
 
+const STORAGE_KEY = 'visionary_onboarding_state';
+
 const GuidedOnboarding: React.FC<Props> = ({
   userId,
   onComplete,
@@ -90,10 +92,39 @@ const GuidedOnboarding: React.FC<Props> = ({
   uploadPhoto,
   saveOnboardingState
 }) => {
-  const [state, setState] = useState<OnboardingState>({
-    currentStep: 'THEME',
-    selectedHabits: []
-  });
+  // Load saved state from localStorage on mount
+  const getInitialState = (): OnboardingState => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_${userId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Validate it has the required structure
+        if (parsed.currentStep && STEPS.includes(parsed.currentStep)) {
+          return {
+            ...parsed,
+            selectedHabits: parsed.selectedHabits || []
+          };
+        }
+      }
+    } catch (e) {
+      console.error('Error loading saved onboarding state:', e);
+    }
+    return {
+      currentStep: 'THEME',
+      selectedHabits: []
+    };
+  };
+
+  const [state, setState] = useState<OnboardingState>(getInitialState);
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_${userId}`, JSON.stringify(state));
+    } catch (e) {
+      console.error('Error saving onboarding state:', e);
+    }
+  }, [state, userId]);
 
   const currentStepIndex = STEPS.indexOf(state.currentStep);
   const stepConfig = STEP_CONFIG[state.currentStep];
@@ -131,6 +162,7 @@ const GuidedOnboarding: React.FC<Props> = ({
       case 'PHOTO_UPLOAD':
         return true; // Optional step
       case 'FINANCIAL_TARGET':
+        // Allow proceeding if a target is selected (including 0 for "Not sure")
         return state.financialTarget !== undefined;
       case 'VISION_GENERATION':
         return !!state.primaryVisionUrl;
@@ -148,9 +180,15 @@ const GuidedOnboarding: React.FC<Props> = ({
   }, [state]);
 
   const handleComplete = useCallback(async () => {
+    // Clear localStorage after completion
+    try {
+      localStorage.removeItem(`${STORAGE_KEY}_${userId}`);
+    } catch (e) {
+      console.error('Error clearing onboarding state:', e);
+    }
     await saveOnboardingState(state);
     onComplete(state);
-  }, [state, saveOnboardingState, onComplete]);
+  }, [state, saveOnboardingState, onComplete, userId]);
 
   const handleViewPrintOptions = useCallback(() => {
     // Save state first
@@ -191,8 +229,8 @@ const GuidedOnboarding: React.FC<Props> = ({
         return (
           <PhotoUploadStep
             photoRefId={state.photoRefId}
-            onPhotoUploaded={(photoId) => updateState({ photoRefId: photoId })}
-            uploadPhoto={uploadPhoto}
+            onPhotoUploaded={(photoId, url) => updateState({ photoRefId: photoId })}
+            onSkip={goNext}
           />
         );
 
