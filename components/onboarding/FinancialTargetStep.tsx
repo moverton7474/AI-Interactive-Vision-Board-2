@@ -1,43 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Props {
-  financialTarget?: number;
-  financialTargetLabel?: string;
-  onTargetChange: (target: number | undefined, label: string) => void;
+  selectedTarget?: number;
+  onSelectTarget: (target: number | undefined, label: string) => void;
 }
 
 const PRESETS = [
   { value: 500000, label: '$500K', description: 'Comfortable retirement' },
   { value: 1000000, label: '$1M', description: 'Financial independence' },
   { value: 2000000, label: '$2M+', description: 'Wealth building' },
-  { value: undefined, label: 'Not sure', description: 'Figure it out later' }
+  { value: 0, label: 'Not sure', description: 'Figure it out later' } // Use 0 as "not sure"
 ];
 
-const FinancialTargetStep: React.FC<Props> = ({ financialTarget, financialTargetLabel, onTargetChange }) => {
-  const [selectedPreset, setSelectedPreset] = useState<string | null>(
-    PRESETS.find(p => p.value === financialTarget)?.label || null
-  );
-  const [customAmount, setCustomAmount] = useState<string>(
-    financialTarget && !PRESETS.find(p => p.value === financialTarget)
-      ? financialTarget.toString()
-      : ''
-  );
+const FinancialTargetStep: React.FC<Props> = ({ selectedTarget, onSelectTarget }) => {
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [customAmount, setCustomAmount] = useState<string>('');
   const [showCustom, setShowCustom] = useState(false);
+
+  // Initialize from prop on mount
+  useEffect(() => {
+    if (selectedTarget !== undefined && selectedTarget > 0) {
+      const preset = PRESETS.find(p => p.value === selectedTarget);
+      if (preset) {
+        setSelectedPreset(preset.label);
+        setShowCustom(false);
+      } else {
+        // Custom amount
+        setCustomAmount(selectedTarget.toString());
+        setShowCustom(true);
+        setSelectedPreset(null);
+      }
+    } else if (selectedTarget === 0) {
+      setSelectedPreset('Not sure');
+    }
+  }, []);
 
   const handlePresetClick = (preset: typeof PRESETS[0]) => {
     setSelectedPreset(preset.label);
     setShowCustom(false);
-    onTargetChange(preset.value, preset.label);
+    setCustomAmount('');
+    onSelectTarget(preset.value, preset.label);
   };
 
   const handleCustomChange = (value: string) => {
+    // Remove non-numeric characters
     const numValue = value.replace(/[^0-9]/g, '');
     setCustomAmount(numValue);
     setSelectedPreset(null);
+
     const parsed = parseInt(numValue);
-    if (parsed > 0) {
-      onTargetChange(parsed, `$${parsed.toLocaleString()}`);
+    if (!isNaN(parsed) && parsed > 0) {
+      onSelectTarget(parsed, `$${parsed.toLocaleString()}`);
     }
+  };
+
+  const formatDisplayValue = (value: string) => {
+    if (!value) return '';
+    const num = parseInt(value);
+    if (isNaN(num)) return '';
+    return num.toLocaleString();
+  };
+
+  const isSelected = (preset: typeof PRESETS[0]) => {
+    if (showCustom) return false;
+    return selectedPreset === preset.label;
   };
 
   return (
@@ -57,8 +83,8 @@ const FinancialTargetStep: React.FC<Props> = ({ financialTarget, financialTarget
           <button
             key={preset.label}
             onClick={() => handlePresetClick(preset)}
-            className={`p-6 rounded-2xl border-2 transition-all text-left ${
-              selectedPreset === preset.label && !showCustom
+            className={`relative p-6 rounded-2xl border-2 transition-all text-left ${
+              isSelected(preset)
                 ? 'border-navy-900 bg-navy-50 shadow-md'
                 : 'border-gray-200 bg-white hover:border-gray-300'
             }`}
@@ -68,7 +94,7 @@ const FinancialTargetStep: React.FC<Props> = ({ financialTarget, financialTarget
             </span>
             <span className="text-sm text-gray-500">{preset.description}</span>
 
-            {selectedPreset === preset.label && !showCustom && (
+            {isSelected(preset) && (
               <div className="absolute top-3 right-3 w-5 h-5 bg-navy-900 rounded-full flex items-center justify-center">
                 <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -84,7 +110,9 @@ const FinancialTargetStep: React.FC<Props> = ({ financialTarget, financialTarget
         <button
           onClick={() => {
             setShowCustom(!showCustom);
-            setSelectedPreset(null);
+            if (!showCustom) {
+              setSelectedPreset(null);
+            }
           }}
           className="text-navy-900 text-sm font-medium hover:underline"
         >
@@ -102,12 +130,21 @@ const FinancialTargetStep: React.FC<Props> = ({ financialTarget, financialTarget
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
             <input
               type="text"
-              value={customAmount ? parseInt(customAmount).toLocaleString() : ''}
+              value={formatDisplayValue(customAmount)}
               onChange={(e) => handleCustomChange(e.target.value)}
               placeholder="1,000,000"
-              className="w-full pl-8 pr-4 py-4 text-2xl font-bold text-navy-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+              className="w-full pl-8 pr-4 py-4 text-2xl font-bold text-navy-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-navy-500 focus:border-transparent outline-none"
+              autoFocus
             />
           </div>
+          {customAmount && parseInt(customAmount) > 0 && (
+            <p className="mt-2 text-sm text-green-600 flex items-center gap-1">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Target set: ${parseInt(customAmount).toLocaleString()}
+            </p>
+          )}
         </div>
       )}
 
