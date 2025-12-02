@@ -1,9 +1,11 @@
 
 export enum AppView {
   LANDING = 'LANDING',
+  DASHBOARD = 'DASHBOARD', // Main daily home for logged-in users (v1.6)
+  GUIDED_ONBOARDING = 'GUIDED_ONBOARDING', // Multi-step guided onboarding (v1.6)
   THEME_SELECTION = 'THEME_SELECTION', // AMIE Identity Theme Selection
   IDENTITY_QNA = 'IDENTITY_QNA', // AMIE Master Prompt Q&A
-  ONBOARDING = 'ONBOARDING', // Vision Style/Category Selection
+  ONBOARDING = 'ONBOARDING', // Vision Style/Category Selection (legacy)
   DISCOVERY = 'DISCOVERY',
   FINANCIAL = 'FINANCIAL',
   VISION_BOARD = 'VISION_BOARD',
@@ -21,6 +23,33 @@ export enum AppView {
   INTEGRATIONS = 'INTEGRATIONS', // Slack, Teams integrations
   TEAM_LEADERBOARDS = 'TEAM_LEADERBOARDS', // Team competition and rankings
   MANAGER_DASHBOARD = 'MANAGER_DASHBOARD', // Enterprise team management
+}
+
+// Guided Onboarding State (v1.6)
+export type OnboardingStep =
+  | 'THEME'
+  | 'COACH_INTRO'
+  | 'VISION_CAPTURE'
+  | 'PHOTO_UPLOAD'
+  | 'FINANCIAL_TARGET'
+  | 'VISION_GENERATION'
+  | 'ACTION_PLAN_PREVIEW'
+  | 'HABITS_SETUP'
+  | 'PRINT_OFFER'
+  | 'COMPLETION';
+
+export interface OnboardingState {
+  currentStep: OnboardingStep;
+  themeId?: string;
+  themeName?: string;
+  visionText?: string;
+  photoRefId?: string;
+  financialTarget?: number;
+  financialTargetLabel?: string;
+  primaryVisionId?: string;
+  primaryVisionUrl?: string;
+  generatedTasks?: ActionTask[];
+  selectedHabits?: string[];
 }
 
 export interface ChatMessage {

@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
-import { AppView, VisionImage, FinancialGoal } from './types';
+import { AppView, VisionImage, FinancialGoal, OnboardingState, ActionTask } from './types';
 import FinancialDashboard from './components/FinancialDashboard';
 import VisionBoard from './components/VisionBoard';
 import ActionPlanAgent from './components/ActionPlanAgent';
@@ -25,6 +25,8 @@ import PartnerDashboard from './components/PartnerDashboard';
 import SlackIntegration from './components/SlackIntegration';
 import TeamLeaderboards from './components/TeamLeaderboards';
 import ManagerDashboard from './components/ManagerDashboard';
+import { GuidedOnboarding } from './components/onboarding';
+import { Dashboard } from './components/dashboard';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
@@ -63,9 +65,20 @@ const App = () => {
   // Shared State
   const [activeVisionPrompt, setActiveVisionPrompt] = useState('');
   const [selectedGalleryImage, setSelectedGalleryImage] = useState<VisionImage | null>(null);
-  
+
   // Data Flow State (Plan -> Execute)
   const [financialData, setFinancialData] = useState<FinancialGoal[]>([]);
+
+  // Dashboard State (v1.6)
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
+  const [userName, setUserName] = useState<string>('');
+  const [primaryVisionUrl, setPrimaryVisionUrl] = useState<string | undefined>();
+  const [primaryVisionTitle, setPrimaryVisionTitle] = useState<string | undefined>();
+  const [dashboardTasks, setDashboardTasks] = useState<ActionTask[]>([]);
+  const [dashboardHabits, setDashboardHabits] = useState<{id: string; name: string; icon: string; completedToday: boolean; streak: number}[]>([]);
+  const [financialTarget, setFinancialTarget] = useState<number | undefined>();
+  const [todayFocus, setTodayFocus] = useState<string | undefined>();
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   useEffect(() => {
     // 1. Check DB Connection
@@ -87,6 +100,72 @@ const App = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Load user profile and check onboarding status
+  useEffect(() => {
+    if (!session?.user) {
+      setOnboardingCompleted(null);
+      return;
+    }
+
+    const loadUserProfile = async () => {
+      try {
+        // Get profile data
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('onboarding_completed, financial_target, primary_vision_id')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          setOnboardingCompleted(profile.onboarding_completed ?? false);
+          setFinancialTarget(profile.financial_target);
+
+          // Load primary vision if exists
+          if (profile.primary_vision_id) {
+            const { data: vision } = await supabase
+              .from('vision_boards')
+              .select('image_url, prompt')
+              .eq('id', profile.primary_vision_id)
+              .single();
+
+            if (vision) {
+              setPrimaryVisionUrl(vision.image_url);
+              setPrimaryVisionTitle(vision.prompt?.slice(0, 50));
+            }
+          }
+        } else {
+          setOnboardingCompleted(false);
+        }
+
+        // Get user identity for theme name
+        const { data: identity } = await supabase
+          .from('user_identity_profiles')
+          .select('theme_id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (identity?.theme_id) {
+          setSelectedThemeId(identity.theme_id);
+        }
+
+        // Set user name from email
+        setUserName(session.user.email?.split('@')[0] || 'Friend');
+
+        // Route to appropriate view
+        if (profile?.onboarding_completed) {
+          setView(AppView.DASHBOARD);
+        } else {
+          setView(AppView.GUIDED_ONBOARDING);
+        }
+      } catch (err) {
+        console.error('Error loading profile:', err);
+        setOnboardingCompleted(false);
+      }
+    };
+
+    loadUserProfile();
+  }, [session]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -156,6 +235,92 @@ const App = () => {
     setShowUpgradeModal(true);
   };
 
+  // Onboarding Completion Handler
+  const handleOnboardingComplete = useCallback(async (state: OnboardingState) => {
+    if (!session?.user) return;
+
+    try {
+      // Update profile with onboarding data
+      await supabase
+        .from('profiles')
+        .update({
+          onboarding_completed: true,
+          financial_target: state.financialTarget,
+          primary_vision_id: state.primaryVisionId
+        })
+        .eq('id', session.user.id);
+
+      // Save identity profile
+      if (state.themeId) {
+        await supabase
+          .from('user_identity_profiles')
+          .upsert({
+            user_id: session.user.id,
+            theme_id: state.themeId
+          });
+      }
+
+      // Update local state
+      setOnboardingCompleted(true);
+      setFinancialTarget(state.financialTarget);
+      setPrimaryVisionUrl(state.primaryVisionUrl);
+      setSelectedThemeId(state.themeId || null);
+      setSelectedThemeName(state.themeName || null);
+
+      // Navigate to dashboard
+      setView(AppView.DASHBOARD);
+    } catch (err) {
+      console.error('Error saving onboarding:', err);
+    }
+  }, [session]);
+
+  // Dashboard Task Toggle
+  const handleToggleTask = useCallback(async (taskId: string) => {
+    setDashboardTasks(prev =>
+      prev.map(t => t.id === taskId ? { ...t, isCompleted: !t.isCompleted } : t)
+    );
+  }, []);
+
+  // Dashboard Habit Toggle
+  const handleToggleHabit = useCallback(async (habitId: string) => {
+    setDashboardHabits(prev =>
+      prev.map(h => h.id === habitId ? { ...h, completedToday: !h.completedToday } : h)
+    );
+  }, []);
+
+  // Mock functions for onboarding (replace with real implementations)
+  const generateVisionImage = useCallback(async (prompt: string, photoRef?: string) => {
+    // This should call your actual vision generation service
+    // For now, return a placeholder
+    return { id: 'vision-' + Date.now(), url: 'https://via.placeholder.com/800x600/1E3A5F/FFFFFF?text=Your+Vision' };
+  }, []);
+
+  const generateActionPlan = useCallback(async (context: { vision: string; target?: number; theme?: string }) => {
+    // This should call your AI service to generate tasks
+    // For now, return placeholder tasks
+    return [
+      { id: 'task-1', title: 'Define your goals', description: 'Set clear, measurable objectives', type: 'ADMIN' as const, isCompleted: false, dueDate: new Date().toISOString() },
+      { id: 'task-2', title: 'Create savings plan', description: 'Automate monthly contributions', type: 'FINANCE' as const, isCompleted: false, dueDate: new Date().toISOString() },
+      { id: 'task-3', title: 'Research your dream', description: 'Explore costs and timelines', type: 'LIFESTYLE' as const, isCompleted: false, dueDate: new Date().toISOString() }
+    ];
+  }, []);
+
+  const uploadPhoto = useCallback(async (file: File) => {
+    // Upload to Supabase storage
+    const fileName = `${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .upload(fileName, file);
+
+    if (error) throw error;
+    return data?.path || '';
+  }, []);
+
+  const saveOnboardingState = useCallback(async (state: Partial<OnboardingState>) => {
+    // Can be used for saving intermediate state
+    console.log('Saving onboarding state:', state);
+  }, []);
+
   const downloadGuide = () => {
     const blob = new Blob([SYSTEM_GUIDE_MD], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -169,6 +334,39 @@ const App = () => {
 
   const renderContent = () => {
     switch(view) {
+      case AppView.DASHBOARD:
+        return (
+          <Dashboard
+            userName={userName}
+            themeName={selectedThemeName || undefined}
+            themeInsight="Every step forward is progress toward your vision."
+            todayFocus={todayFocus}
+            primaryVisionUrl={primaryVisionUrl}
+            primaryVisionTitle={primaryVisionTitle}
+            tasks={dashboardTasks}
+            habits={dashboardHabits}
+            financialTarget={financialTarget}
+            financialCurrent={0}
+            financialTargetLabel="3-Year Goal"
+            onNavigate={setView}
+            onToggleTask={handleToggleTask}
+            onToggleHabit={handleToggleHabit}
+          />
+        );
+
+      case AppView.GUIDED_ONBOARDING:
+        return session?.user ? (
+          <GuidedOnboarding
+            userId={session.user.id}
+            onComplete={handleOnboardingComplete}
+            onNavigate={setView}
+            generateVisionImage={generateVisionImage}
+            generateActionPlan={generateActionPlan}
+            uploadPhoto={uploadPhoto}
+            saveOnboardingState={saveOnboardingState}
+          />
+        ) : null;
+
       case AppView.LANDING:
         return (
           <>
@@ -577,64 +775,98 @@ USING (auth.uid() = id);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Navbar */}
+      {/* Navbar - Simplified v1.6 */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center cursor-pointer" onClick={() => setView(AppView.LANDING)}>
+            <div className="flex items-center cursor-pointer" onClick={() => setView(onboardingCompleted ? AppView.DASHBOARD : AppView.LANDING)}>
               <div className="w-8 h-8 bg-navy-900 rounded-lg flex items-center justify-center mr-2">
                 <span className="text-gold-500 font-serif font-bold text-xl">V</span>
               </div>
               <span className="text-xl font-serif font-bold text-navy-900">Visionary</span>
             </div>
-            
-            <div className="flex items-center gap-6">
-              <button onClick={() => setView(AppView.FINANCIAL)} className={`text-sm font-medium transition-colors ${view === AppView.FINANCIAL ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Plan</button>
-              <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Visualize</button>
-              <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Gallery</button>
-              <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>Execute</button>
+
+            <div className="flex items-center gap-4">
+              {/* Primary Navigation - v1.6 Simplified */}
+              <button onClick={() => setView(AppView.DASHBOARD)} className={`text-sm font-medium transition-colors ${view === AppView.DASHBOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                Dashboard
+              </button>
+              <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                Visualize
+              </button>
+              <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                Gallery
+              </button>
+              <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                Execute
+              </button>
               <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                 <FireIcon className="w-4 h-4" /> Habits
-              </button>
-              <button onClick={() => setView(AppView.WEEKLY_REVIEWS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.WEEKLY_REVIEWS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                <CalendarIcon className="w-4 h-4" /> Reviews
-              </button>
-              <button onClick={() => setView(AppView.KNOWLEDGE_BASE)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.KNOWLEDGE_BASE ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                <FolderIcon className="w-4 h-4" /> Knowledge
               </button>
               <button onClick={() => setView(AppView.VOICE_COACH)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.VOICE_COACH ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                 <MicIcon className="w-4 h-4" /> Coach
               </button>
               <button onClick={() => setView(AppView.PRINT_PRODUCTS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PRINT_PRODUCTS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                <PrinterIcon className="w-4 h-4" /> Shop
+                <PrinterIcon className="w-4 h-4" /> Print
               </button>
-              <button onClick={() => setView(AppView.PARTNER)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PARTNER ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                <HeartIcon className="w-4 h-4" /> Partner
-              </button>
-              <button onClick={() => setView(AppView.INTEGRATIONS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.INTEGRATIONS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                <GlobeIcon className="w-4 h-4" /> Apps
-              </button>
-              <button onClick={() => setView(AppView.TEAM_LEADERBOARDS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.TEAM_LEADERBOARDS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                <TrophyIcon className="w-4 h-4" /> Teams
-              </button>
-              <button onClick={() => setView(AppView.MANAGER_DASHBOARD)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.MANAGER_DASHBOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                <ChartBarIcon className="w-4 h-4" /> Manager
-              </button>
-              <button onClick={() => setShowWorkbookModal(true)} className="text-sm font-medium flex items-center gap-1 text-gray-500 hover:text-navy-900 transition-colors">
-                <BookOpenIcon className="w-4 h-4" /> Workbook
-              </button>
-              <button onClick={() => setView(AppView.ORDER_HISTORY)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.ORDER_HISTORY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                <ReceiptIcon className="w-4 h-4" /> Orders
-              </button>
-              
+
+              {/* More Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="text-sm font-medium text-gray-500 hover:text-navy-900 transition-colors flex items-center gap-1"
+                >
+                  More
+                  <svg className={`w-4 h-4 transition-transform ${showMoreMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showMoreMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50">
+                    <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <CalendarIcon className="w-4 h-4" /> Reviews
+                    </button>
+                    <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <FolderIcon className="w-4 h-4" /> Knowledge
+                    </button>
+                    <button onClick={() => { setView(AppView.PARTNER); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <HeartIcon className="w-4 h-4" /> Partner
+                    </button>
+                    <button onClick={() => { setView(AppView.INTEGRATIONS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <GlobeIcon className="w-4 h-4" /> Apps
+                    </button>
+                    <button onClick={() => { setView(AppView.TEAM_LEADERBOARDS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <TrophyIcon className="w-4 h-4" /> Teams
+                    </button>
+                    <button onClick={() => { setView(AppView.MANAGER_DASHBOARD); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <ChartBarIcon className="w-4 h-4" /> Manager
+                    </button>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button onClick={() => { setShowWorkbookModal(true); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <BookOpenIcon className="w-4 h-4" /> Workbook
+                    </button>
+                    <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <ReceiptIcon className="w-4 h-4" /> Orders
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="h-6 w-px bg-gray-200 mx-2"></div>
-              
-              <span className="text-xs text-gray-400">{session.user.email}</span>
+
+              {/* User Menu */}
+              <span className="text-xs text-gray-400 hidden md:block">{session.user.email}</span>
               <button onClick={handleSignOut} className="text-xs font-bold text-navy-900 hover:text-red-500 transition-colors">Sign Out</button>
             </div>
           </div>
         </div>
       </nav>
+
+      {/* Click outside to close dropdown */}
+      {showMoreMenu && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+      )}
 
       {/* Main Content */}
       <main className="flex-1">

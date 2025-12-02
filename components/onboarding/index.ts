@@ -1,0 +1,12 @@
+export { default as GuidedOnboarding } from './GuidedOnboarding';
+export { default as OnboardingLayout } from './OnboardingLayout';
+export { default as ThemeSelectorStep } from './ThemeSelectorStep';
+export { default as CoachIntroStep } from './CoachIntroStep';
+export { default as VisionCaptureStep } from './VisionCaptureStep';
+export { default as PhotoUploadStep } from './PhotoUploadStep';
+export { default as FinancialTargetStep } from './FinancialTargetStep';
+export { default as VisionGenerationStep } from './VisionGenerationStep';
+export { default as ActionPlanPreviewStep } from './ActionPlanPreviewStep';
+export { default as HabitsSetupStep } from './HabitsSetupStep';
+export { default as PrintOfferStep } from './PrintOfferStep';
+export { default as CompletionStep } from './CompletionStep';
