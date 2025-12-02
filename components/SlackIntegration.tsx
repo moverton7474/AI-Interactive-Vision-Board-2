@@ -120,14 +120,13 @@ const SlackIntegration: React.FC<Props> = ({ onBack }) => {
         return;
       }
 
-      const slackClientId = import.meta.env.VITE_SLACK_CLIENT_ID;
-      if (!slackClientId) {
-        setError('Slack integration is not configured');
-        return;
-      }
+      // Use environment variable or fallback to the known client ID
+      const slackClientId = import.meta.env.VITE_SLACK_CLIENT_ID || '9313021991553.10018838979383';
 
-      const redirectUri = `${window.location.origin}/api/slack/oauth`;
-      const scopes = 'chat:write,commands,users:read';
+      // Redirect to Supabase Edge Function for OAuth handling
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://edaigbnnofyxcfbpcvct.supabase.co';
+      const redirectUri = `${supabaseUrl}/functions/v1/slack-bot?endpoint=oauth`;
+      const scopes = 'chat:write,commands,users:read,channels:read';
       const state = session.user.id;
 
       const authUrl = `https://slack.com/oauth/v2/authorize?client_id=${slackClientId}&scope=${scopes}&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
