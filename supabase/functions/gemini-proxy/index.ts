@@ -10,6 +10,21 @@ const corsHeaders = {
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
+// Available models for different tasks
+// Image generation options:
+// 1. imagen-3.0-generate-001 - Best quality, requires Vertex AI (Google Cloud + billing)
+// 2. gemini-2.0-flash-exp - Can generate images with responseModalities, but experimental
+// 3. gemini-2.0-flash-preview-image-generation - Specific image generation model (if available)
+const MODELS = {
+  chat: 'gemini-2.0-flash',
+  // Primary: Try the dedicated image generation preview model
+  image_primary: 'gemini-2.0-flash-preview-image-generation',
+  // Fallback 1: Standard experimental model with image output
+  image_fallback: 'gemini-2.0-flash-exp',
+  // Fallback 2: Imagen 3 (requires Vertex AI - most users won't have access)
+  image_fallback_vertex: 'imagen-3.0-generate-001',
+}
+
 /**
  * Gemini API Proxy
  *
@@ -24,8 +39,12 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
  * - parse_financial: Extract financial data from chat
  * - action_plan: Generate 3-year roadmap with search grounding
  * - raw: Direct API call (for flexibility)
+ * - diagnose: Check API key and model availability (debugging)
  */
 serve(async (req) => {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = Date.now()
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', {
       status: 200,
@@ -38,14 +57,34 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
+    // Enhanced API key validation
     if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY not configured')
+      console.error(`[${requestId}] GEMINI_API_KEY not found in environment`)
+      return errorResponse('GEMINI_API_KEY not configured. Please set it in Supabase Edge Function Secrets.', 500, requestId)
+    }
+
+    // Validate API key format (basic check)
+    if (GEMINI_API_KEY.length < 30) {
+      console.error(`[${requestId}] GEMINI_API_KEY appears too short (${GEMINI_API_KEY.length} chars)`)
+      return errorResponse('GEMINI_API_KEY appears invalid (too short). Please check the secret value.', 500, requestId)
+    }
+
+    console.log(`[${requestId}] API key loaded: ${GEMINI_API_KEY.substring(0, 8)}...${GEMINI_API_KEY.slice(-4)} (${GEMINI_API_KEY.length} chars)`)
+
+    const body = await req.json()
+    const { action, ...params } = body
+
+    console.log(`[${requestId}] Action: ${action}`)
+
+    // Allow diagnose action without auth (for debugging)
+    if (action === 'diagnose') {
+      return await handleDiagnose(GEMINI_API_KEY, requestId)
     }
 
     // Get authorization header for user context
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      throw new Error('Missing authorization header')
+      return errorResponse('Missing authorization header', 401, requestId)
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -58,8 +97,11 @@ serve(async (req) => {
     )
 
     if (authError || !user) {
-      throw new Error('Invalid or expired authentication token')
+      console.error(`[${requestId}] Auth error:`, authError?.message)
+      return errorResponse('Invalid or expired authentication token', 401, requestId)
     }
+
+    console.log(`[${requestId}] User authenticated: ${user.id.slice(0, 8)}...`)
 
     // Check user credits/subscription (optional rate limiting)
     const { data: profile } = await supabase
@@ -68,42 +110,164 @@ serve(async (req) => {
       .eq('id', user.id)
       .single()
 
-    const body = await req.json()
-    const { action, ...params } = body
-
     // Route to appropriate handler
+    let result: Response
     switch (action) {
       case 'chat':
-        return await handleChat(GEMINI_API_KEY, params)
+        result = await handleChat(GEMINI_API_KEY, params, requestId)
+        break
       case 'summarize':
-        return await handleSummarize(GEMINI_API_KEY, params)
+        result = await handleSummarize(GEMINI_API_KEY, params, requestId)
+        break
       case 'generate_image':
-        return await handleImageGeneration(GEMINI_API_KEY, params, profile)
+        result = await handleImageGeneration(GEMINI_API_KEY, params, profile, requestId)
+        break
       case 'financial_projection':
-        return await handleFinancialProjection(GEMINI_API_KEY, params)
+        result = await handleFinancialProjection(GEMINI_API_KEY, params, requestId)
+        break
       case 'parse_financial':
-        return await handleParseFinancial(GEMINI_API_KEY, params)
+        result = await handleParseFinancial(GEMINI_API_KEY, params, requestId)
+        break
       case 'action_plan':
-        return await handleActionPlan(GEMINI_API_KEY, params)
+        result = await handleActionPlan(GEMINI_API_KEY, params, requestId)
+        break
       case 'raw':
-        return await handleRawRequest(GEMINI_API_KEY, params)
+        result = await handleRawRequest(GEMINI_API_KEY, params, requestId)
+        break
       default:
-        throw new Error(`Unknown action: ${action}. Valid: chat, summarize, generate_image, financial_projection, parse_financial, action_plan, raw`)
+        return errorResponse(
+          `Unknown action: ${action}. Valid actions: chat, summarize, generate_image, financial_projection, parse_financial, action_plan, raw, diagnose`,
+          400,
+          requestId
+        )
     }
 
+    const duration = Date.now() - startTime
+    console.log(`[${requestId}] Completed in ${duration}ms`)
+    return result
+
   } catch (error: any) {
-    console.error('Gemini proxy error:', error.message)
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-    )
+    const duration = Date.now() - startTime
+    console.error(`[${requestId}] Error after ${duration}ms:`, error.message)
+    console.error(`[${requestId}] Stack:`, error.stack)
+    return errorResponse(error.message, 400, requestId)
   }
 })
 
 /**
+ * Diagnose API Key and Model Availability
+ * Call with action: 'diagnose' to check configuration
+ */
+async function handleDiagnose(apiKey: string, requestId: string) {
+  console.log(`[${requestId}] Running diagnostics...`)
+
+  const results: any = {
+    timestamp: new Date().toISOString(),
+    requestId,
+    apiKeyInfo: {
+      length: apiKey.length,
+      prefix: apiKey.substring(0, 8),
+      suffix: apiKey.slice(-4)
+    },
+    models: {}
+  }
+
+  // Test each model
+  const modelsToTest = [
+    { name: 'gemini-2.0-flash', type: 'chat' },
+    { name: 'gemini-1.5-flash', type: 'chat' },
+    { name: 'imagen-3.0-generate-001', type: 'image' },
+  ]
+
+  for (const model of modelsToTest) {
+    try {
+      console.log(`[${requestId}] Testing model: ${model.name}`)
+
+      if (model.type === 'image') {
+        // Test Imagen with predict endpoint
+        const response = await fetch(
+          `${GEMINI_API_BASE}/models/${model.name}:predict?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instances: [{ prompt: 'test' }],
+              parameters: { sampleCount: 1 }
+            })
+          }
+        )
+
+        const status = response.status
+        const body = await response.text()
+
+        results.models[model.name] = {
+          available: response.ok,
+          status,
+          error: response.ok ? null : parseGeminiError(body)
+        }
+      } else {
+        // Test chat model with simple request
+        const response = await fetch(
+          `${GEMINI_API_BASE}/models/${model.name}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: 'Say "OK" if you can hear me.' }] }],
+              generationConfig: { maxOutputTokens: 10 }
+            })
+          }
+        )
+
+        const status = response.status
+        const body = await response.text()
+
+        results.models[model.name] = {
+          available: response.ok,
+          status,
+          error: response.ok ? null : parseGeminiError(body)
+        }
+      }
+    } catch (error: any) {
+      results.models[model.name] = {
+        available: false,
+        status: 0,
+        error: error.message
+      }
+    }
+  }
+
+  // Summary
+  const availableModels = Object.entries(results.models)
+    .filter(([_, v]: any) => v.available)
+    .map(([k]) => k)
+
+  results.summary = {
+    totalModels: modelsToTest.length,
+    availableModels: availableModels.length,
+    available: availableModels,
+    canGenerateImages: availableModels.some(m => m.includes('imagen')),
+    canChat: availableModels.some(m => m.includes('gemini'))
+  }
+
+  if (results.summary.availableModels === 0) {
+    results.recommendation = 'No models are accessible. Please verify your GEMINI_API_KEY is valid and has not expired. Get a new key at https://aistudio.google.com/app/apikey'
+  } else if (!results.summary.canGenerateImages) {
+    results.recommendation = 'Image generation models are not accessible. Imagen 3 requires a Google Cloud project with Vertex AI enabled and billing configured.'
+  }
+
+  console.log(`[${requestId}] Diagnostics complete:`, JSON.stringify(results.summary))
+
+  return new Response(
+    JSON.stringify({ success: true, diagnostics: results }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+/**
  * Vision Coach Chat
  */
-async function handleChat(apiKey: string, params: any) {
+async function handleChat(apiKey: string, params: any, requestId: string) {
   const { history = [], message } = params
 
   const systemInstruction = `You are a high-end retirement vision coach named "Visionary".
@@ -115,28 +279,25 @@ History: ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
 User: ${message}
   `
 
-  const response = await callGeminiAPI(apiKey, 'gemini-2.0-flash', {
+  const response = await callGeminiAPI(apiKey, MODELS.chat, {
     contents: [{ parts: [{ text: prompt }] }],
     systemInstruction: { parts: [{ text: systemInstruction }] },
     generationConfig: {
       temperature: 0.7,
       maxOutputTokens: 1024
     }
-  })
+  }, requestId)
 
   const text = response.candidates?.[0]?.content?.parts?.[0]?.text ||
     "I'm having trouble envisioning that right now. Please try again."
 
-  return new Response(
-    JSON.stringify({ success: true, text }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
+  return successResponse({ text }, requestId)
 }
 
 /**
  * Summarize chat into image prompt
  */
-async function handleSummarize(apiKey: string, params: any) {
+async function handleSummarize(apiKey: string, params: any, requestId: string) {
   const { history = [] } = params
 
   const prompt = `
@@ -148,61 +309,34 @@ Conversation:
 ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
   `
 
-  const response = await callGeminiAPI(apiKey, 'gemini-2.0-flash', {
+  const response = await callGeminiAPI(apiKey, MODELS.chat, {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.7,
       maxOutputTokens: 512
     }
-  })
+  }, requestId)
 
   const text = response.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
-  return new Response(
-    JSON.stringify({ success: true, summary: text }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
+  return successResponse({ summary: text }, requestId)
 }
 
 /**
  * Generate/Edit Vision Board Image
+ *
+ * Attempts image generation in order:
+ * 1. Gemini 2.0 Flash Preview Image Generation (dedicated model)
+ * 2. Gemini 2.0 Flash Exp (with responseModalities)
+ * 3. Imagen 3 (requires Vertex AI - most won't have access)
  */
-async function handleImageGeneration(apiKey: string, params: any, profile: any) {
+async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
   const { images = [], prompt, embeddedText, titleText } = params
 
-  // Build parts array
-  const parts: any[] = []
-
-  // Add images if provided
-  for (const img of images) {
-    if (!img) continue
-
-    let base64Data = img
-    let mimeType = 'image/jpeg'
-
-    // Handle data URL format
-    if (base64Data.includes('base64,')) {
-      const mimeMatch = base64Data.match(/^data:(.*?);/)
-      if (mimeMatch) {
-        mimeType = mimeMatch[1]
-      }
-      base64Data = base64Data.split(',')[1]
-    }
-
-    parts.push({
-      inlineData: {
-        mimeType,
-        data: base64Data
-      }
-    })
-  }
+  console.log(`[${requestId}] Image generation requested. Images provided: ${images.length}`)
 
   // Build prompt for image generation
   let finalPrompt = prompt || 'Create a beautiful, inspiring vision board image.'
-
-  if (parts.length > 0) {
-    finalPrompt = `Using the provided reference image(s), ${finalPrompt}`
-  }
 
   if (titleText) {
     finalPrompt += ` Include the title "${titleText}" prominently in the image.`
@@ -212,19 +346,72 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any) 
     finalPrompt += ` Include the text "${embeddedText}" naturally in the scene.`
   }
 
-  // Add text prompt to parts
-  parts.push({ text: finalPrompt })
+  console.log(`[${requestId}] Final prompt: ${finalPrompt.substring(0, 100)}...`)
 
-  // Try Imagen 3 first (best for image generation)
+  const errors: Record<string, string> = {}
+
+  // Attempt 1: Try dedicated image generation preview model
+  const previewResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_primary, requestId)
+  if (previewResult.success) {
+    console.log(`[${requestId}] Gemini Preview Image Gen succeeded`)
+    return successResponse({ image: previewResult.image }, requestId)
+  }
+  errors['gemini_preview'] = previewResult.error || 'Unknown error'
+  console.warn(`[${requestId}] Gemini Preview Image Gen failed: ${previewResult.error}`)
+
+  // Attempt 2: Try Gemini 2.0 Flash Experimental with image output
+  const geminiExpResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback, requestId)
+  if (geminiExpResult.success) {
+    console.log(`[${requestId}] Gemini 2.0 Flash Exp succeeded`)
+    return successResponse({ image: geminiExpResult.image }, requestId)
+  }
+  errors['gemini_exp'] = geminiExpResult.error || 'Unknown error'
+  console.warn(`[${requestId}] Gemini 2.0 Flash Exp failed: ${geminiExpResult.error}`)
+
+  // Attempt 3: Try Imagen 3 (requires Vertex AI)
+  const imagenResult = await tryImagenGeneration(apiKey, finalPrompt, requestId)
+  if (imagenResult.success) {
+    console.log(`[${requestId}] Imagen 3 succeeded`)
+    return successResponse({ image: imagenResult.image }, requestId)
+  }
+  errors['imagen3'] = imagenResult.error || 'Unknown error'
+  console.warn(`[${requestId}] Imagen 3 failed: ${imagenResult.error}`)
+
+  console.error(`[${requestId}] All image generation methods failed:`, JSON.stringify(errors))
+
+  // Provide actionable error message
+  let helpMessage = 'Image generation is currently unavailable. '
+
+  // Check for common error patterns
+  const allErrors = Object.values(errors).join(' ')
+  if (allErrors.includes('API_KEY_INVALID')) {
+    helpMessage = 'Your Gemini API key is invalid. Please check your GEMINI_API_KEY in Supabase secrets. '
+  } else if (allErrors.includes('PERMISSION_DENIED') || allErrors.includes('not found') || allErrors.includes('404')) {
+    helpMessage += 'The image generation models may not be available with your API key. Try getting a new key from https://aistudio.google.com/app/apikey '
+  }
+  helpMessage += 'Please check your GEMINI_API_KEY configuration or try again later.'
+
+  return errorResponse(
+    `${helpMessage} Technical details: ${JSON.stringify(errors)}`,
+    400,
+    requestId
+  )
+}
+
+/**
+ * Try Imagen 3 generation
+ */
+async function tryImagenGeneration(apiKey: string, prompt: string, requestId: string): Promise<{ success: boolean; image?: string; error?: string }> {
   try {
-    console.log('Trying Imagen 3 for image generation...')
-    const imagenResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`,
+    console.log(`[${requestId}] Trying Imagen 3...`)
+
+    const response = await fetch(
+      `${GEMINI_API_BASE}/models/${MODELS.image_primary}:predict?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          instances: [{ prompt: finalPrompt }],
+          instances: [{ prompt }],
           parameters: {
             sampleCount: 1,
             aspectRatio: '4:3',
@@ -235,104 +422,142 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any) 
       }
     )
 
-    if (imagenResponse.ok) {
-      const imagenData = await imagenResponse.json()
-      if (imagenData.predictions?.[0]?.bytesBase64Encoded) {
-        const imageData = `data:image/png;base64,${imagenData.predictions[0].bytesBase64Encoded}`
-        return new Response(
-          JSON.stringify({ success: true, image: imageData }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-    } else {
-      const errorText = await imagenResponse.text()
-      console.warn('Imagen 3 failed:', errorText)
+    if (!response.ok) {
+      const errorText = await response.text()
+      const parsedError = parseGeminiError(errorText)
+      return { success: false, error: `${response.status}: ${parsedError}` }
     }
-  } catch (imagenError: any) {
-    console.warn('Imagen 3 error:', imagenError.message)
-  }
 
-  // Fallback: Try Gemini 2.0 Flash with image output
+    const data = await response.json()
+    if (data.predictions?.[0]?.bytesBase64Encoded) {
+      return {
+        success: true,
+        image: `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`
+      }
+    }
+
+    return { success: false, error: 'No image in response' }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Try Gemini model for image generation
+ * Note: Gemini 2.0 Flash Exp requires responseModalities to be set for image generation
+ */
+async function tryGeminiImageGeneration(
+  apiKey: string,
+  prompt: string,
+  images: string[],
+  model: string,
+  requestId: string
+): Promise<{ success: boolean; image?: string; error?: string }> {
   try {
-    console.log('Trying Gemini 2.0 Flash experimental...')
-    const response = await callGeminiAPI(apiKey, 'gemini-2.0-flash-exp', {
+    console.log(`[${requestId}] Trying ${model} for image generation...`)
+
+    const parts: any[] = []
+
+    // Add reference images if provided
+    for (const img of images) {
+      if (!img) continue
+
+      let base64Data = img
+      let mimeType = 'image/jpeg'
+
+      if (base64Data.includes('base64,')) {
+        const mimeMatch = base64Data.match(/^data:(.*?);/)
+        if (mimeMatch) mimeType = mimeMatch[1]
+        base64Data = base64Data.split(',')[1]
+      }
+
+      parts.push({
+        inlineData: { mimeType, data: base64Data }
+      })
+    }
+
+    // Add text prompt for image generation
+    parts.push({
+      text: `Generate an image: ${prompt}. Create a high-quality, photorealistic vision board image.`
+    })
+
+    // For Gemini 2.0 Flash Exp, we need responseModalities to enable image generation
+    const isExpModel = model.includes('exp') || model.includes('2.0')
+
+    const requestBody: any = {
       contents: [{ parts }],
       generationConfig: {
         temperature: 0.8,
         maxOutputTokens: 8192
       }
-    })
+    }
+
+    // Add responseModalities for experimental models that support image output
+    if (isExpModel) {
+      requestBody.generationConfig.responseModalities = ['IMAGE', 'TEXT']
+      console.log(`[${requestId}] Using responseModalities for ${model}`)
+    }
+
+    const response = await callGeminiAPI(apiKey, model, requestBody, requestId)
 
     const imageData = extractImageFromResponse(response)
     if (imageData) {
-      return new Response(
-        JSON.stringify({ success: true, image: imageData }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return { success: true, image: imageData }
     }
 
-    // If no image but got text, it might be a description
+    // Check if we got text instead
     const textResponse = response.candidates?.[0]?.content?.parts?.[0]?.text
     if (textResponse) {
-      console.log('Got text response instead of image:', textResponse.substring(0, 100))
+      return { success: false, error: `Model returned text instead of image: "${textResponse.substring(0, 100)}..."` }
     }
-  } catch (error: any) {
-    console.warn('Gemini 2.0 Flash failed:', error.message)
-  }
 
-  // Final fallback: Generate a placeholder response with error
-  console.error('All image generation methods failed')
-  throw new Error('Image generation is currently unavailable. Please ensure your Gemini API key has access to Imagen 3 or try again later.')
+    return { success: false, error: 'No image or text in response' }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
 }
 
 /**
  * Generate Financial Projection
  */
-async function handleFinancialProjection(apiKey: string, params: any) {
+async function handleFinancialProjection(apiKey: string, params: any, requestId: string) {
   const { description } = params
 
   const prompt = `Generate a JSON array of 5 objects representing financial growth over 5 years based on this scenario: "${description}".
 Each object must have: "year" (number), "savings" (number), "projected" (number), "goal" (number).
 Return ONLY valid JSON.`
 
-  const response = await callGeminiAPI(apiKey, 'gemini-2.0-flash', {
+  const response = await callGeminiAPI(apiKey, MODELS.chat, {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.3,
       maxOutputTokens: 512,
       responseMimeType: 'application/json'
     }
-  })
+  }, requestId)
 
   const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
 
   try {
     const projection = JSON.parse(text)
-    return new Response(
-      JSON.stringify({ success: true, projection }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return successResponse({ projection }, requestId)
   } catch {
-    // Return fallback data
-    return new Response(
-      JSON.stringify({
-        success: true,
-        projection: [
-          { year: 2024, savings: 500000, projected: 500000, goal: 500000 },
-          { year: 2025, savings: 600000, projected: 650000, goal: 700000 },
-          { year: 2026, savings: 750000, projected: 800000, goal: 950000 },
-          { year: 2027, savings: 900000, projected: 1000000, goal: 1200000 },
-        ]
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    console.warn(`[${requestId}] Failed to parse financial projection, using fallback`)
+    return successResponse({
+      projection: [
+        { year: 2024, savings: 500000, projected: 500000, goal: 500000 },
+        { year: 2025, savings: 600000, projected: 650000, goal: 700000 },
+        { year: 2026, savings: 750000, projected: 800000, goal: 950000 },
+        { year: 2027, savings: 900000, projected: 1000000, goal: 1200000 },
+      ]
+    }, requestId)
   }
 }
 
 /**
  * Parse Financial Data from Chat
  */
-async function handleParseFinancial(apiKey: string, params: any) {
+async function handleParseFinancial(apiKey: string, params: any, requestId: string) {
   const { history } = params
 
   const prompt = `Extract financial data from this conversation history into JSON:
@@ -340,44 +565,38 @@ History: ${history}
 Required fields: currentSavings (number), monthlyContribution (number), targetGoal (number), targetYear (number), dreamDescription (string).
 If a field is missing, estimate a reasonable default for a high-net-worth individual.`
 
-  const response = await callGeminiAPI(apiKey, 'gemini-2.0-flash', {
+  const response = await callGeminiAPI(apiKey, MODELS.chat, {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.2,
       maxOutputTokens: 512,
       responseMimeType: 'application/json'
     }
-  })
+  }, requestId)
 
   const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
 
   try {
     const financialData = JSON.parse(text)
-    return new Response(
-      JSON.stringify({ success: true, data: financialData }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return successResponse({ data: financialData }, requestId)
   } catch {
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: {
-          currentSavings: 100000,
-          monthlyContribution: 5000,
-          targetGoal: 1000000,
-          targetYear: 2030,
-          dreamDescription: 'Retire comfortably'
-        }
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    console.warn(`[${requestId}] Failed to parse financial data, using fallback`)
+    return successResponse({
+      data: {
+        currentSavings: 100000,
+        monthlyContribution: 5000,
+        targetGoal: 1000000,
+        targetYear: 2030,
+        dreamDescription: 'Retire comfortably'
+      }
+    }, requestId)
   }
 }
 
 /**
  * Generate Action Plan with Search Grounding
  */
-async function handleActionPlan(apiKey: string, params: any) {
+async function handleActionPlan(apiKey: string, params: any, requestId: string) {
   const { visionContext, financialContext } = params
 
   const prompt = `
@@ -406,14 +625,14 @@ Schema:
 }]
   `
 
-  const response = await callGeminiAPI(apiKey, 'gemini-2.0-flash', {
+  const response = await callGeminiAPI(apiKey, MODELS.chat, {
     contents: [{ parts: [{ text: prompt }] }],
     tools: [{ googleSearch: {} }],
     generationConfig: {
       temperature: 0.5,
       maxOutputTokens: 4096
     }
-  })
+  }, requestId)
 
   const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
 
@@ -431,42 +650,35 @@ Schema:
       }
     })
 
-    return new Response(
-      JSON.stringify({ success: true, plan }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return successResponse({ plan }, requestId)
   } catch (e) {
-    console.error('Action plan parse error:', e)
-    return new Response(
-      JSON.stringify({ success: true, plan: [], rawText: text }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    console.error(`[${requestId}] Action plan parse error:`, e)
+    return successResponse({ plan: [], rawText: text }, requestId)
   }
 }
 
 /**
  * Raw API Request (for flexibility)
  */
-async function handleRawRequest(apiKey: string, params: any) {
-  const { model = 'gemini-2.0-flash', contents, config = {} } = params
+async function handleRawRequest(apiKey: string, params: any, requestId: string) {
+  const { model = MODELS.chat, contents, config = {} } = params
 
   const response = await callGeminiAPI(apiKey, model, {
     contents,
     ...config
-  })
+  }, requestId)
 
-  return new Response(
-    JSON.stringify({ success: true, response }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
+  return successResponse({ response }, requestId)
 }
 
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
 
-async function callGeminiAPI(apiKey: string, model: string, requestBody: any): Promise<any> {
+async function callGeminiAPI(apiKey: string, model: string, requestBody: any, requestId: string): Promise<any> {
   const url = `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`
+
+  console.log(`[${requestId}] Calling Gemini API: ${model}`)
 
   const response = await fetch(url, {
     method: 'POST',
@@ -476,8 +688,9 @@ async function callGeminiAPI(apiKey: string, model: string, requestBody: any): P
 
   if (!response.ok) {
     const errorText = await response.text()
-    console.error(`Gemini API error (${model}):`, errorText)
-    throw new Error(`Gemini API error: ${response.status}`)
+    const parsedError = parseGeminiError(errorText)
+    console.error(`[${requestId}] Gemini API error (${model}): ${response.status} - ${parsedError}`)
+    throw new Error(`Gemini API error (${model}): ${parsedError}`)
   }
 
   return await response.json()
@@ -494,4 +707,62 @@ function extractImageFromResponse(response: any): string | null {
     }
   }
   return null
+}
+
+/**
+ * Parse Gemini error response into readable message
+ */
+function parseGeminiError(errorText: string): string {
+  try {
+    const parsed = JSON.parse(errorText)
+    if (parsed.error) {
+      const { message, status, details } = parsed.error
+      let errorMsg = message || status || 'Unknown error'
+
+      // Extract specific error reasons
+      if (details?.[0]?.reason) {
+        errorMsg += ` (${details[0].reason})`
+      }
+
+      // Add helpful hints based on error type
+      if (errorMsg.includes('API_KEY_INVALID')) {
+        errorMsg += ' - Please get a new API key from https://aistudio.google.com/app/apikey'
+      } else if (errorMsg.includes('PERMISSION_DENIED')) {
+        errorMsg += ' - This model may require additional permissions or Vertex AI access'
+      } else if (errorMsg.includes('RESOURCE_EXHAUSTED')) {
+        errorMsg += ' - Rate limit exceeded, please try again later'
+      }
+
+      return errorMsg
+    }
+    return errorText.substring(0, 200)
+  } catch {
+    return errorText.substring(0, 200)
+  }
+}
+
+/**
+ * Create success response with standard format
+ */
+function successResponse(data: any, requestId: string): Response {
+  return new Response(
+    JSON.stringify({ success: true, requestId, ...data }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
+/**
+ * Create error response with standard format
+ */
+function errorResponse(message: string, status: number, requestId: string): Response {
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: message,
+      requestId,
+      timestamp: new Date().toISOString(),
+      help: 'Run with action: "diagnose" to check API key and model availability'
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status }
+  )
 }

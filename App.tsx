@@ -288,7 +288,8 @@ const App = () => {
     );
   }, []);
 
-  // Generate vision image using Gemini API with fallback
+  // Generate vision image using Gemini API
+  // Note: This function throws an error if generation fails - callers should handle this gracefully
   const generateVisionImage = useCallback(async (prompt: string, photoRef?: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -296,7 +297,7 @@ const App = () => {
     }
 
     let imageUrl: string | null = null;
-    let generatedImage = false;
+    let generationError: string | null = null;
 
     // Try to generate image via Gemini API
     try {
@@ -339,7 +340,13 @@ const App = () => {
         }
       });
 
-      if (!error && data?.success && data?.image) {
+      if (error) {
+        generationError = error.message || 'Failed to connect to image generation service';
+        console.error('Gemini proxy error:', error);
+      } else if (!data?.success) {
+        generationError = data?.error || 'Image generation returned unsuccessful response';
+        console.error('Gemini generation failed:', data);
+      } else if (data?.image) {
         // Upload the generated image to storage
         const imageData = data.image;
         const base64Data = imageData.includes('base64,') ? imageData.split(',')[1] : imageData;
@@ -356,27 +363,30 @@ const App = () => {
           .from('visions')
           .upload(fileName, blob, { upsert: true });
 
-        if (!uploadError) {
+        if (uploadError) {
+          generationError = 'Failed to upload generated image to storage';
+          console.error('Upload error:', uploadError);
+        } else {
           const { data: urlData } = supabase.storage
             .from('visions')
             .getPublicUrl(fileName);
           imageUrl = urlData.publicUrl;
-          generatedImage = true;
         }
+      } else {
+        generationError = 'No image returned from generation service';
       }
     } catch (genError: any) {
-      console.warn('Image generation failed, using placeholder:', genError.message);
+      generationError = genError.message || 'Image generation failed';
+      console.error('Image generation exception:', genError);
     }
 
-    // Fallback: Use a high-quality placeholder image
+    // If generation failed, throw error - don't save placeholder to database
+    // The UI components handle failures gracefully with their own in-memory placeholders
     if (!imageUrl) {
-      // Use Unsplash for beautiful placeholder images based on prompt keywords
-      const keywords = encodeURIComponent(prompt.slice(0, 50).replace(/[^a-zA-Z\s]/g, ''));
-      imageUrl = `https://source.unsplash.com/800x600/?${keywords},inspiration,success`;
-      console.log('Using placeholder image from Unsplash');
+      throw new Error(generationError || 'Image generation unavailable. Please try again later.');
     }
 
-    // Save to vision_boards table
+    // Only save successfully generated images to the database
     const { data: visionData, error: visionError } = await supabase
       .from('vision_boards')
       .insert({
@@ -389,10 +399,15 @@ const App = () => {
 
     if (visionError) {
       console.warn('Vision save error:', visionError);
+      // Still return the image URL even if DB save failed
+      return {
+        id: `vision-${Date.now()}`,
+        url: imageUrl
+      };
     }
 
     return {
-      id: visionData?.id || `vision-${Date.now()}`,
+      id: visionData.id,
       url: imageUrl
     };
   }, []);

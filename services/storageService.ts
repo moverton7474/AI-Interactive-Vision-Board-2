@@ -741,40 +741,31 @@ export const getHabitStats = async (): Promise<{
 
 export const getWorkbookTemplates = async (): Promise<WorkbookTemplate[]> => {
   try {
-    const { data, error } = await supabase.functions.invoke('generate-workbook-pdf', {
-      body: {},
-      method: 'GET',
-    });
+    // Query templates directly from database (they're publicly readable via RLS)
+    const { data: templates, error: dbError } = await supabase
+      .from('workbook_templates')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
 
-    // Fallback to direct query if edge function fails
-    if (error || !data?.templates) {
-      const { data: templates, error: dbError } = await supabase
-        .from('workbook_templates')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
+    if (dbError) throw dbError;
 
-      if (dbError) throw dbError;
-
-      return templates?.map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        description: t.description,
-        sku: t.sku,
-        page_count: t.page_count,
-        size: t.size,
-        binding: t.binding,
-        base_price: parseFloat(t.base_price),
-        shipping_estimate: parseFloat(t.shipping_estimate),
-        preview_image_url: t.preview_image_url,
-        features: typeof t.features === 'string' ? JSON.parse(t.features) : t.features || [],
-        is_active: t.is_active,
-        sort_order: t.sort_order,
-        created_at: t.created_at
-      })) || [];
-    }
-
-    return data.templates;
+    return templates?.map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      sku: t.sku,
+      page_count: t.page_count,
+      size: t.size,
+      binding: t.binding,
+      base_price: parseFloat(t.base_price),
+      shipping_estimate: parseFloat(t.shipping_estimate),
+      preview_image_url: t.preview_image_url,
+      features: typeof t.features === 'string' ? JSON.parse(t.features) : t.features || [],
+      is_active: t.is_active,
+      sort_order: t.sort_order,
+      created_at: t.created_at
+    })) || [];
   } catch (error) {
     console.error("Failed to get workbook templates", error);
     return [];
@@ -822,12 +813,26 @@ export const generateWorkbookPdf = async (orderId: string): Promise<boolean> => 
 
 export const getWorkbookOrder = async (orderId: string): Promise<WorkbookOrder | null> => {
   try {
-    const { data, error } = await supabase.functions.invoke(`generate-workbook-pdf?action=get_order&order_id=${orderId}`, {
-      method: 'GET'
-    });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Query order directly from database with template and sections
+    const { data: order, error } = await supabase
+      .from('workbook_orders')
+      .select('*, template:workbook_templates(*), sections:workbook_sections(*)')
+      .eq('id', orderId)
+      .eq('user_id', user.id)
+      .single();
 
     if (error) throw error;
-    return data.order;
+
+    return order ? {
+      ...order,
+      subtotal: parseFloat(order.subtotal),
+      discount_amount: parseFloat(order.discount_amount),
+      shipping_cost: parseFloat(order.shipping_cost),
+      total_price: parseFloat(order.total_price)
+    } : null;
   } catch (error) {
     console.error("Failed to get workbook order", error);
     return null;
