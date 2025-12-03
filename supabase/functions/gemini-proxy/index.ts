@@ -11,14 +11,18 @@ const corsHeaders = {
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
 // Available models for different tasks
-// Note: Imagen 3 requires Vertex AI access (Google Cloud project with billing)
-// Gemini 2.0 Flash Exp can generate images with responseModalities set
-// Gemini 1.5 Flash CANNOT generate images - only processes images as input
+// Image generation options:
+// 1. imagen-3.0-generate-001 - Best quality, requires Vertex AI (Google Cloud + billing)
+// 2. gemini-2.0-flash-exp - Can generate images with responseModalities, but experimental
+// 3. gemini-2.0-flash-preview-image-generation - Specific image generation model (if available)
 const MODELS = {
   chat: 'gemini-2.0-flash',
-  image_primary: 'imagen-3.0-generate-001',
+  // Primary: Try the dedicated image generation preview model
+  image_primary: 'gemini-2.0-flash-preview-image-generation',
+  // Fallback 1: Standard experimental model with image output
   image_fallback: 'gemini-2.0-flash-exp',
-  // Note: gemini-1.5-flash cannot generate images, removed as fallback
+  // Fallback 2: Imagen 3 (requires Vertex AI - most users won't have access)
+  image_fallback_vertex: 'imagen-3.0-generate-001',
 }
 
 /**
@@ -322,8 +326,9 @@ ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
  * Generate/Edit Vision Board Image
  *
  * Attempts image generation in order:
- * 1. Imagen 3 (best quality, requires Vertex AI)
+ * 1. Gemini 2.0 Flash Preview Image Generation (dedicated model)
  * 2. Gemini 2.0 Flash Exp (with responseModalities)
+ * 3. Imagen 3 (requires Vertex AI - most won't have access)
  */
 async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
   const { images = [], prompt, embeddedText, titleText } = params
@@ -343,13 +348,16 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 
   console.log(`[${requestId}] Final prompt: ${finalPrompt.substring(0, 100)}...`)
 
-  // Attempt 1: Try Imagen 3 (best quality, requires Vertex AI access)
-  const imagenResult = await tryImagenGeneration(apiKey, finalPrompt, requestId)
-  if (imagenResult.success) {
-    console.log(`[${requestId}] Imagen 3 succeeded`)
-    return successResponse({ image: imagenResult.image }, requestId)
+  const errors: Record<string, string> = {}
+
+  // Attempt 1: Try dedicated image generation preview model
+  const previewResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_primary, requestId)
+  if (previewResult.success) {
+    console.log(`[${requestId}] Gemini Preview Image Gen succeeded`)
+    return successResponse({ image: previewResult.image }, requestId)
   }
-  console.warn(`[${requestId}] Imagen 3 failed: ${imagenResult.error}`)
+  errors['gemini_preview'] = previewResult.error || 'Unknown error'
+  console.warn(`[${requestId}] Gemini Preview Image Gen failed: ${previewResult.error}`)
 
   // Attempt 2: Try Gemini 2.0 Flash Experimental with image output
   const geminiExpResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback, requestId)
@@ -357,25 +365,34 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     console.log(`[${requestId}] Gemini 2.0 Flash Exp succeeded`)
     return successResponse({ image: geminiExpResult.image }, requestId)
   }
+  errors['gemini_exp'] = geminiExpResult.error || 'Unknown error'
   console.warn(`[${requestId}] Gemini 2.0 Flash Exp failed: ${geminiExpResult.error}`)
 
-  // All methods failed - provide helpful error message
-  const errorDetails = {
-    imagen3: imagenResult.error,
-    gemini2FlashExp: geminiExpResult.error
+  // Attempt 3: Try Imagen 3 (requires Vertex AI)
+  const imagenResult = await tryImagenGeneration(apiKey, finalPrompt, requestId)
+  if (imagenResult.success) {
+    console.log(`[${requestId}] Imagen 3 succeeded`)
+    return successResponse({ image: imagenResult.image }, requestId)
   }
+  errors['imagen3'] = imagenResult.error || 'Unknown error'
+  console.warn(`[${requestId}] Imagen 3 failed: ${imagenResult.error}`)
 
-  console.error(`[${requestId}] All image generation methods failed:`, JSON.stringify(errorDetails))
+  console.error(`[${requestId}] All image generation methods failed:`, JSON.stringify(errors))
 
   // Provide actionable error message
   let helpMessage = 'Image generation is currently unavailable. '
-  if (imagenResult.error?.includes('PERMISSION_DENIED') || imagenResult.error?.includes('404')) {
-    helpMessage += 'Imagen 3 requires a Google Cloud project with Vertex AI enabled and billing configured. '
+
+  // Check for common error patterns
+  const allErrors = Object.values(errors).join(' ')
+  if (allErrors.includes('API_KEY_INVALID')) {
+    helpMessage = 'Your Gemini API key is invalid. Please check your GEMINI_API_KEY in Supabase secrets. '
+  } else if (allErrors.includes('PERMISSION_DENIED') || allErrors.includes('not found') || allErrors.includes('404')) {
+    helpMessage += 'The image generation models may not be available with your API key. Try getting a new key from https://aistudio.google.com/app/apikey '
   }
   helpMessage += 'Please check your GEMINI_API_KEY configuration or try again later.'
 
   return errorResponse(
-    `${helpMessage} Technical details: ${JSON.stringify(errorDetails)}`,
+    `${helpMessage} Technical details: ${JSON.stringify(errors)}`,
     400,
     requestId
   )
