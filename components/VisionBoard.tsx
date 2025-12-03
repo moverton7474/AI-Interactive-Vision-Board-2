@@ -254,6 +254,28 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     }
   };
 
+  // Save uploaded image directly without AI generation (fallback)
+  const handleSaveUploadedImage = async () => {
+    if (baseImage && !isSaving) {
+      setIsSaving(true);
+      try {
+        const newImage: VisionImage = {
+          id: crypto.randomUUID(),
+          url: baseImage,
+          prompt: promptInput || "Uploaded Vision Board",
+          createdAt: Date.now(),
+          isFavorite: true
+        };
+        await saveVisionImage(newImage);
+        setToastMessage("Image saved as Vision Board!");
+      } catch (e) {
+        setToastMessage("Failed to save. Please try again.");
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
   const downloadImage = (url: string) => {
     const link = document.createElement('a');
     link.href = url;
@@ -391,28 +413,46 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                   />
                 </div>
 
-                <button
-                  onClick={handleGenerate}
-                  disabled={!baseImage || loading || !promptInput}
-                  className={`w-full py-3 rounded-xl font-bold text-white shadow-md flex items-center justify-center gap-2 transition-all
-                    ${!baseImage || !promptInput 
-                      ? 'bg-gray-300 cursor-not-allowed' 
-                      : 'bg-gradient-to-r from-navy-900 to-navy-800 hover:from-navy-800 hover:to-navy-700 transform active:scale-95'
-                    }`}
-                >
-                  {loading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Manifesting...
-                    </>
-                  ) : (
-                    <>
-                      <SparklesIcon className="w-5 h-5" />
-                      {resultImage ? 'Regenerate' : 'Generate Vision'}
-                    </>
-                  )}
-                </button>
-                
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleGenerate}
+                    disabled={!baseImage || loading || !promptInput}
+                    className={`flex-1 py-3 rounded-xl font-bold text-white shadow-md flex items-center justify-center gap-2 transition-all
+                      ${!baseImage || !promptInput
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-navy-900 to-navy-800 hover:from-navy-800 hover:to-navy-700 transform active:scale-95'
+                      }`}
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Manifesting...
+                      </>
+                    ) : (
+                      <>
+                        <SparklesIcon className="w-5 h-5" />
+                        {resultImage ? 'Regenerate' : 'Generate AI Vision'}
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Save uploaded image directly (fallback when AI fails) */}
+                {baseImage && !resultImage && (
+                  <button
+                    onClick={handleSaveUploadedImage}
+                    disabled={isSaving}
+                    className="w-full mt-3 py-2.5 rounded-xl font-medium text-navy-900 bg-gold-100 hover:bg-gold-200 border border-gold-300 flex items-center justify-center gap-2 transition-all"
+                  >
+                    {isSaving ? (
+                      <div className="w-4 h-4 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
+                    ) : (
+                      <SaveIcon className="w-4 h-4" />
+                    )}
+                    Save Upload as Vision Board
+                  </button>
+                )}
+
                 {error && <p className="text-red-500 text-xs mt-2 text-center">{error}</p>}
                 {credits === 0 && (
                     <button onClick={() => setShowSubModal(true)} className="w-full mt-2 text-xs text-gold-600 font-bold underline hover:text-gold-700">
