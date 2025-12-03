@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import WorkbookWizard from './workbook/WorkbookWizard';
 
 interface Props {
   onBack?: () => void;
@@ -56,6 +57,7 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
 
   // Customization state
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [showWorkbookWizard, setShowWorkbookWizard] = useState(false);
   const [customization, setCustomization] = useState<any>({});
   const [contentData, setContentData] = useState<any>(null);
   const [customizing, setCustomizing] = useState(false);
@@ -119,6 +121,12 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
   };
 
   const handleCustomize = async (product: Product) => {
+    // Intercept Workbook products to use the new Wizard
+    if (product.product_type === 'workbook' || product.name.toLowerCase().includes('workbook')) {
+      setShowWorkbookWizard(true);
+      return;
+    }
+
     setSelectedProduct(product);
     setCustomizing(true);
     setShowCustomizeModal(true);
@@ -150,7 +158,7 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
 
     // Validate address
     if (!shippingAddress.name || !shippingAddress.line1 || !shippingAddress.city ||
-        !shippingAddress.state || !shippingAddress.postalCode) {
+      !shippingAddress.state || !shippingAddress.postalCode) {
       setError('Please fill in all required shipping fields');
       return;
     }
@@ -199,6 +207,7 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
       case 'sticker': return '⭐';
       case 'canvas': return '🖼️';
       case 'bundle': return '🎁';
+      case 'workbook': return '📘';
       default: return '📦';
     }
   };
@@ -276,11 +285,10 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
       <div className="flex flex-wrap gap-2 mb-8">
         <button
           onClick={() => setSelectedCategory(null)}
-          className={`px-4 py-2 rounded-full font-medium text-sm transition-colors ${
-            !selectedCategory
+          className={`px-4 py-2 rounded-full font-medium text-sm transition-colors ${!selectedCategory
               ? 'bg-navy-900 text-white'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
+            }`}
         >
           All Products
         </button>
@@ -288,11 +296,10 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
           <button
             key={cat.id}
             onClick={() => setSelectedCategory(cat.id)}
-            className={`px-4 py-2 rounded-full font-medium text-sm transition-colors ${
-              selectedCategory === cat.id
+            className={`px-4 py-2 rounded-full font-medium text-sm transition-colors ${selectedCategory === cat.id
                 ? 'bg-navy-900 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+              }`}
           >
             {cat.name} ({cat.count})
           </button>
@@ -309,9 +316,8 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
           {filteredProducts.map(product => (
             <div
               key={product.id}
-              className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-lg transition-shadow ${
-                product.elite_exclusive && !isElite ? 'opacity-75' : ''
-              }`}
+              className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-lg transition-shadow ${product.elite_exclusive && !isElite ? 'opacity-75' : ''
+                }`}
             >
               {/* Product Image */}
               <div className="h-48 bg-gradient-to-br from-navy-50 to-gold-50 flex items-center justify-center relative">
@@ -378,6 +384,11 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
+      {/* NEW: Workbook Wizard */}
+      {showWorkbookWizard && (
+        <WorkbookWizard onClose={() => setShowWorkbookWizard(false)} />
+      )}
+
       {/* Customization Modal */}
       {showCustomizeModal && selectedProduct && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -434,11 +445,10 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
                           <button
                             key={vision.id}
                             onClick={() => setCustomization({ ...customization, visionImageId: vision.id })}
-                            className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                              customization.visionImageId === vision.id
+                            className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${customization.visionImageId === vision.id
                                 ? 'border-navy-900 ring-2 ring-navy-200'
                                 : 'border-gray-200 hover:border-gray-300'
-                            }`}
+                              }`}
                           >
                             <img
                               src={vision.image_url}

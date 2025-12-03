@@ -27,13 +27,41 @@ const urlToBase64 = async (url: string): Promise<string> => {
 };
 
 /**
+ * Retry Helper with Exponential Backoff
+ */
+const withRetry = async <T>(
+  fn: () => Promise<T>, 
+  retries = 3, 
+  delay = 1000,
+  fallbackFn?: () => Promise<T>
+): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const isRetryable = error.status === 429 || error.status === 503 || error.message?.includes('400'); // Include 400 for Nano Banana errors
+    
+    if (retries <= 0 || !isRetryable) {
+      if (fallbackFn) {
+        console.warn(`Primary attempt failed, trying fallback... (${error.message})`);
+        return fallbackFn();
+      }
+      throw error;
+    }
+    
+    console.log(`Retrying operation... (${retries} attempts left)`);
+    await new Promise(r => setTimeout(r, delay));
+    return withRetry(fn, retries - 1, delay * 2, fallbackFn);
+  }
+};
+
+/**
  * Chat with the Visionary Coach (Gemini 2.5 Flash)
  */
 export const sendVisionChatMessage = async (
   history: ChatMessage[], 
   newMessage: string
 ): Promise<string> => {
-  try {
+  return withRetry(async () => {
     const model = 'gemini-2.5-flash';
     const systemInstruction = `You are a high-end retirement vision coach named "Visionary". 
     Your goal is to help couples (like Milton and Lisa) articulate their dream retirement.
@@ -53,17 +81,14 @@ export const sendVisionChatMessage = async (
     });
 
     return response.text || "I'm having trouble envisioning that right now. Please try again.";
-  } catch (error) {
-    console.error("Chat Error:", error);
-    return "Networking error. Please check your connection.";
-  }
+  });
 };
 
 /**
  * Summarize Vision Chat into a concise Image Prompt
  */
 export const generateVisionSummary = async (history: {role: string, text: string}[]): Promise<string> => {
-  try {
+  return withRetry(async () => {
     const prompt = `
       Based on the conversation below, create a concise, highly visual image generation prompt that captures the user's dream retirement.
       Include details about location, atmosphere, people, and lighting.
@@ -79,14 +104,11 @@ export const generateVisionSummary = async (history: {role: string, text: string
     });
 
     return response.text || "";
-  } catch (error) {
-    console.error("Summary Error", error);
-    return "";
-  }
+  });
 };
 
 /**
- * Edit User Image(s)
+ * Edit User Image(s) - Upgraded to Gemini 2.5 Pro with Retry
  */
 export const editVisionImage = async (
   images: string | string[],
@@ -149,12 +171,13 @@ export const editVisionImage = async (
 
   parts.push({ text: finalPrompt });
 
-  try {
-    const model = 'gemini-3-pro-image-preview'; 
-    console.log("Attempting generation with:", model);
-    
+  const primaryModel = 'gemini-2.5-pro'; // As requested
+  const fallbackModel = 'gemini-1.5-pro'; // Reliable fallback
+
+  const generateWithModel = async (modelName: string) => {
+    console.log(`Attempting generation with: ${modelName}`);
     const response = await ai.models.generateContent({
-      model, 
+      model: modelName, 
       contents: { parts: parts },
       config: {
         imageConfig: {
@@ -163,24 +186,19 @@ export const editVisionImage = async (
         }
       }
     });
-
     return extractImageFromResponse(response);
+  };
 
+  try {
+    return await withRetry(
+      () => generateWithModel(primaryModel),
+      2, // 2 retries
+      1000,
+      () => generateWithModel(fallbackModel) // Fallback function
+    );
   } catch (error: any) {
-    console.warn("Gemini 3 Pro failed, attempting fallback to Gemini 2.5 Flash...", error.message);
-
-    try {
-        const fallbackModel = 'gemini-2.5-flash-image';
-        const response = await ai.models.generateContent({
-            model: fallbackModel,
-            contents: { parts: parts },
-        });
-
-        return extractImageFromResponse(response);
-    } catch (fallbackError) {
-        console.error("Fallback generation failed:", fallbackError);
-        throw fallbackError;
-    }
+    console.error("All image generation attempts failed:", error);
+    return null;
   }
 };
 
@@ -197,10 +215,62 @@ const extractImageFromResponse = (response: GenerateContentResponse): string | n
 }
 
 /**
+ * Generate Workbook Content
+ * Generates personalized text for the workbook sections.
+ */
+export const generateWorkbookContent = async (
+  sectionType: 'dedication' | 'coach_letter' | 'quote' | 'reflection',
+  userContext: any
+): Promise<string> => {
+  return withRetry(async () => {
+    const model = 'gemini-2.5-flash';
+    let prompt = '';
+
+    const contextStr = `
+      User Name: ${userContext.name || 'Visionary'}
+      Dream Location: ${userContext.dreamLocation || 'Unknown'}
+      Retirement Year: ${userContext.targetYear || 'Future'}
+      Core Values: ${userContext.values?.join(', ') || 'Growth, Freedom'}
+      Vision: ${userContext.visionStatement || 'To live a life of purpose.'}
+    `;
+
+    switch (sectionType) {
+      case 'dedication':
+        prompt = `Write a short, elegant dedication for a vision workbook. 
+        Context: ${contextStr}
+        Tone: Inspiring, timeless, personal. Max 50 words.`;
+        break;
+      case 'coach_letter':
+        prompt = `Write a letter from a "Vision Coach" introducing this workbook.
+        Context: ${contextStr}
+        Tone: Encouraging, professional, executive. Explain that this book is a tool to manifest their future. Max 200 words.`;
+        break;
+      case 'quote':
+        prompt = `Generate a unique, powerful quote about vision, legacy, and action.
+        Context: ${contextStr}
+        Style: Like Marcus Aurelius meets Steve Jobs. Max 20 words.`;
+        break;
+      case 'reflection':
+        prompt = `Generate a deep reflection question for a weekly journal page.
+        Context: ${contextStr}
+        Focus: Overcoming obstacles or visualizing success. Max 1 sentence.`;
+        break;
+    }
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+    });
+
+    return response.text || "";
+  });
+};
+
+/**
  * Generate Financial Projection
  */
 export const generateFinancialProjection = async (description: string): Promise<FinancialGoal[]> => {
-  try {
+  return withRetry(async () => {
      const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: `Generate a JSON array of 5 objects representing financial growth over 5 years based on this scenario: "${description}".
@@ -214,18 +284,19 @@ export const generateFinancialProjection = async (description: string): Promise<
     const text = response.text;
     if (!text) return [];
     return JSON.parse(text) as FinancialGoal[];
-  } catch (e) {
+  }, 2, 1000, async () => {
+    // Fallback static data
     return [
       { year: 2024, savings: 500000, projected: 500000, goal: 500000 },
       { year: 2025, savings: 600000, projected: 650000, goal: 700000 },
       { year: 2026, savings: 750000, projected: 800000, goal: 950000 },
       { year: 2027, savings: 900000, projected: 1000000, goal: 1200000 },
     ];
-  }
+  });
 };
 
 export const parseFinancialChat = async (history: string): Promise<any> => {
-  try {
+  return withRetry(async () => {
     const response = await ai.models.generateContent({
        model: 'gemini-2.5-flash',
        contents: `Extract financial data from this conversation history into JSON:
@@ -235,16 +306,16 @@ export const parseFinancialChat = async (history: string): Promise<any> => {
        config: { responseMimeType: 'application/json' }
     });
     return JSON.parse(response.text || '{}');
-  } catch (e) {
+  }, 2, 1000, async () => {
     return { currentSavings: 100000, monthlyContribution: 5000, targetGoal: 1000000, targetYear: 2030, dreamDescription: 'Retire comfortably' };
-  }
+  });
 }
 
 /**
  * Generate Action Plan Agent with SEARCH GROUNDING
  */
 export const generateActionPlan = async (visionContext: string, financialContextStr: string): Promise<Milestone[]> => {
-  try {
+  return withRetry(async () => {
     const model = 'gemini-2.5-flash';
     
     const prompt = `
@@ -299,8 +370,5 @@ export const generateActionPlan = async (visionContext: string, financialContext
 
     return plan as Milestone[];
 
-  } catch (e) {
-    console.error("Agent Plan Error", e);
-    return [];
-  }
+  }, 1, 1000); // Low retry on search as it's expensive/slow
 }
