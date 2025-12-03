@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { WorkbookTemplate, ShippingAddress, VisionImage, Habit } from '../types';
-import { BookOpenIcon, CheckBadgeIcon, TruckIcon, LockIcon, SparklesIcon } from './Icons';
+import { BookOpenIcon, CheckBadgeIcon, TruckIcon, LockIcon, SparklesIcon, EyeIcon } from './Icons';
 import {
   getWorkbookTemplates,
   createWorkbookOrder,
@@ -11,6 +11,7 @@ import {
   getLastShippingAddress,
   createStripeCheckoutSession
 } from '../services/storageService';
+import WorkbookPreviewModal from './WorkbookPreviewModal';
 
 // ============================================
 // TYPES & CONSTANTS
@@ -144,6 +145,9 @@ const WorkbookOrderModal: React.FC<Props> = ({
   // Order
   const [orderId, setOrderId] = useState<string | null>(null);
 
+  // Preview
+  const [showPreview, setShowPreview] = useState(false);
+
   // ============================================
   // EFFECTS
   // ============================================
@@ -180,7 +184,13 @@ const WorkbookOrderModal: React.FC<Props> = ({
       ]);
 
       setTemplates(templatesData);
-      setVisionBoards(visionData);
+
+      // Filter out placeholder images (SVG data URLs) - only include real generated images
+      // Placeholder images have data:image/svg+xml URLs instead of actual storage URLs
+      const realVisionBoards = visionData.filter(v =>
+        v.url && !v.url.startsWith('data:image/svg+xml')
+      );
+      setVisionBoards(realVisionBoards);
       setHabits(habitsData);
 
       if (lastAddress) {
@@ -193,8 +203,8 @@ const WorkbookOrderModal: React.FC<Props> = ({
       setWizardState(prev => ({
         ...prev,
         title: defaultTitle,
-        // Pre-select recent vision boards (up to max)
-        selectedVisionIds: visionData.slice(0, MAX_VISION_BOARDS).map(v => v.id),
+        // Pre-select recent real vision boards (up to max)
+        selectedVisionIds: realVisionBoards.slice(0, MAX_VISION_BOARDS).map(v => v.id),
         // Pre-select all habits (up to max)
         selectedHabitIds: habitsData.slice(0, MAX_HABITS).map(h => h.id)
       }));
@@ -745,9 +755,15 @@ const WorkbookOrderModal: React.FC<Props> = ({
                 })}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 bg-gray-50 rounded-lg p-4">
-                No vision boards yet. Create some vision boards to include them in your workbook!
-              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm font-medium text-amber-800 mb-1">
+                  No vision board images available
+                </p>
+                <p className="text-xs text-amber-700">
+                  Generate vision boards from the Dashboard to include them in your workbook.
+                  Only successfully generated AI images can be printed.
+                </p>
+              </div>
             )}
           </div>
 
@@ -830,16 +846,27 @@ const WorkbookOrderModal: React.FC<Props> = ({
             </div>
           )}
 
-          <button
-            onClick={() => {
-              if (validateContentStep()) {
-                setStep('SHIPPING');
-              }
-            }}
-            className="w-full mt-4 bg-navy-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-navy-800 transition-all"
-          >
-            Continue to Shipping
-          </button>
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+            <button
+              onClick={() => setShowPreview(true)}
+              disabled={wizardState.selectedVisionIds.length === 0}
+              className="flex-1 sm:flex-none bg-gray-100 text-navy-900 font-bold py-4 px-6 rounded-xl shadow hover:bg-gray-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <EyeIcon className="w-5 h-5" />
+              Preview Workbook
+            </button>
+            <button
+              onClick={() => {
+                if (validateContentStep()) {
+                  setStep('SHIPPING');
+                }
+              }}
+              className="flex-1 bg-navy-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-navy-800 transition-all"
+            >
+              Continue to Shipping
+            </button>
+          </div>
         </div>
 
         {/* Right Side Summary Panel (Desktop only) */}
@@ -1219,6 +1246,27 @@ const WorkbookOrderModal: React.FC<Props> = ({
           {step === 'SUCCESS' && renderSuccessStep()}
         </div>
       </div>
+
+      {/* Workbook Preview Modal */}
+      <WorkbookPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        onApprove={() => {
+          setShowPreview(false);
+          if (validateContentStep()) {
+            setStep('SHIPPING');
+          }
+        }}
+        workbookData={{
+          title: wizardState.title || 'My Vision Masterplan',
+          subtitle: wizardState.subtitle || new Date().getFullYear().toString(),
+          dedication: wizardState.dedication,
+          edition: selectedTemplate?.name || 'Vision Journal',
+          visionBoards: visionBoards.filter(v => wizardState.selectedVisionIds.includes(v.id)),
+          habits: habits.filter(h => wizardState.selectedHabitIds.includes(h.id)),
+          includedSections: wizardState.includedSections
+        }}
+      />
     </div>
   );
 };
