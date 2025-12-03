@@ -14,7 +14,7 @@ import Pricing from './components/Pricing';
 import SubscriptionModal from './components/SubscriptionModal';
 import OnboardingWizard from './components/OnboardingWizard';
 import HabitTracker from './components/HabitTracker';
-import WorkbookOrderModal from './components/WorkbookOrderModal';
+import WorkbookWizard from './components/workbook/WorkbookWizard';
 import ThemeSelector from './components/ThemeSelector';
 import MasterPromptQnA from './components/MasterPromptQnA';
 import WeeklyReviews from './components/WeeklyReviews';
@@ -1197,9 +1197,8 @@ const App = () => {
         )}
 
         {showWorkbookModal && (
-          <WorkbookOrderModal
+          <WorkbookWizard
             onClose={() => setShowWorkbookModal(false)}
-            onSuccess={() => setView(AppView.ORDER_HISTORY)}
           />
         )}
       </div>

@@ -1,0 +1,11 @@
+import WorkbookWizard from './components/workbook/WorkbookWizard';
+
+function App() {
+  return (
+    <div className="App">
+      <WorkbookWizard />
+    </div>
+  );
+}
+
+export default App;
