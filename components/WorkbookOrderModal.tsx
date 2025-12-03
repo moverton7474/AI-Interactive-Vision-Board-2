@@ -180,7 +180,13 @@ const WorkbookOrderModal: React.FC<Props> = ({
       ]);
 
       setTemplates(templatesData);
-      setVisionBoards(visionData);
+
+      // Filter out placeholder images (SVG data URLs) - only include real generated images
+      // Placeholder images have data:image/svg+xml URLs instead of actual storage URLs
+      const realVisionBoards = visionData.filter(v =>
+        v.url && !v.url.startsWith('data:image/svg+xml')
+      );
+      setVisionBoards(realVisionBoards);
       setHabits(habitsData);
 
       if (lastAddress) {
@@ -193,8 +199,8 @@ const WorkbookOrderModal: React.FC<Props> = ({
       setWizardState(prev => ({
         ...prev,
         title: defaultTitle,
-        // Pre-select recent vision boards (up to max)
-        selectedVisionIds: visionData.slice(0, MAX_VISION_BOARDS).map(v => v.id),
+        // Pre-select recent real vision boards (up to max)
+        selectedVisionIds: realVisionBoards.slice(0, MAX_VISION_BOARDS).map(v => v.id),
         // Pre-select all habits (up to max)
         selectedHabitIds: habitsData.slice(0, MAX_HABITS).map(h => h.id)
       }));
@@ -745,9 +751,15 @@ const WorkbookOrderModal: React.FC<Props> = ({
                 })}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 bg-gray-50 rounded-lg p-4">
-                No vision boards yet. Create some vision boards to include them in your workbook!
-              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm font-medium text-amber-800 mb-1">
+                  No vision board images available
+                </p>
+                <p className="text-xs text-amber-700">
+                  Generate vision boards from the Dashboard to include them in your workbook.
+                  Only successfully generated AI images can be printed.
+                </p>
+              </div>
             )}
           </div>
 
