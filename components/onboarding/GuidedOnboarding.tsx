@@ -17,7 +17,7 @@ interface Props {
   onComplete: (state: OnboardingState) => void;
   onNavigate: (view: AppView) => void;
   // AI Functions
-  generateVisionImage: (prompt: string, photoRef?: string) => Promise<{ id: string; url: string }>;
+  generateVisionImage: (prompt: string, photoRef?: string, onStatusChange?: (status: string) => void) => Promise<{ id: string; url: string }>;
   generateActionPlan: (context: { vision: string; target?: number; theme?: string }) => Promise<ActionTask[]>;
   // Storage Functions
   uploadPhoto: (file: File) => Promise<string>;
@@ -265,8 +265,8 @@ const GuidedOnboarding: React.FC<Props> = ({
             onVisionGenerated={(id, url) => {
               updateState({ primaryVisionId: id, primaryVisionUrl: url });
             }}
-            generateVision={async (prompt, photoRef) => {
-              const result = await generateVisionImage(prompt, photoRef);
+            generateVision={async (prompt, photoRef, onStatusChange) => {
+              const result = await generateVisionImage(prompt, photoRef, onStatusChange);
               return result;
             }}
           />
@@ -320,8 +320,8 @@ const GuidedOnboarding: React.FC<Props> = ({
   // Determine if we should show navigation buttons
   const showBackButton = currentStepIndex > 0 && state.currentStep !== 'COMPLETION';
   const showNextButton = state.currentStep !== 'VISION_GENERATION' &&
-                         state.currentStep !== 'PRINT_OFFER' &&
-                         state.currentStep !== 'COMPLETION';
+    state.currentStep !== 'PRINT_OFFER' &&
+    state.currentStep !== 'COMPLETION';
 
   return (
     <OnboardingLayout
@@ -339,11 +339,10 @@ const GuidedOnboarding: React.FC<Props> = ({
           <button
             onClick={goNext}
             disabled={!canProceed()}
-            className={`px-8 py-3 rounded-xl font-semibold transition-all ${
-              canProceed()
-                ? 'bg-navy-900 text-white hover:bg-navy-800 shadow-lg hover:shadow-xl'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
+            className={`px-8 py-3 rounded-xl font-semibold transition-all ${canProceed()
+              ? 'bg-navy-900 text-white hover:bg-navy-800 shadow-lg hover:shadow-xl'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
           >
             {state.currentStep === 'PHOTO_UPLOAD' && !state.photoRefId ? 'Skip' : 'Continue'}
           </button>

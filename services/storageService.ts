@@ -25,7 +25,7 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
     const { count, error } = await supabase
       .from('vision_boards')
       .select('*', { count: 'exact', head: true });
-    
+
     if (error) {
       console.warn('DB Connection Check Failed:', error.message);
       return false;
@@ -50,7 +50,7 @@ export const getUserProfile = async (): Promise<UserProfile | null> => {
       .single();
 
     if (error) return null;
-    
+
     // Merge auth data with profile data
     return {
       names: user.email?.split('@')[0] || 'User',
@@ -77,7 +77,7 @@ export const decrementCredits = async (): Promise<boolean> => {
       .single();
 
     if (!profile) return false;
-    
+
     // PRO/ELITE have unlimited (effectively)
     if (profile.subscription_tier !== 'FREE') return true;
 
@@ -103,9 +103,9 @@ export const updateSubscription = async (tier: 'PRO' | 'ELITE'): Promise<void> =
     // Upgrade tier and give unlimited credits (9999)
     await supabase
       .from('profiles')
-      .update({ 
+      .update({
         subscription_tier: tier,
-        credits: 9999 
+        credits: 9999
       })
       .eq('id', user.id);
   } catch (e) {
@@ -157,7 +157,7 @@ export const getLastShippingAddress = async (): Promise<ShippingAddress | null> 
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
-    
+
     return data?.shipping_address || null;
   } catch {
     return null;
@@ -242,7 +242,7 @@ export const saveReferenceImage = async (base64Url: string, tags: string[]): Pro
   try {
     const id = crypto.randomUUID();
     const blob = base64ToBlob(base64Url);
-    const fileName = `ref_${id}.png`; 
+    const fileName = `ref_${id}.png`;
 
     const { error: uploadError } = await supabase
       .storage
@@ -320,7 +320,7 @@ export const saveDocument = async (doc: Omit<Document, 'id' | 'createdAt'>, file
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(fileName, file, { upsert: true });
-      
+
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('documents').getPublicUrl(fileName);
@@ -799,17 +799,42 @@ export const createWorkbookOrder = async (orderData: {
 
 export const generateWorkbookPdf = async (orderId: string): Promise<boolean> => {
   try {
-    const { data, error } = await supabase.functions.invoke('generate-workbook-pdf?action=generate', {
-      body: { order_id: orderId }
+    const { error } = await supabase.functions.invoke('generate-workbook-pdf?action=generate_pdf', {
+      body: { orderId }
     });
 
-    if (error) throw error;
-    return data.success;
+    return !error;
   } catch (error) {
-    console.error("Failed to generate workbook PDF", error);
+    console.error("Failed to generate PDF", error);
     return false;
   }
 };
+
+/* --- ANALYTICS --- */
+
+export const logEvent = async (eventName: string, metadata: any = {}): Promise<void> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Fire and forget - don't await completion to avoid blocking UI
+    supabase
+      .from('analytics_events')
+      .insert([{
+        user_id: user?.id,
+        event_name: eventName,
+        metadata,
+        created_at: new Date().toISOString()
+      }])
+      .then(({ error }) => {
+        if (error) console.warn("Failed to log event:", error.message);
+      });
+
+  } catch (error) {
+    // Silently fail for analytics
+    console.warn("Analytics error:", error);
+  }
+};
+
 
 export const getWorkbookOrder = async (orderId: string): Promise<WorkbookOrder | null> => {
   try {
