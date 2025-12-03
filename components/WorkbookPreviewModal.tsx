@@ -218,6 +218,35 @@ const WorkbookPreviewModal: React.FC<WorkbookPreviewProps> = ({
     }
 
     const vision = data.content as VisionImage;
+    const hasValidImage = vision?.url &&
+      !vision.url.startsWith('data:image/svg+xml') &&
+      vision.url.startsWith('http');
+
+    // Show placeholder if no valid image
+    if (!hasValidImage) {
+      return (
+        <div className="h-full bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 flex flex-col">
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto bg-gold-500/20 rounded-full flex items-center justify-center mb-4">
+                <SparklesIcon className="w-8 h-8 text-gold-400" />
+              </div>
+              <h3 className="text-xl font-serif font-bold text-white mb-2">{data.title}</h3>
+              <p className="text-sm text-white/70 max-w-xs mx-auto line-clamp-4">
+                {vision?.prompt?.slice(0, 150)}
+                {(vision?.prompt?.length || 0) > 150 ? '...' : ''}
+              </p>
+              <div className="mt-4 px-3 py-1.5 bg-amber-500/20 rounded-lg inline-block">
+                <p className="text-xs text-amber-300">
+                  Image generation pending - regenerate from Dashboard
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="h-full bg-white flex flex-col">
         <div className="flex-1 relative">
@@ -225,6 +254,22 @@ const WorkbookPreviewModal: React.FC<WorkbookPreviewProps> = ({
             src={vision?.url}
             alt={vision?.prompt || 'Vision Board'}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              // Hide broken image and show fallback
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              const parent = target.parentElement;
+              if (parent) {
+                parent.innerHTML = `
+                  <div class="w-full h-full bg-gradient-to-br from-navy-900 to-navy-800 flex items-center justify-center">
+                    <div class="text-center p-6">
+                      <div class="text-4xl mb-2">✨</div>
+                      <p class="text-white/70 text-sm">Image unavailable</p>
+                    </div>
+                  </div>
+                `;
+              }
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
