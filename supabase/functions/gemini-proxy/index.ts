@@ -11,11 +11,14 @@ const corsHeaders = {
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
 // Available models for different tasks
+// Note: Imagen 3 requires Vertex AI access (Google Cloud project with billing)
+// Gemini 2.0 Flash Exp can generate images with responseModalities set
+// Gemini 1.5 Flash CANNOT generate images - only processes images as input
 const MODELS = {
   chat: 'gemini-2.0-flash',
   image_primary: 'imagen-3.0-generate-001',
   image_fallback: 'gemini-2.0-flash-exp',
-  image_fallback_2: 'gemini-1.5-flash',
+  // Note: gemini-1.5-flash cannot generate images, removed as fallback
 }
 
 /**
@@ -317,6 +320,10 @@ ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
 
 /**
  * Generate/Edit Vision Board Image
+ *
+ * Attempts image generation in order:
+ * 1. Imagen 3 (best quality, requires Vertex AI)
+ * 2. Gemini 2.0 Flash Exp (with responseModalities)
  */
 async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
   const { images = [], prompt, embeddedText, titleText } = params
@@ -336,7 +343,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 
   console.log(`[${requestId}] Final prompt: ${finalPrompt.substring(0, 100)}...`)
 
-  // Attempt 1: Try Imagen 3 (best quality)
+  // Attempt 1: Try Imagen 3 (best quality, requires Vertex AI access)
   const imagenResult = await tryImagenGeneration(apiKey, finalPrompt, requestId)
   if (imagenResult.success) {
     console.log(`[${requestId}] Imagen 3 succeeded`)
@@ -352,25 +359,23 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   }
   console.warn(`[${requestId}] Gemini 2.0 Flash Exp failed: ${geminiExpResult.error}`)
 
-  // Attempt 3: Try Gemini 1.5 Flash as last resort
-  const gemini15Result = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback_2, requestId)
-  if (gemini15Result.success) {
-    console.log(`[${requestId}] Gemini 1.5 Flash succeeded`)
-    return successResponse({ image: gemini15Result.image }, requestId)
-  }
-  console.warn(`[${requestId}] Gemini 1.5 Flash failed: ${gemini15Result.error}`)
-
-  // All methods failed
+  // All methods failed - provide helpful error message
   const errorDetails = {
-    imagen: imagenResult.error,
-    gemini_exp: geminiExpResult.error,
-    gemini_15: gemini15Result.error
+    imagen3: imagenResult.error,
+    gemini2FlashExp: geminiExpResult.error
   }
 
   console.error(`[${requestId}] All image generation methods failed:`, JSON.stringify(errorDetails))
 
+  // Provide actionable error message
+  let helpMessage = 'Image generation is currently unavailable. '
+  if (imagenResult.error?.includes('PERMISSION_DENIED') || imagenResult.error?.includes('404')) {
+    helpMessage += 'Imagen 3 requires a Google Cloud project with Vertex AI enabled and billing configured. '
+  }
+  helpMessage += 'Please check your GEMINI_API_KEY configuration or try again later.'
+
   return errorResponse(
-    `Image generation failed. Details: ${JSON.stringify(errorDetails)}. Please verify your API key has access to image generation models. Run the 'diagnose' action to check model availability.`,
+    `${helpMessage} Technical details: ${JSON.stringify(errorDetails)}`,
     400,
     requestId
   )
@@ -422,6 +427,7 @@ async function tryImagenGeneration(apiKey: string, prompt: string, requestId: st
 
 /**
  * Try Gemini model for image generation
+ * Note: Gemini 2.0 Flash Exp requires responseModalities to be set for image generation
  */
 async function tryGeminiImageGeneration(
   apiKey: string,
@@ -431,7 +437,7 @@ async function tryGeminiImageGeneration(
   requestId: string
 ): Promise<{ success: boolean; image?: string; error?: string }> {
   try {
-    console.log(`[${requestId}] Trying ${model}...`)
+    console.log(`[${requestId}] Trying ${model} for image generation...`)
 
     const parts: any[] = []
 
@@ -453,16 +459,29 @@ async function tryGeminiImageGeneration(
       })
     }
 
-    // Add text prompt
-    parts.push({ text: prompt })
+    // Add text prompt for image generation
+    parts.push({
+      text: `Generate an image: ${prompt}. Create a high-quality, photorealistic vision board image.`
+    })
 
-    const response = await callGeminiAPI(apiKey, model, {
+    // For Gemini 2.0 Flash Exp, we need responseModalities to enable image generation
+    const isExpModel = model.includes('exp') || model.includes('2.0')
+
+    const requestBody: any = {
       contents: [{ parts }],
       generationConfig: {
         temperature: 0.8,
         maxOutputTokens: 8192
       }
-    }, requestId)
+    }
+
+    // Add responseModalities for experimental models that support image output
+    if (isExpModel) {
+      requestBody.generationConfig.responseModalities = ['IMAGE', 'TEXT']
+      console.log(`[${requestId}] Using responseModalities for ${model}`)
+    }
+
+    const response = await callGeminiAPI(apiKey, model, requestBody, requestId)
 
     const imageData = extractImageFromResponse(response)
     if (imageData) {
@@ -472,7 +491,7 @@ async function tryGeminiImageGeneration(
     // Check if we got text instead
     const textResponse = response.candidates?.[0]?.content?.parts?.[0]?.text
     if (textResponse) {
-      return { success: false, error: `Model returned text instead of image: "${textResponse.substring(0, 50)}..."` }
+      return { success: false, error: `Model returned text instead of image: "${textResponse.substring(0, 100)}..."` }
     }
 
     return { success: false, error: 'No image or text in response' }
