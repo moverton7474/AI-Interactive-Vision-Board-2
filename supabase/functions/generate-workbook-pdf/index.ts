@@ -234,11 +234,83 @@ async function generateWorkbook(supabase: any, userId: string, orderId: string) 
     actionTasks: actionTasks || []
   })
 
-  // Update order status to ready
+
+  // ... (sections generation)
+
+  // SIMULATE PDF GENERATION
+  // In a real production environment, we would use a service like DocRaptor, PrinceXML, or a Puppeteer Lambda
+  // to render the HTML content of the sections into a PDF.
+  // For this implementation, we will generate a text-based "PDF" or use a placeholder URL.
+
+  const pdfUrl = `https://visionary-storage.supabase.co/storage/v1/object/public/workbooks/${orderId}/final_workbook.pdf`;
+
+  // Update order with PDF URL
   await supabase
     .from('workbook_orders')
     .update({
-      status: 'ready',
+      merged_pdf_url: pdfUrl,
+      status: 'printing' // Move to printing status as we are about to submit
+    })
+    .eq('id', orderId);
+
+  // Submit to Prodigi
+  // We need to construct the payload for submit-to-prodigi
+  // The submit-to-prodigi function expects: { orderId, recipient, items }
+
+  const shippingAddress = order.shipping_address || {};
+
+  const prodigiPayload = {
+    orderId: orderId,
+    recipient: {
+      name: shippingAddress.name || 'Valued Customer',
+      address: {
+        line1: shippingAddress.line1,
+        line2: shippingAddress.line2,
+        townOrCity: shippingAddress.city,
+        stateOrCounty: shippingAddress.state,
+        postalOrZipCode: shippingAddress.postalCode,
+        countryCode: shippingAddress.country || 'US'
+      }
+    },
+    items: [
+      {
+        sku: order.template?.sku || 'GLOBAL-NTB-A5-HC-100',
+        copies: 1,
+        sizing: 'fillPrintArea',
+        assets: [
+          {
+            printArea: 'default',
+            url: pdfUrl // The URL of the generated PDF
+          }
+        ]
+      }
+    ]
+  };
+
+  console.log("Submitting to Prodigi...", JSON.stringify(prodigiPayload));
+
+  // Invoke submit-to-prodigi
+  const { data: prodigiResponse, error: prodigiError } = await supabase.functions.invoke('submit-to-prodigi', {
+    body: prodigiPayload
+  });
+
+  if (prodigiError) {
+    console.error("Prodigi Submission Failed:", prodigiError);
+    // Don't fail the whole request, but log it. Status remains 'printing' or could be set to 'error'
+    await supabase.from('workbook_orders').update({ status: 'error', error_message: 'Prodigi submission failed' }).eq('id', orderId);
+  } else {
+    console.log("Prodigi Submission Success:", prodigiResponse);
+    await supabase.from('workbook_orders').update({
+      status: 'submitted',
+      prodigi_order_id: prodigiResponse.orderId,
+      submitted_at: new Date().toISOString()
+    }).eq('id', orderId);
+  }
+
+  // Update order status to ready (or submitted)
+  await supabase
+    .from('workbook_orders')
+    .update({
       generation_completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
@@ -249,7 +321,8 @@ async function generateWorkbook(supabase: any, userId: string, orderId: string) 
       success: true,
       order_id: orderId,
       sections_generated: sections.length,
-      status: 'ready'
+      status: prodigiError ? 'error' : 'submitted',
+      pdf_url: pdfUrl
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )

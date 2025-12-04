@@ -38,15 +38,15 @@ const App = () => {
 
   const [view, setView] = useState<AppView>(AppView.LANDING);
   const [chatInput, setChatInput] = useState('');
-  
+
   // Landing/Onboarding State
   const [showChat, setShowChat] = useState(false);
-  const [messages, setMessages] = useState<{role: 'user' | 'model', text: string}[]>([
+  const [messages, setMessages] = useState<{ role: 'user' | 'model', text: string }[]>([
     { role: 'model', text: "Welcome to Visionary. I'm your AI guide. Tell me, what does your dream retirement look like? Where are you and who are you with?" }
   ]);
   const [chatLoading, setChatLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  
+
   // Database State
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
@@ -75,7 +75,7 @@ const App = () => {
   const [primaryVisionUrl, setPrimaryVisionUrl] = useState<string | undefined>();
   const [primaryVisionTitle, setPrimaryVisionTitle] = useState<string | undefined>();
   const [dashboardTasks, setDashboardTasks] = useState<ActionTask[]>([]);
-  const [dashboardHabits, setDashboardHabits] = useState<{id: string; name: string; icon: string; completedToday: boolean; streak: number}[]>([]);
+  const [dashboardHabits, setDashboardHabits] = useState<{ id: string; name: string; icon: string; completedToday: boolean; streak: number }[]>([]);
   const [financialTarget, setFinancialTarget] = useState<number | undefined>();
   const [todayFocus, setTodayFocus] = useState<string | undefined>();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -179,16 +179,16 @@ const App = () => {
       recognition.continuous = false;
       recognition.interimResults = false;
       recognition.lang = 'en-US';
-      
+
       recognition.onstart = () => setIsListening(true);
       recognition.onend = () => setIsListening(false);
       recognition.onerror = () => setIsListening(false);
-      
+
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setChatInput(prev => prev + (prev ? ' ' : '') + transcript);
       };
-      
+
       recognition.start();
     } else {
       alert("Voice input is not supported in this browser. Please use Chrome or Safari.");
@@ -212,20 +212,20 @@ const App = () => {
   const handleVisionCapture = async (nextView: AppView) => {
     // Only capture if we have a conversation history
     if (messages.length > 2) {
-       console.log("Capturing vision...");
-       // Async - don't block navigation
-       generateVisionSummary(messages).then(async (summary) => {
-          if (summary) {
-             console.log("Vision summarized:", summary);
-             setActiveVisionPrompt(summary);
-             // Save to Knowledge Base
-             await saveDocument({
-                name: `Vision Statement (${new Date().toLocaleDateString()})`,
-                type: 'VISION',
-                structuredData: { prompt: summary, fullChat: messages }
-             });
-          }
-       });
+      console.log("Capturing vision...");
+      // Async - don't block navigation
+      generateVisionSummary(messages).then(async (summary) => {
+        if (summary) {
+          console.log("Vision summarized:", summary);
+          setActiveVisionPrompt(summary);
+          // Save to Knowledge Base
+          await saveDocument({
+            name: `Vision Statement (${new Date().toLocaleDateString()})`,
+            type: 'VISION',
+            structuredData: { prompt: summary, fullChat: messages }
+          });
+        }
+      });
     }
     setView(nextView);
   };
@@ -527,7 +527,7 @@ const App = () => {
   };
 
   const renderContent = () => {
-    switch(view) {
+    switch (view) {
       case AppView.DASHBOARD:
         return (
           <Dashboard
@@ -566,17 +566,17 @@ const App = () => {
           <>
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4 animate-fade-in relative overflow-hidden py-12">
               <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 pointer-events-none"></div>
-              
+
               <h1 className="text-5xl md:text-7xl font-serif font-bold text-navy-900 mb-6 tracking-tight z-10">
                 Visionary
               </h1>
               <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-2xl z-10">
                 The AI-powered SaaS for designing your future. Visualize your retirement, plan your finances, and manifest your dreams.
               </p>
-              
+
               {!showChat ? (
                 <div className="flex flex-col gap-4 z-10">
-                  <button 
+                  <button
                     onClick={() => setShowChat(true)}
                     className="bg-navy-900 text-white text-lg font-medium px-10 py-4 rounded-full shadow-xl hover:bg-navy-800 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
                   >
@@ -592,72 +592,72 @@ const App = () => {
                 </div>
               ) : (
                 <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200 text-left transition-all duration-500 z-10">
-                   <div className="h-80 overflow-y-auto p-6 space-y-4 bg-gray-50">
-                      {messages.map((m, i) => (
-                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] p-4 rounded-2xl text-sm ${m.role === 'user' ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-200 shadow-sm text-gray-800 rounded-bl-none'}`}>
-                            {m.text}
-                          </div>
+                  <div className="h-80 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                    {messages.map((m, i) => (
+                      <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] p-4 rounded-2xl text-sm ${m.role === 'user' ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-200 shadow-sm text-gray-800 rounded-bl-none'}`}>
+                          {m.text}
                         </div>
-                      ))}
-                      {chatLoading && <div className="text-gray-400 text-xs ml-4">Visionary is thinking...</div>}
-                   </div>
-                   <div className="p-4 bg-white border-t border-gray-100">
-                      <form onSubmit={handleChatSubmit} className="flex gap-2">
-                        <div className="flex-1 relative">
-                          <input 
-                            type="text" 
-                            value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
-                            placeholder="Describe your dream or use voice..."
-                            className="w-full border border-gray-300 rounded-full pl-4 pr-12 py-3 outline-none focus:border-gold-500 transition-colors"
-                          />
-                          <button
-                            type="button"
-                            onClick={startListening}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${isListening ? 'bg-red-100 text-red-500 animate-pulse' : 'text-gray-400 hover:text-navy-900'}`}
-                          >
-                            <MicIcon className="w-5 h-5" />
-                          </button>
-                        </div>
-                        <button type="submit" className="bg-gold-500 text-navy-900 font-bold px-6 py-2 rounded-full hover:bg-gold-600 transition-colors">
-                          Send
-                        </button>
-                      </form>
-                      
-                      {/* Navigation Actions */}
-                      <div className="mt-4 flex flex-col md:flex-row justify-between items-center px-2 gap-4">
-                         <span className="text-xs text-gray-400">Step 1 of 3: Definition</span>
-                         <div className="flex items-center gap-3">
-                           {messages.length > 2 && (
-                              <>
-                                <button 
-                                  onClick={() => handleVisionCapture(AppView.FINANCIAL)} 
-                                  className="text-sm font-bold bg-navy-900 text-white px-4 py-2 rounded-lg hover:bg-navy-800 transition-colors">
-                                  Next: Financial Plan &rarr;
-                                </button>
-                                <span className="text-xs text-gray-300">or</span>
-                                <button 
-                                  onClick={() => handleVisionCapture(AppView.VISION_BOARD)} 
-                                  className="text-xs text-gray-500 hover:text-navy-900 underline">
-                                  Skip to Vision Board
-                                </button>
-                              </>
-                           )}
-                           {messages.length <= 2 && (
-                             <button 
-                               onClick={() => setView(AppView.FINANCIAL)} 
-                               className="text-xs font-bold text-navy-900 hover:text-gold-600 underline">
-                               Skip to Planning
-                             </button>
-                           )}
-                         </div>
                       </div>
-                   </div>
+                    ))}
+                    {chatLoading && <div className="text-gray-400 text-xs ml-4">Visionary is thinking...</div>}
+                  </div>
+                  <div className="p-4 bg-white border-t border-gray-100">
+                    <form onSubmit={handleChatSubmit} className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          placeholder="Describe your dream or use voice..."
+                          className="w-full border border-gray-300 rounded-full pl-4 pr-12 py-3 outline-none focus:border-gold-500 transition-colors"
+                        />
+                        <button
+                          type="button"
+                          onClick={startListening}
+                          className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${isListening ? 'bg-red-100 text-red-500 animate-pulse' : 'text-gray-400 hover:text-navy-900'}`}
+                        >
+                          <MicIcon className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <button type="submit" className="bg-gold-500 text-navy-900 font-bold px-6 py-2 rounded-full hover:bg-gold-600 transition-colors">
+                        Send
+                      </button>
+                    </form>
+
+                    {/* Navigation Actions */}
+                    <div className="mt-4 flex flex-col md:flex-row justify-between items-center px-2 gap-4">
+                      <span className="text-xs text-gray-400">Step 1 of 3: Definition</span>
+                      <div className="flex items-center gap-3">
+                        {messages.length > 2 && (
+                          <>
+                            <button
+                              onClick={() => handleVisionCapture(AppView.FINANCIAL)}
+                              className="text-sm font-bold bg-navy-900 text-white px-4 py-2 rounded-lg hover:bg-navy-800 transition-colors">
+                              Next: Financial Plan &rarr;
+                            </button>
+                            <span className="text-xs text-gray-300">or</span>
+                            <button
+                              onClick={() => handleVisionCapture(AppView.VISION_BOARD)}
+                              className="text-xs text-gray-500 hover:text-navy-900 underline">
+                              Skip to Vision Board
+                            </button>
+                          </>
+                        )}
+                        {messages.length <= 2 && (
+                          <button
+                            onClick={() => setView(AppView.FINANCIAL)}
+                            className="text-xs font-bold text-navy-900 hover:text-gold-600 underline">
+                            Skip to Planning
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
-            
+
             {/* Pricing Section */}
             <Pricing onUpgrade={handleUpgradeClick} />
           </>
@@ -706,38 +706,38 @@ const App = () => {
         );
       case AppView.FINANCIAL:
         return (
-          <FinancialDashboard 
+          <FinancialDashboard
             onComplete={(data) => {
               setFinancialData(data);
               setView(AppView.VISION_BOARD);
             }}
-            onLaunchWizard={() => setView(AppView.ONBOARDING)} 
+            onLaunchWizard={() => setView(AppView.ONBOARDING)}
           />
         );
       case AppView.VISION_BOARD:
         return (
-          <VisionBoard 
+          <VisionBoard
             initialImage={selectedGalleryImage}
             initialPrompt={activeVisionPrompt} // Pass the captured vision prompt
             onAgentStart={(prompt) => {
               setActiveVisionPrompt(prompt);
               setView(AppView.ACTION_PLAN);
-            }} 
+            }}
           />
         );
       case AppView.GALLERY:
         return (
           <Gallery onSelect={(img) => {
-             setSelectedGalleryImage(img);
-             setView(AppView.VISION_BOARD);
+            setSelectedGalleryImage(img);
+            setView(AppView.VISION_BOARD);
           }} />
         );
       case AppView.ACTION_PLAN:
         return (
-          <ActionPlanAgent 
-            visionPrompt={activeVisionPrompt} 
+          <ActionPlanAgent
+            visionPrompt={activeVisionPrompt}
             financialData={financialData}
-            onBack={() => setView(AppView.VISION_BOARD)} 
+            onBack={() => setView(AppView.VISION_BOARD)}
           />
         );
       case AppView.TRUST_CENTER:
@@ -1074,22 +1074,22 @@ USING (auth.uid() = id);
             © 2024 Visionary Inc. Powered by Gemini.
           </div>
           <div className="flex gap-6 text-sm font-medium">
-             <button onClick={downloadGuide} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
-               <DocumentIcon className="w-4 h-4" /> Download System Guide
-             </button>
-             <button onClick={() => setView(AppView.ORDER_HISTORY)} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
-               <ReceiptIcon className="w-4 h-4" /> Order History
-             </button>
-             <button onClick={() => setView(AppView.TRUST_CENTER)} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
-               <ShieldCheckIcon className="w-4 h-4" /> Trust & Security
-             </button>
-             <button 
-               onClick={() => setShowSqlModal(true)} 
-               className={`flex items-center gap-2 transition-colors ${dbConnected ? 'text-green-400' : 'text-red-400'}`}
-             >
-               <span className={`w-2 h-2 rounded-full ${dbConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
-               {dbConnected ? 'System Online' : 'Database Setup'}
-             </button>
+            <button onClick={downloadGuide} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
+              <DocumentIcon className="w-4 h-4" /> Download System Guide
+            </button>
+            <button onClick={() => setView(AppView.ORDER_HISTORY)} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
+              <ReceiptIcon className="w-4 h-4" /> Order History
+            </button>
+            <button onClick={() => setView(AppView.TRUST_CENTER)} className="flex items-center gap-2 hover:text-gold-400 transition-colors">
+              <ShieldCheckIcon className="w-4 h-4" /> Trust & Security
+            </button>
+            <button
+              onClick={() => setShowSqlModal(true)}
+              className={`flex items-center gap-2 transition-colors ${dbConnected ? 'text-green-400' : 'text-red-400'}`}
+            >
+              <span className={`w-2 h-2 rounded-full ${dbConnected ? 'bg-green-400' : 'bg-red-400'}`}></span>
+              {dbConnected ? 'System Online' : 'Database Setup'}
+            </button>
           </div>
         </div>
       </footer>
@@ -1119,6 +1119,14 @@ USING (auth.uid() = id);
         <WorkbookOrderModal
           onClose={() => setShowWorkbookModal(false)}
           onSuccess={() => setView(AppView.ORDER_HISTORY)}
+          onNavigateToGenerator={() => {
+            setShowWorkbookModal(false);
+            setView(AppView.VISION_BOARD);
+          }}
+          onNavigateToHabits={() => {
+            setShowWorkbookModal(false);
+            setView(AppView.HABITS);
+          }}
         />
       )}
     </div>

@@ -10,8 +10,8 @@ VALUES ('visions', 'visions', true)
 ON CONFLICT (id) DO UPDATE
 SET public = true;
 
--- 2. Enable RLS
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- 2. Enable RLS (Skipped - already enabled by default and requires owner privileges)
+-- ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- 3. Policy: Public Read Access (Images are public)
 DROP POLICY IF EXISTS "Public Access" ON storage.objects;

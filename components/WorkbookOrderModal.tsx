@@ -33,6 +33,8 @@ interface WorkbookWizardState {
 interface Props {
   onClose: () => void;
   onSuccess?: () => void;
+  onNavigateToGenerator?: () => void;
+  onNavigateToHabits?: () => void;
   defaultEdition?: EditionType;
   hasActionPlan?: boolean;
   // TODO: Add userProfile prop for smart defaults
@@ -107,6 +109,8 @@ const MAX_HABITS = 3;
 const WorkbookOrderModal: React.FC<Props> = ({
   onClose,
   onSuccess,
+  onNavigateToGenerator,
+  onNavigateToHabits,
   defaultEdition,
   hasActionPlan = false
 }) => {
@@ -450,11 +454,10 @@ const WorkbookOrderModal: React.FC<Props> = ({
                 <div
                   key={template.id}
                   onClick={() => handleSelectTemplate(template)}
-                  className={`relative border-2 rounded-xl p-5 cursor-pointer transition-all group ${
-                    recommended
-                      ? 'border-gold-400 bg-gold-50/30 ring-2 ring-gold-200 shadow-lg'
-                      : 'border-gray-200 hover:border-navy-900 hover:shadow-lg'
-                  }`}
+                  className={`relative border-2 rounded-xl p-5 cursor-pointer transition-all group ${recommended
+                    ? 'border-gold-400 bg-gold-50/30 ring-2 ring-gold-200 shadow-lg'
+                    : 'border-gray-200 hover:border-navy-900 hover:shadow-lg'
+                    }`}
                 >
                   {/* Recommended Badge */}
                   {recommended && (
@@ -613,11 +616,10 @@ const WorkbookOrderModal: React.FC<Props> = ({
               {AVAILABLE_SECTIONS.map((section) => (
                 <label
                   key={section.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                    wizardState.includedSections.includes(section.id)
-                      ? 'border-navy-900 bg-navy-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${wizardState.includedSections.includes(section.id)
+                    ? 'border-navy-900 bg-navy-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <input
                     type="checkbox"
@@ -712,15 +714,13 @@ const WorkbookOrderModal: React.FC<Props> = ({
                     <div
                       key={vision.id}
                       onClick={() => !isDisabled && handleVisionBoardToggle(vision.id)}
-                      className={`relative rounded-xl overflow-hidden transition-all ${
-                        isDisabled
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'cursor-pointer hover:shadow-lg'
-                      } ${
-                        isSelected
+                      className={`relative rounded-xl overflow-hidden transition-all ${isDisabled
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'cursor-pointer hover:shadow-lg'
+                        } ${isSelected
                           ? 'ring-4 ring-navy-900 ring-offset-2'
                           : 'border-2 border-gray-200 hover:border-gray-300'
-                      }`}
+                        }`}
                     >
                       {/* Image */}
                       <div className="aspect-square">
@@ -759,10 +759,19 @@ const WorkbookOrderModal: React.FC<Props> = ({
                 <p className="text-sm font-medium text-amber-800 mb-1">
                   No vision board images available
                 </p>
-                <p className="text-xs text-amber-700">
+                <p className="text-xs text-amber-700 mb-3">
                   Generate vision boards from the Dashboard to include them in your workbook.
                   Only successfully generated AI images can be printed.
                 </p>
+                {onNavigateToGenerator && (
+                  <button
+                    onClick={onNavigateToGenerator}
+                    className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold py-2 px-4 rounded transition-colors flex items-center gap-2"
+                  >
+                    <SparklesIcon className="w-3 h-3" />
+                    Create Vision Board Now
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -799,15 +808,13 @@ const WorkbookOrderModal: React.FC<Props> = ({
                     return (
                       <label
                         key={habit.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                          isDisabled
-                            ? 'opacity-50 cursor-not-allowed border-gray-100'
-                            : 'cursor-pointer'
-                        } ${
-                          isSelected
+                        className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${isDisabled
+                          ? 'opacity-50 cursor-not-allowed border-gray-100'
+                          : 'cursor-pointer'
+                          } ${isSelected
                             ? 'border-navy-900 bg-navy-50'
                             : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                          }`}
                       >
                         <input
                           type="checkbox"
@@ -832,9 +839,20 @@ const WorkbookOrderModal: React.FC<Props> = ({
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-gray-400 bg-gray-50 rounded-lg p-4">
-                  No habits yet. Create habits in the Habits section to include tracking pages!
-                </p>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-400 mb-3">
+                    No habits yet. Create habits in the Habits section to include tracking pages!
+                  </p>
+                  {onNavigateToHabits && (
+                    <button
+                      onClick={onNavigateToHabits}
+                      className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded transition-colors flex items-center gap-2"
+                    >
+                      <CheckBadgeIcon className="w-3 h-3" />
+                      Create Habits Now
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -1229,9 +1247,8 @@ const WorkbookOrderModal: React.FC<Props> = ({
           {steps.map((s, i) => (
             <div
               key={s}
-              className={`flex-1 transition-colors duration-300 ${
-                i <= currentIndex ? 'bg-navy-900' : 'bg-gray-200'
-              }`}
+              className={`flex-1 transition-colors duration-300 ${i <= currentIndex ? 'bg-navy-900' : 'bg-gray-200'
+                }`}
             />
           ))}
         </div>

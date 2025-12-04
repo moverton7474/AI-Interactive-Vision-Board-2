@@ -254,7 +254,9 @@ const WorkbookPreviewModal: React.FC<WorkbookPreviewProps> = ({
             src={vision?.url}
             alt={vision?.prompt || 'Vision Board'}
             className="w-full h-full object-cover"
+            onLoad={() => console.log('Image loaded successfully:', vision?.url)}
             onError={(e) => {
+              console.error('Image failed to load:', vision?.url);
               // Hide broken image and show fallback
               const target = e.target as HTMLImageElement;
               target.style.display = 'none';
@@ -302,10 +304,10 @@ const WorkbookPreviewModal: React.FC<WorkbookPreviewProps> = ({
             </div>
           </div>
         )) || (
-          <p className="text-gray-400 italic">
-            Habit tracking grids will appear here for each month.
-          </p>
-        )}
+            <p className="text-gray-400 italic">
+              Habit tracking grids will appear here for each month.
+            </p>
+          )}
       </div>
     </div>
   );
@@ -472,11 +474,10 @@ const WorkbookPreviewModal: React.FC<WorkbookPreviewProps> = ({
                 <button
                   key={index}
                   onClick={() => goToPage(index)}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    index === currentPage
+                  className={`w-2 h-2 rounded-full transition-colors ${index === currentPage
                       ? 'bg-navy-900'
                       : 'bg-gray-300 hover:bg-gray-400'
-                  }`}
+                    }`}
                 />
               ))}
               {pages.length > 10 && (

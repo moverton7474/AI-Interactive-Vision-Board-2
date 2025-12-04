@@ -5,38 +5,38 @@ import Stripe from "https://esm.sh/stripe@11.1.0?target=deno&deno-std=0.132.0"
 declare const Deno: any;
 
 serve(async (req) => {
-  const signature = req.headers.get('Stripe-Signature')
-  const STRIPE_WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET')
-  const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')
-  
-  if (!signature || !STRIPE_WEBHOOK_SECRET || !STRIPE_SECRET_KEY) {
-      return new Response('Missing secrets', { status: 400 })
-  }
+    const signature = req.headers.get('Stripe-Signature')
+    const STRIPE_WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+    const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')
 
-  const stripe = new Stripe(STRIPE_SECRET_KEY, {
-      apiVersion: '2022-11-15',
-  })
+    if (!signature || !STRIPE_WEBHOOK_SECRET || !STRIPE_SECRET_KEY) {
+        return new Response('Missing secrets', { status: 400 })
+    }
 
-  // Verify signature (Simplified for Deno environment example)
-  // In strict prod, use stripe.webhooks.constructEvent with raw body
-  const body = await req.text()
-  let event;
-  try {
-      event = await stripe.webhooks.constructEventAsync(body, signature, STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-      return new Response(`Webhook Error: ${err.message}`, { status: 400 });
-  }
+    const stripe = new Stripe(STRIPE_SECRET_KEY, {
+        apiVersion: '2022-11-15',
+    })
 
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
+    // Verify signature (Simplified for Deno environment example)
+    // In strict prod, use stripe.webhooks.constructEvent with raw body
+    const body = await req.text()
+    let event;
+    try {
+        event = await stripe.webhooks.constructEventAsync(body, signature, STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+        return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+    }
 
-  if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
+    const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
-      // Handle Subscription
-      if (session.mode === 'subscription') {
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+
+        // Handle Subscription
+        if (session.mode === 'subscription') {
             const customerEmail = session.customer_email || session.customer_details?.email
 
             // Determine subscription tier from metadata (most reliable) or amount
@@ -81,21 +81,56 @@ serve(async (req) => {
             } else {
                 console.warn('No customer email in session')
             }
-      }
-      
-      // Handle Print Order
-      if (session.mode === 'payment' && session.metadata?.order_id) {
-          await supabase
-            .from('poster_orders')
-            .update({ status: 'paid', discount_applied: true })
-            .eq('id', session.metadata.order_id)
-          
-          console.log("Marked order as paid:", session.metadata.order_id)
-          // Trigger Prodigi submission here...
-      }
-  }
+        }
 
-  return new Response(JSON.stringify({ received: true }), {
-    headers: { 'Content-Type': 'application/json' },
-  })
+
+        // Handle Print Order
+        if (session.mode === 'payment' && (session.metadata?.orderId || session.metadata?.order_id)) {
+            const orderId = session.metadata.orderId || session.metadata.order_id;
+
+            // Check if it's a Poster Order
+            const { data: posterOrder } = await supabase
+                .from('poster_orders')
+                .select('id')
+                .eq('id', orderId)
+                .single();
+
+            if (posterOrder) {
+                await supabase
+                    .from('poster_orders')
+                    .update({ status: 'paid', discount_applied: true })
+                    .eq('id', orderId);
+                console.log("Marked poster order as paid:", orderId);
+                // Trigger Prodigi submission for poster...
+                await supabase.functions.invoke('submit-to-prodigi', {
+                    body: { orderId: orderId }
+                });
+            } else {
+                // Check if it's a Workbook Order
+                const { data: workbookOrder } = await supabase
+                    .from('workbook_orders')
+                    .select('id')
+                    .eq('id', orderId)
+                    .single();
+
+                if (workbookOrder) {
+                    await supabase
+                        .from('workbook_orders')
+                        .update({ status: 'paid', paid_at: new Date().toISOString() })
+                        .eq('id', orderId);
+
+                    console.log("Marked workbook order as paid:", orderId);
+
+                    // Trigger Workbook Generation
+                    await supabase.functions.invoke('generate-workbook-pdf', {
+                        body: { order_id: orderId, action: 'generate' }
+                    });
+                }
+            }
+        }
+    }
+
+    return new Response(JSON.stringify({ received: true }), {
+        headers: { 'Content-Type': 'application/json' },
+    })
 })
