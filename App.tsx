@@ -122,16 +122,68 @@ const App = () => {
       return;
     }
 
-    const loadUserProfile = async () => {
+    const loadUserProfile = async (retryCount = 0) => {
+      const MAX_RETRIES = 1;
+      console.log('🔍 Loading user profile...', { userId: session.user.id, email: session.user.email, attempt: retryCount + 1 });
+
       try {
         // Get profile data
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('onboarding_completed, financial_target, primary_vision_id, credits, subscription_tier')
           .eq('id', session.user.id)
           .single();
 
-        if (profile) {
+        if (profileError) {
+          console.error('❌ Profile fetch error:', {
+            code: profileError.code,
+            message: profileError.message,
+            details: profileError.details,
+            hint: profileError.hint,
+            timestamp: new Date().toISOString()
+          });
+
+          // If profile doesn't exist (PGRST116 = row not found), create it
+          if (profileError.code === 'PGRST116' && retryCount < MAX_RETRIES) {
+            console.log('📝 Profile not found, creating new profile...');
+
+            const { error: createError } = await supabase
+              .from('profiles')
+              .insert({
+                id: session.user.id,
+                email: session.user.email,
+                onboarding_completed: false,
+                credits: 10,
+                subscription_tier: 'FREE',
+                created_at: new Date().toISOString()
+              });
+
+            if (createError) {
+              console.error('❌ Failed to create profile:', createError);
+            } else {
+              console.log('✅ Profile created successfully, retrying load...');
+              // Retry loading the profile
+              return loadUserProfile(retryCount + 1);
+            }
+          }
+
+          // Set safe defaults if profile fetch failed
+          console.log('⚠️ Using safe defaults for profile data');
+          setOnboardingCompleted(false);
+          setFinancialTarget(undefined);
+          setCredits(10);
+          setSubscriptionTier('FREE');
+          setPrimaryVisionUrl(undefined);
+          setPrimaryVisionTitle(undefined);
+        } else if (profile) {
+          console.log('✅ Profile loaded successfully:', {
+            onboardingCompleted: profile.onboarding_completed,
+            hasFinancialTarget: !!profile.financial_target,
+            hasPrimaryVision: !!profile.primary_vision_id,
+            credits: profile.credits,
+            tier: profile.subscription_tier
+          });
+
           setOnboardingCompleted(profile.onboarding_completed ?? false);
           setFinancialTarget(profile.financial_target);
           if (profile.credits !== undefined) setCredits(profile.credits);
@@ -139,44 +191,93 @@ const App = () => {
 
           // Load primary vision if exists
           if (profile.primary_vision_id) {
-            const { data: vision } = await supabase
+            console.log('🔍 Loading primary vision...', { visionId: profile.primary_vision_id });
+
+            const { data: vision, error: visionError } = await supabase
               .from('vision_boards')
               .select('image_url, prompt')
               .eq('id', profile.primary_vision_id)
               .single();
 
-            if (vision) {
+            if (visionError) {
+              console.error('❌ Primary vision fetch error:', visionError);
+            } else if (vision) {
+              console.log('✅ Primary vision loaded successfully');
               setPrimaryVisionUrl(vision.image_url);
               setPrimaryVisionTitle(vision.prompt?.slice(0, 50));
             }
           }
         } else {
+          // Profile is null but no error - shouldn't happen, but handle it
+          console.log('⚠️ Profile returned null without error');
           setOnboardingCompleted(false);
         }
 
         // Get user identity for theme name
-        const { data: identity } = await supabase
+        const { data: identity, error: identityError } = await supabase
           .from('user_identity_profiles')
           .select('theme_id')
           .eq('user_id', session.user.id)
           .single();
 
-        if (identity?.theme_id) {
+        if (identityError) {
+          // Only log if it's not a "not found" error
+          if (identityError.code !== 'PGRST116') {
+            console.error('❌ Identity profile fetch error:', {
+              code: identityError.code,
+              message: identityError.message,
+              timestamp: new Date().toISOString()
+            });
+          } else {
+            console.log('ℹ️ No identity profile found (user has not selected theme yet)');
+          }
+
+          // Create identity profile if it doesn't exist
+          if (identityError.code === 'PGRST116' && retryCount < MAX_RETRIES) {
+            console.log('📝 Creating identity profile...');
+            await supabase
+              .from('user_identity_profiles')
+              .insert({
+                user_id: session.user.id,
+                created_at: new Date().toISOString()
+              })
+              .select()
+              .single();
+          }
+        } else if (identity?.theme_id) {
+          console.log('✅ Theme loaded:', { themeId: identity.theme_id });
           setSelectedThemeId(identity.theme_id);
         }
 
         // Set user name from email
-        setUserName(session.user.email?.split('@')[0] || 'Friend');
+        const displayName = session.user.email?.split('@')[0] || 'Friend';
+        setUserName(displayName);
+        console.log('✅ User name set:', { displayName });
 
         // Route to appropriate view
         if (profile?.onboarding_completed) {
+          console.log('🏠 Routing to Dashboard (onboarding complete)');
           setView(AppView.DASHBOARD);
         } else {
+          console.log('📋 Routing to Onboarding (not yet complete)');
           setView(AppView.GUIDED_ONBOARDING);
         }
+
+        console.log('✅ Profile load complete');
       } catch (err) {
-        console.error('Error loading profile:', err);
+        console.error('❌ Unexpected error loading profile:', {
+          error: err,
+          message: err instanceof Error ? err.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        });
+
+        // Set safe defaults on unexpected error
         setOnboardingCompleted(false);
+        setFinancialTarget(undefined);
+        setCredits(10);
+        setSubscriptionTier('FREE');
+        setUserName(session.user.email?.split('@')[0] || 'Friend');
+        setView(AppView.GUIDED_ONBOARDING);
       }
     };
 
