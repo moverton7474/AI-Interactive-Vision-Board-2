@@ -21,6 +21,7 @@ export interface WorkbookPageLayout {
 export type WorkbookPageType =
     | 'COVER'
     | 'TITLE_PAGE'
+    | 'FOREWORD'
     | 'DEDICATION'
     | 'VISION_BOARD'
     | 'GOAL_OVERVIEW'

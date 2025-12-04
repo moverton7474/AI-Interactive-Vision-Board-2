@@ -31,6 +31,7 @@ import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, Fire
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
+import { ToastProvider } from './components/ToastContext';
 
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -1020,14 +1021,6 @@ const App = () => {
                   USING (auth.uid() = id);
                   `;
 
-  if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div></div>;
-  }
-
-  if (!session) {
-    return <Login />;
-  }
-
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1046,6 +1039,16 @@ const App = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view]);
+
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div></div>;
+  }
+
+  if (!session) {
+    return <Login />;
+  }
+
+
 
   return (
     <ToastProvider>

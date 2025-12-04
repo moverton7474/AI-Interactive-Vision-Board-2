@@ -59,6 +59,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
     const [includeHabits, setIncludeHabits] = useState(true);
     const [includeJournal, setIncludeJournal] = useState(true);
     const [includeFinancial, setIncludeFinancial] = useState(true);
+    const [includeForeword, setIncludeForeword] = useState(true);
 
     // Shipping
     const [shipping, setShipping] = useState<ShippingAddress>({
@@ -334,6 +335,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                             { id: 'habits', label: 'Habit Tracker', state: includeHabits, set: setIncludeHabits },
                                             { id: 'journal', label: '52-Week Journal', state: includeJournal, set: setIncludeJournal },
                                             { id: 'finance', label: 'Financial Goals', state: includeFinancial, set: setIncludeFinancial },
+                                            { id: 'foreword', label: 'AI Foreword (Ghostwriter)', state: includeForeword, set: setIncludeForeword },
                                         ].map(section => (
                                             <label key={section.id} className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50">
                                                 <input
@@ -374,7 +376,8 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                                 trimSize: '7x9',
                                                 goals: [], // TODO: Pass real goals
                                                 habits: selectedHabits,
-                                                visionBoardImages: selectedVisionBoards
+                                                visionBoardImages: selectedVisionBoards,
+                                                includeForeword
                                             });
                                             setGeneratedPages(pages);
                                             setStep('PREVIEW');

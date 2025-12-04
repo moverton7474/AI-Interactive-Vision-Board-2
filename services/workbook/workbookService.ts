@@ -7,6 +7,7 @@ export interface BuildOptions {
     goals: string[];
     habits: string[];
     visionBoardImages: string[];
+    includeForeword?: boolean;
 }
 
 export async function buildInitialWorkbookPages(options: BuildOptions): Promise<WorkbookPage[]> {
@@ -15,6 +16,7 @@ export async function buildInitialWorkbookPages(options: BuildOptions): Promise<
     const pageTypes = [
         'COVER',
         'TITLE_PAGE',
+        ...(options.includeForeword ? ['FOREWORD'] : []),
         'VISION_BOARD',
         'GOAL_OVERVIEW',
         'MONTHLY_PLANNER',
@@ -27,7 +29,7 @@ export async function buildInitialWorkbookPages(options: BuildOptions): Promise<
 
     for (const type of pageTypes) {
         const page = await generatePage({
-            type,
+            type: type as any,
             edition: options.edition,
             trimSize: options.trimSize,
             goals: options.goals,
