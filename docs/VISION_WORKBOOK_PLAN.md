@@ -231,6 +231,7 @@ Similar to PrintOrderModal but with:
 - Customization (title, dedication text)
 - Preview thumbnails
 - Progress indicator during generation
+- **Smart Empty States**: Direct creation of Vision Boards/Habits from within the modal
 
 ### `WorkbookBuilder.tsx`
 Interactive workbook configurator:
