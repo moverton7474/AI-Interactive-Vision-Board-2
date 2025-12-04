@@ -5,7 +5,7 @@ interface Props {
   themeName?: string;
   photoRefId?: string;
   onVisionGenerated: (visionId: string, visionUrl: string) => void;
-  generateVision: (prompt: string, photoRef?: string) => Promise<{ id: string; url: string }>;
+  generateVision: (prompt: string, photoRef?: string, onStatusChange?: (status: string) => void) => Promise<{ id: string; url: string }>;
 }
 
 const GENERATION_MESSAGES = [
@@ -28,22 +28,24 @@ const VisionGenerationStep: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
   const [messageIndex, setMessageIndex] = useState(0);
   const [hasCalledCallback, setHasCalledCallback] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    // Cycle through messages while generating
-    if (isGenerating) {
+    // Cycle through messages while generating, but only if we don't have a specific status
+    if (isGenerating && !generationStatus) {
       const interval = setInterval(() => {
         setMessageIndex(prev => (prev + 1) % GENERATION_MESSAGES.length);
       }, 3000);
       return () => clearInterval(interval);
     }
-  }, [isGenerating]);
+  }, [isGenerating, generationStatus]);
 
   useEffect(() => {
     const generate = async () => {
       try {
         setIsGenerating(true);
         setError(null);
+        setGenerationStatus('Initializing...');
 
         // Build enhanced prompt
         const enhancedPrompt = `Create a beautiful, inspiring vision board image that represents: ${visionText}.
@@ -51,7 +53,10 @@ Style: photorealistic, aspirational, warm lighting, lifestyle imagery.
 Theme: ${themeName || 'balanced and harmonious'}.
 Make it feel achievable yet inspiring.`;
 
-        const result = await generateVision(enhancedPrompt, photoRefId);
+        const result = await generateVision(enhancedPrompt, photoRefId, (status) => {
+          setGenerationStatus(status);
+        });
+
         setGeneratedVision(result);
         if (!hasCalledCallback) {
           console.log('✅ Vision generated successfully with real image');
@@ -60,7 +65,7 @@ Make it feel achievable yet inspiring.`;
         }
       } catch (err: any) {
         console.error('Vision generation error:', err);
-        
+
         // Use placeholder on failure
         const placeholderSvg = `
           <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
@@ -83,7 +88,7 @@ Make it feel achievable yet inspiring.`;
         `;
         const placeholderUrl = 'data:image/svg+xml,' + encodeURIComponent(placeholderSvg);
         const placeholderId = `placeholder-${Date.now()}`;
-        
+
         setGeneratedVision({ id: placeholderId, url: placeholderUrl });
         if (!hasCalledCallback) {
           console.log('⚠️ Vision generation failed, using placeholder image');
@@ -93,6 +98,7 @@ Make it feel achievable yet inspiring.`;
         setError(err.message || 'Generation is temporarily unavailable. Using a placeholder image.');
       } finally {
         setIsGenerating(false);
+        setGenerationStatus(null);
       }
     };
 
@@ -104,6 +110,7 @@ Make it feel achievable yet inspiring.`;
     setGeneratedVision(null);
     setError(null);
     setHasCalledCallback(false);
+    setGenerationStatus('Initializing...');
 
     try {
       const enhancedPrompt = `Create a different beautiful, inspiring vision board image that represents: ${visionText}.
@@ -111,14 +118,17 @@ Style: photorealistic, aspirational, warm lighting, lifestyle imagery.
 Theme: ${themeName || 'balanced and harmonious'}.
 Make it feel achievable yet inspiring. Try a different perspective or composition.`;
 
-      const result = await generateVision(enhancedPrompt, photoRefId);
+      const result = await generateVision(enhancedPrompt, photoRefId, (status) => {
+        setGenerationStatus(status);
+      });
+
       setGeneratedVision(result);
       console.log('✅ Vision regenerated successfully with real image');
       onVisionGenerated(result.id, result.url);
       setHasCalledCallback(true);
     } catch (err: any) {
       console.error('Regeneration error:', err);
-      
+
       // Use placeholder on failure
       const placeholderSvg = `
         <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
@@ -141,7 +151,7 @@ Make it feel achievable yet inspiring. Try a different perspective or compositio
       `;
       const placeholderUrl = 'data:image/svg+xml,' + encodeURIComponent(placeholderSvg);
       const placeholderId = `placeholder-${Date.now()}`;
-      
+
       setGeneratedVision({ id: placeholderId, url: placeholderUrl });
       console.log('⚠️ Vision regeneration failed, using placeholder image');
       onVisionGenerated(placeholderId, placeholderUrl);
@@ -149,6 +159,7 @@ Make it feel achievable yet inspiring. Try a different perspective or compositio
       setError(err.message || 'Generation is temporarily unavailable. Using a placeholder image.');
     } finally {
       setIsGenerating(false);
+      setGenerationStatus(null);
     }
   };
 
@@ -193,7 +204,7 @@ Make it feel achievable yet inspiring. Try a different perspective or compositio
         {/* Status Message */}
         <div>
           <p className="text-xl font-medium text-navy-900 mb-2 transition-all">
-            {GENERATION_MESSAGES[messageIndex]}
+            {generationStatus || GENERATION_MESSAGES[messageIndex]}
           </p>
           <p className="text-gray-500">This usually takes 15-30 seconds</p>
         </div>

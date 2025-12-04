@@ -1,24 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from "https://esm.sh/stripe@11.1.0?target=deno&deno-std=0.132.0"
+import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
 
-declare const Deno: any;
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+    apiVersion: '2022-11-15',
+    httpClient: Stripe.createFetchHttpClient(),
+})
 
 serve(async (req) => {
-    const signature = req.headers.get('Stripe-Signature')
+    const signature = req.headers.get('Stripe-Signature') || req.headers.get('stripe-signature')
     const STRIPE_WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET')
     const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY')
 
     if (!signature || !STRIPE_WEBHOOK_SECRET || !STRIPE_SECRET_KEY) {
-        return new Response('Missing secrets', { status: 400 })
+        return new Response('Missing secrets or signature', { status: 400 })
     }
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY, {
-        apiVersion: '2022-11-15',
-    })
-
-    // Verify signature (Simplified for Deno environment example)
-    // In strict prod, use stripe.webhooks.constructEvent with raw body
+    // Verify signature
     const body = await req.text()
     let event;
     try {
@@ -34,57 +32,37 @@ serve(async (req) => {
 
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
+        const userId = session.metadata?.userId || session.metadata?.user_id;
 
-        // Handle Subscription
+        // 1. Handle Subscription (Remote Logic)
         if (session.mode === 'subscription') {
-            const customerEmail = session.customer_email || session.customer_details?.email
-
-            // Determine subscription tier from metadata (most reliable) or amount
-            let tier = 'FREE'
-            const amountTotal = session.amount_total || 0
-
-            // Check metadata first (set during checkout creation)
-            if (session.metadata?.tier) {
-                tier = session.metadata.tier
-            } else if (amountTotal >= 4999) {
-                // $49.99 = 4999 cents
-                tier = 'ELITE'
-            } else if (amountTotal >= 1999) {
-                // $19.99 = 1999 cents
-                tier = 'PRO'
+            if (userId) {
+                await supabase
+                    .from('profiles')
+                    .update({ subscription_tier: 'PRO' })
+                    .eq('id', userId)
             }
+        }
+        // 2. Handle Credits (Remote Logic)
+        else if (session.mode === 'payment' && !session.metadata?.orderId && !session.metadata?.order_id) {
+            // Assume credit pack if no orderId is present
+            if (userId) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('credits')
+                    .eq('id', userId)
+                    .single()
 
-            // Find user by email and update their subscription
-            if (customerEmail) {
-                const { data: authUsers } = await supabase.auth.admin.listUsers()
-                const matchedUser = authUsers.users?.find(u => u.email === customerEmail)
+                const currentCredits = profile?.credits || 0
 
-                if (matchedUser) {
-                    const { error: updateError } = await supabase
-                        .from('profiles')
-                        .update({
-                            subscription_tier: tier,
-                            credits: 9999, // Unlimited credits for paid tiers
-                            stripe_customer_id: session.customer,
-                            subscription_status: 'active'
-                        })
-                        .eq('id', matchedUser.id)
-
-                    if (updateError) {
-                        console.error('Failed to update profile:', updateError)
-                    } else {
-                        console.log(`Successfully upgraded user ${customerEmail} to ${tier}`)
-                    }
-                } else {
-                    console.warn('Could not find user with email:', customerEmail)
-                }
-            } else {
-                console.warn('No customer email in session')
+                await supabase
+                    .from('profiles')
+                    .update({ credits: currentCredits + 50 })
+                    .eq('id', userId)
             }
         }
 
-
-        // Handle Print Order
+        // 3. Handle Print Orders (HEAD Logic)
         if (session.mode === 'payment' && (session.metadata?.orderId || session.metadata?.order_id)) {
             const orderId = session.metadata.orderId || session.metadata.order_id;
 
@@ -132,5 +110,6 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ received: true }), {
         headers: { 'Content-Type': 'application/json' },
+        status: 200,
     })
 })

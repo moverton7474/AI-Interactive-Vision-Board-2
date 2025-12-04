@@ -19,8 +19,11 @@ import {
     createStripeCheckoutSession
 } from '../../services/storageService';
 import { generateWorkbookContent } from '../../services/geminiService';
+import { buildInitialWorkbookPages } from '../../services/workbook/workbookService';
+import { WorkbookPage } from '../../types/workbookTypes';
 import WorkbookPreview from './WorkbookPreview';
 import WorkbookCoverDesigner from './WorkbookCoverDesigner';
+import './workbook.css';
 
 type WizardStep = 'TYPE_SELECTION' | 'PERSONALIZE' | 'CONTENT' | 'PREVIEW' | 'PRINT';
 
@@ -37,6 +40,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
     const [templates, setTemplates] = useState<WorkbookTemplate[]>([]);
     const [visionBoards, setVisionBoards] = useState<VisionImage[]>([]);
     const [habits, setHabits] = useState<Habit[]>([]);
+    const [generatedPages, setGeneratedPages] = useState<WorkbookPage[]>([]);
 
     // Selections
     const [selectedTemplate, setSelectedTemplate] = useState<WorkbookTemplate | null>(null);
@@ -55,6 +59,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
     const [includeHabits, setIncludeHabits] = useState(true);
     const [includeJournal, setIncludeJournal] = useState(true);
     const [includeFinancial, setIncludeFinancial] = useState(true);
+    const [includeForeword, setIncludeForeword] = useState(true);
 
     // Shipping
     const [shipping, setShipping] = useState<ShippingAddress>({
@@ -79,14 +84,14 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
             const executiveTemplate: WorkbookTemplate = {
                 id: 'executive-leather',
                 name: 'Executive Vision Planner',
-                description: 'Premium leather-bound planner with gold foil debossing.',
-                sku: 'EXEC-LEATHER-A4',
-                page_count: 200,
-                size: 'A4',
+                description: 'Premium matte black leather with gold foil debossing. The ultimate tool for the visionary leader.',
+                sku: 'EXEC-LEATHER-7x9',
+                page_count: 240,
+                size: '7x9',
                 binding: 'hardcover',
-                base_price: 79.99,
+                base_price: 89.00,
                 shipping_estimate: 12.99,
-                features: ['Genuine Leather', 'Gold Foil Debossing', '120gsm Paper', 'Ribbon Marker'],
+                features: ['Genuine Italian Leather', 'Gold Foil Debossing', '120gsm Ivory Paper', 'Lay-flat Binding'],
                 is_active: true,
                 sort_order: 1,
                 created_at: new Date().toISOString()
@@ -330,6 +335,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                             { id: 'habits', label: 'Habit Tracker', state: includeHabits, set: setIncludeHabits },
                                             { id: 'journal', label: '52-Week Journal', state: includeJournal, set: setIncludeJournal },
                                             { id: 'finance', label: 'Financial Goals', state: includeFinancial, set: setIncludeFinancial },
+                                            { id: 'foreword', label: 'AI Foreword (Ghostwriter)', state: includeForeword, set: setIncludeForeword },
                                         ].map(section => (
                                             <label key={section.id} className="flex items-center gap-3 p-4 border rounded-xl cursor-pointer hover:bg-gray-50">
                                                 <input
@@ -362,10 +368,29 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => setStep('PREVIEW')}
+                                    onClick={async () => {
+                                        setIsGenerating(true);
+                                        try {
+                                            const pages = await buildInitialWorkbookPages({
+                                                edition: leatherColor === 'brown' ? 'COGNAC_LEATHER' : 'EXECUTIVE_BLACK',
+                                                trimSize: '7x9',
+                                                goals: [], // TODO: Pass real goals
+                                                habits: selectedHabits,
+                                                visionBoardImages: selectedVisionBoards,
+                                                includeForeword
+                                            });
+                                            setGeneratedPages(pages);
+                                            setStep('PREVIEW');
+                                        } catch (e) {
+                                            console.error(e);
+                                        } finally {
+                                            setIsGenerating(false);
+                                        }
+                                    }}
                                     className="w-full bg-navy-900 text-white font-bold py-3 rounded-lg hover:bg-navy-800"
+                                    disabled={isGenerating}
                                 >
-                                    Generate Preview
+                                    {isGenerating ? 'Generating Blueprint...' : 'Generate Preview'}
                                 </button>
                             </div>
                         </div>
@@ -387,18 +412,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                             </div>
 
                             <div className="flex-1 bg-gray-100 rounded-xl overflow-hidden relative">
-                                <WorkbookPreview
-                                    template={selectedTemplate!}
-                                    title={title}
-                                    visionBoards={visionBoards.filter(v => selectedVisionBoards.includes(v.id))}
-                                    habits={habits.filter(h => selectedHabits.includes(h.id))}
-                                    config={{
-                                        includeCalendar,
-                                        includeHabits,
-                                        includeJournal,
-                                        includeFinancial
-                                    }}
-                                />
+                                <WorkbookPreview pages={generatedPages} />
                             </div>
                         </div>
                     )}
@@ -443,7 +457,15 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                             include_habit_tracker: includeHabits,
                                             vision_board_ids: selectedVisionBoards,
                                             included_habits: selectedHabits,
-                                            shipping_address: shipping
+                                            shipping_address: shipping,
+                                            include_foreword: includeForeword,
+                                            included_sections: [
+                                                ...(includeCalendar ? ['weekly_planner'] : []),
+                                                ...(includeHabits ? ['habit_tracker'] : []),
+                                                ...(includeJournal ? ['weekly_journal'] : []),
+                                                ...(includeFinancial ? ['financial_snapshot', 'goal_overview'] : []),
+                                                ...(includeForeword ? ['coach_letter'] : [])
+                                            ]
                                         });
 
                                         if (order) {

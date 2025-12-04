@@ -122,6 +122,12 @@ serve(async (req) => {
       case 'generate_image':
         result = await handleImageGeneration(GEMINI_API_KEY, params, profile, requestId)
         break
+      case 'enhance_prompt':
+        result = await handleEnhancePrompt(GEMINI_API_KEY, params, requestId)
+        break
+      case 'generate_suggestions':
+        result = await handleGenerateSuggestions(GEMINI_API_KEY, params, requestId)
+        break
       case 'financial_projection':
         result = await handleFinancialProjection(GEMINI_API_KEY, params, requestId)
         break
@@ -331,9 +337,9 @@ ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
  * 3. Imagen 3 (requires Vertex AI - most won't have access)
  */
 async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
-  const { images = [], prompt, embeddedText, titleText } = params
+  const { images = [], prompt, embeddedText, titleText, style, aspectRatio } = params
 
-  console.log(`[${requestId}] Image generation requested. Images provided: ${images.length}`)
+  console.log(`[${requestId}] Image generation requested. Images: ${images.length}, Style: ${style}, Tier: ${profile?.subscription_tier}`)
 
   // Build prompt for image generation
   let finalPrompt = prompt || 'Create a beautiful, inspiring vision board image.'
@@ -346,12 +352,26 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     finalPrompt += ` Include the text "${embeddedText}" naturally in the scene.`
   }
 
+  // Apply Style Modifiers
+  if (style) {
+    finalPrompt += ` Style: ${style}.`
+  }
+
+  // Apply Premium Enhancements (Pro/Elite only)
+  const isPremium = profile?.subscription_tier === 'PRO' || profile?.subscription_tier === 'ELITE';
+  if (isPremium) {
+    finalPrompt += ` High resolution, 8k, ultra-detailed, masterpiece, professional photography, cinematic lighting, award-winning composition.`
+  } else {
+    // Free tier limitation (optional: could enforce lower quality or standard style)
+    finalPrompt += ` Standard quality.`
+  }
+
   console.log(`[${requestId}] Final prompt: ${finalPrompt.substring(0, 100)}...`)
 
   const errors: Record<string, string> = {}
 
   // Attempt 1: Try dedicated image generation preview model
-  const previewResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_primary, requestId)
+  const previewResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_primary, requestId, aspectRatio)
   if (previewResult.success) {
     console.log(`[${requestId}] Gemini Preview Image Gen succeeded`)
     return successResponse({ image: previewResult.image }, requestId)
@@ -360,7 +380,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   console.warn(`[${requestId}] Gemini Preview Image Gen failed: ${previewResult.error}`)
 
   // Attempt 2: Try Gemini 2.0 Flash Experimental with image output
-  const geminiExpResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback, requestId)
+  const geminiExpResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback, requestId, aspectRatio)
   if (geminiExpResult.success) {
     console.log(`[${requestId}] Gemini 2.0 Flash Exp succeeded`)
     return successResponse({ image: geminiExpResult.image }, requestId)
@@ -369,7 +389,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   console.warn(`[${requestId}] Gemini 2.0 Flash Exp failed: ${geminiExpResult.error}`)
 
   // Attempt 3: Try Imagen 3 (requires Vertex AI)
-  const imagenResult = await tryImagenGeneration(apiKey, finalPrompt, requestId)
+  const imagenResult = await tryImagenGeneration(apiKey, finalPrompt, requestId, aspectRatio)
   if (imagenResult.success) {
     console.log(`[${requestId}] Imagen 3 succeeded`)
     return successResponse({ image: imagenResult.image }, requestId)
@@ -401,7 +421,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 /**
  * Try Imagen 3 generation
  */
-async function tryImagenGeneration(apiKey: string, prompt: string, requestId: string): Promise<{ success: boolean; image?: string; error?: string }> {
+async function tryImagenGeneration(apiKey: string, prompt: string, requestId: string, aspectRatio?: string): Promise<{ success: boolean; image?: string; error?: string }> {
   try {
     console.log(`[${requestId}] Trying Imagen 3...`)
 
@@ -414,7 +434,7 @@ async function tryImagenGeneration(apiKey: string, prompt: string, requestId: st
           instances: [{ prompt }],
           parameters: {
             sampleCount: 1,
-            aspectRatio: '4:3',
+            aspectRatio: aspectRatio || '4:3',
             safetyFilterLevel: 'block_only_high',
             personGeneration: 'allow_adult'
           }
@@ -451,7 +471,8 @@ async function tryGeminiImageGeneration(
   prompt: string,
   images: string[],
   model: string,
-  requestId: string
+  requestId: string,
+  aspectRatio?: string
 ): Promise<{ success: boolean; image?: string; error?: string }> {
   try {
     console.log(`[${requestId}] Trying ${model} for image generation...`)
@@ -765,4 +786,64 @@ function errorResponse(message: string, status: number, requestId: string): Resp
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status }
   )
+}
+
+/**
+ * Enhance a user's prompt using Gemini
+ */
+async function handleEnhancePrompt(apiKey: string, params: any, requestId: string) {
+  const { prompt } = params
+
+  const systemInstruction = `You are an expert prompt engineer for AI image generation. 
+  Rewrite the following user description into a detailed, artistic, and high-quality image generation prompt.
+  Keep it under 100 words. Focus on lighting, texture, composition, and atmosphere.
+  Do NOT add any conversational text. Return ONLY the enhanced prompt.`
+
+  const response = await callGeminiAPI(apiKey, MODELS.chat, {
+    contents: [{ parts: [{ text: `User Description: "${prompt}"\n\nEnhanced Prompt:` }] }],
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 256
+    }
+  }, requestId)
+
+  const enhancedPrompt = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || prompt
+
+  return successResponse({ enhancedPrompt }, requestId)
+}
+
+/**
+ * Generate Contextual Vision Suggestions
+ */
+async function handleGenerateSuggestions(apiKey: string, params: any, requestId: string) {
+  const { userProfile } = params
+
+  const systemInstruction = `You are a creative Vision Board Consultant.
+  Based on the user's profile, suggest 3 distinct, vivid, and inspiring vision board image concepts.
+  Each suggestion should be a single sentence description suitable for an image prompt.
+  Focus on their specific goals (e.g. retirement location, hobbies).
+  Return ONLY a valid JSON array of strings. Example: ["A modern villa in Tuscany...", "Hiking in the Swiss Alps...", "Reading by a fireplace..."]`
+
+  const prompt = `User Profile: ${JSON.stringify(userProfile)}`
+
+  const response = await callGeminiAPI(apiKey, MODELS.chat, {
+    contents: [{ parts: [{ text: prompt }] }],
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    generationConfig: {
+      temperature: 0.8,
+      maxOutputTokens: 512,
+      responseMimeType: 'application/json'
+    }
+  }, requestId)
+
+  const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
+
+  try {
+    const suggestions = JSON.parse(text)
+    return successResponse({ suggestions }, requestId)
+  } catch (e) {
+    console.error(`[${requestId}] Failed to parse suggestions:`, e)
+    return successResponse({ suggestions: [] }, requestId)
+  }
 }
