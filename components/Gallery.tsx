@@ -38,6 +38,9 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
 
   const downloadImage = async (e: React.MouseEvent, url: string) => {
     e.stopPropagation();
+    e.preventDefault();
+    console.log('🔍 Download button clicked!', { url, timestamp: new Date().toISOString() });
+
     try {
       // Fetch blob to force download and avoid cross-origin issues
       const response = await fetch(url);
@@ -53,19 +56,29 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
 
       // Clean up
       setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      console.log('✅ Download completed successfully');
     } catch (error) {
-      console.error("Download failed, falling back to direct link", error);
+      console.error("❌ Download failed, falling back to direct link", error);
       window.open(url, '_blank');
     }
   };
 
   const toggleShare = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    setActiveShareId(prev => prev === id ? null : id);
+    e.preventDefault();
+    console.log('🔍 Share button clicked!', { id, currentActiveId: activeShareId, timestamp: new Date().toISOString() });
+    setActiveShareId(prev => {
+      const newValue = prev === id ? null : id;
+      console.log('📊 Share menu state changed:', { from: prev, to: newValue });
+      return newValue;
+    });
   };
 
   const handleShareAction = (e: React.MouseEvent, type: 'email' | 'gmail' | 'twitter' | 'copy', url: string) => {
     e.stopPropagation();
+    e.preventDefault();
+    console.log('🔍 Share action triggered:', { type, url, timestamp: new Date().toISOString() });
+
     const text = "Check out my retirement vision board created with Visionary!";
 
     if (type === 'email') {
@@ -79,11 +92,15 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
       alert("Link copied to clipboard!");
     }
     setActiveShareId(null);
+    console.log('✅ Share action completed');
   };
 
   const handlePrint = (e: React.MouseEvent, img: VisionImage) => {
     e.stopPropagation();
+    e.preventDefault();
+    console.log('🔍 Print button clicked!', { imgId: img.id, timestamp: new Date().toISOString() });
     setPrintImage(img);
+    console.log('✅ Print modal opened');
   }
 
   return (
@@ -133,33 +150,66 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
                 width={800}
               />
 
-              {/* Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                <p className="text-white text-sm line-clamp-2 font-medium mb-3">{img.prompt}</p>
-                <div className="flex justify-end gap-2 relative">
+              {/* Background gradient overlay - non-interactive */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10" />
+
+              {/* Content overlay - appears on hover */}
+              <div className="absolute inset-0 flex flex-col justify-end p-4 z-20 pointer-events-none">
+                {/* Vision prompt text */}
+                <p className="text-white text-sm line-clamp-2 font-medium mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0 pointer-events-none">
+                  {img.prompt}
+                </p>
+
+                {/* Action buttons - ALWAYS CLICKABLE */}
+                <div
+                  className="flex justify-end gap-2 relative z-30 pointer-events-auto"
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
 
                   {/* Share Button & Menu */}
                   <div className="relative">
                     <button
                       onClick={(e) => toggleShare(e, img.id)}
-                      className="p-2 bg-white/20 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-sm transition-colors"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      className="p-2.5 bg-white/20 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-sm transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto"
                       title="Share"
+                      type="button"
                     >
                       <ShareIcon className="w-4 h-4" />
                     </button>
 
                     {activeShareId === img.id && (
-                      <div className="absolute bottom-12 right-0 bg-white rounded-lg shadow-xl p-2 flex flex-col gap-1 w-36 z-10 animate-fade-in border border-gray-100">
-                        <button onClick={(e) => handleShareAction(e, 'email', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium">
+                      <div
+                        className="absolute bottom-14 right-0 bg-white rounded-lg shadow-2xl p-2 flex flex-col gap-1 w-40 z-50 animate-fade-in border border-gray-100"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          onClick={(e) => handleShareAction(e, 'email', img.url)}
+                          className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
+                          type="button"
+                        >
                           <MailIcon className="w-3 h-3 text-gray-400" /> Email App
                         </button>
-                        <button onClick={(e) => handleShareAction(e, 'gmail', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium">
+                        <button
+                          onClick={(e) => handleShareAction(e, 'gmail', img.url)}
+                          className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
+                          type="button"
+                        >
                           <GoogleIcon className="w-3 h-3" /> Gmail Web
                         </button>
-                        <button onClick={(e) => handleShareAction(e, 'twitter', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium">
+                        <button
+                          onClick={(e) => handleShareAction(e, 'twitter', img.url)}
+                          className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
+                          type="button"
+                        >
                           <TwitterIcon className="w-3 h-3 text-blue-400" /> Twitter
                         </button>
-                        <button onClick={(e) => handleShareAction(e, 'copy', img.url)} className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium">
+                        <button
+                          onClick={(e) => handleShareAction(e, 'copy', img.url)}
+                          className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
+                          type="button"
+                        >
                           <CopyIcon className="w-3 h-3 text-gray-400" /> Copy Link
                         </button>
                       </div>
@@ -168,23 +218,30 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
 
                   <button
                     onClick={(e) => handlePrint(e, img)}
-                    className="p-2 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-full backdrop-blur-sm transition-colors shadow-lg"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="p-2.5 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-full transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto"
                     title="Order Poster Print"
+                    type="button"
                   >
                     <PrinterIcon className="w-4 h-4" />
                   </button>
 
                   <button
                     onClick={(e) => downloadImage(e, img.url)}
-                    className="p-2 bg-white/20 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-sm transition-colors"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="p-2.5 bg-white/20 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-sm transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto"
                     title="Download"
+                    type="button"
                   >
                     <DownloadIcon className="w-4 h-4" />
                   </button>
+
                   <button
                     onClick={(e) => handleDelete(e, img.id)}
-                    className="p-2 bg-red-500/20 hover:bg-red-500 text-white rounded-full backdrop-blur-sm transition-colors"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="p-2.5 bg-red-500/20 hover:bg-red-500 text-white rounded-full backdrop-blur-sm transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto"
                     title="Delete"
+                    type="button"
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -192,7 +249,7 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
               </div>
 
               {/* Refine Badge */}
-              <div className="absolute top-3 right-3 bg-gold-500 text-navy-900 text-xs font-bold px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all shadow-lg">
+              <div className="absolute top-3 right-3 bg-gold-500 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-full opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 shadow-lg z-20 pointer-events-none">
                 Refine This
               </div>
             </div>
