@@ -88,7 +88,7 @@ const EDITION_METADATA: Record<string, {
 // Available sections with labels
 const AVAILABLE_SECTIONS = [
   { id: 'vision_gallery', label: 'Vision Gallery', description: 'Full-page vision board images with reflection prompts' },
-  { id: 'coach_letter', label: 'Letter from Vision Coach', description: 'AI-generated personalized motivation letter' },
+  { id: 'coach_letter', label: 'Letter from Your Future Self', description: 'AI-generated personalized motivation letter from the future' },
   { id: 'financial_snapshot', label: 'Financial & Goal Progress Overview', description: 'Current financial snapshot and projections' },
   { id: 'action_plan', label: '3-Year Roadmap & Milestones', description: 'Quarterly task lists with progress checkboxes' },
   { id: 'habit_tracker', label: '12-Month Habit Tracker', description: 'Monthly habit grids with streak tracking' },
@@ -338,13 +338,11 @@ const WorkbookOrderModal: React.FC<Props> = ({
         dedication_text: wizardState.dedication || undefined,
         include_weekly_journal: wizardState.includedSections.includes('weekly_journal'),
         include_habit_tracker: wizardState.includedSections.includes('habit_tracker'),
+        include_foreword: wizardState.includedSections.includes('coach_letter'),
+        included_sections: wizardState.includedSections,
         vision_board_ids: wizardState.selectedVisionIds,
         included_habits: wizardState.selectedHabitIds,
         shipping_address: shipping,
-        // Additional payload for enhanced workbook
-        // TODO: Backend should accept these fields
-        // included_sections: wizardState.includedSections,
-        // edition: wizardState.selectedEdition,
       });
 
       if (!order) {
@@ -450,11 +448,10 @@ const WorkbookOrderModal: React.FC<Props> = ({
                 <div
                   key={template.id}
                   onClick={() => handleSelectTemplate(template)}
-                  className={`relative border-2 rounded-xl p-5 cursor-pointer transition-all group ${
-                    recommended
+                  className={`relative border-2 rounded-xl p-5 cursor-pointer transition-all group ${recommended
                       ? 'border-gold-400 bg-gold-50/30 ring-2 ring-gold-200 shadow-lg'
                       : 'border-gray-200 hover:border-navy-900 hover:shadow-lg'
-                  }`}
+                    }`}
                 >
                   {/* Recommended Badge */}
                   {recommended && (
@@ -613,11 +610,10 @@ const WorkbookOrderModal: React.FC<Props> = ({
               {AVAILABLE_SECTIONS.map((section) => (
                 <label
                   key={section.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                    wizardState.includedSections.includes(section.id)
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${wizardState.includedSections.includes(section.id)
                       ? 'border-navy-900 bg-navy-50'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <input
                     type="checkbox"
@@ -712,15 +708,13 @@ const WorkbookOrderModal: React.FC<Props> = ({
                     <div
                       key={vision.id}
                       onClick={() => !isDisabled && handleVisionBoardToggle(vision.id)}
-                      className={`relative rounded-xl overflow-hidden transition-all ${
-                        isDisabled
+                      className={`relative rounded-xl overflow-hidden transition-all ${isDisabled
                           ? 'opacity-50 cursor-not-allowed'
                           : 'cursor-pointer hover:shadow-lg'
-                      } ${
-                        isSelected
+                        } ${isSelected
                           ? 'ring-4 ring-navy-900 ring-offset-2'
                           : 'border-2 border-gray-200 hover:border-gray-300'
-                      }`}
+                        }`}
                     >
                       {/* Image */}
                       <div className="aspect-square">
@@ -799,15 +793,13 @@ const WorkbookOrderModal: React.FC<Props> = ({
                     return (
                       <label
                         key={habit.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                          isDisabled
+                        className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${isDisabled
                             ? 'opacity-50 cursor-not-allowed border-gray-100'
                             : 'cursor-pointer'
-                        } ${
-                          isSelected
+                          } ${isSelected
                             ? 'border-navy-900 bg-navy-50'
                             : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                          }`}
                       >
                         <input
                           type="checkbox"
@@ -1229,9 +1221,8 @@ const WorkbookOrderModal: React.FC<Props> = ({
           {steps.map((s, i) => (
             <div
               key={s}
-              className={`flex-1 transition-colors duration-300 ${
-                i <= currentIndex ? 'bg-navy-900' : 'bg-gray-200'
-              }`}
+              className={`flex-1 transition-colors duration-300 ${i <= currentIndex ? 'bg-navy-900' : 'bg-gray-200'
+                }`}
             />
           ))}
         </div>

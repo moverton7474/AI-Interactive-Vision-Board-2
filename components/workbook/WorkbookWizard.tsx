@@ -457,7 +457,15 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                             include_habit_tracker: includeHabits,
                                             vision_board_ids: selectedVisionBoards,
                                             included_habits: selectedHabits,
-                                            shipping_address: shipping
+                                            shipping_address: shipping,
+                                            include_foreword: includeForeword,
+                                            included_sections: [
+                                                ...(includeCalendar ? ['weekly_planner'] : []),
+                                                ...(includeHabits ? ['habit_tracker'] : []),
+                                                ...(includeJournal ? ['weekly_journal'] : []),
+                                                ...(includeFinancial ? ['financial_snapshot', 'goal_overview'] : []),
+                                                ...(includeForeword ? ['coach_letter'] : [])
+                                            ]
                                         });
 
                                         if (order) {

@@ -783,6 +783,8 @@ export const createWorkbookOrder = async (orderData: {
   vision_board_ids?: string[];
   included_habits?: string[];
   shipping_address?: ShippingAddress;
+  include_foreword?: boolean;
+  included_sections?: string[];
 }): Promise<WorkbookOrder | null> => {
   try {
     const { data, error } = await supabase.functions.invoke('generate-workbook-pdf?action=create_order', {

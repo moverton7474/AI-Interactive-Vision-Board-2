@@ -150,6 +150,11 @@ async function createOrder(supabase: any, userId: string, body: any) {
       subtotal,
       shipping_cost: shippingCost,
       total_price: totalPrice,
+      customization_data: {
+        include_foreword: body.include_foreword ?? true,
+        included_sections: body.included_sections || [],
+        ...body.customization_data
+      },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }])
@@ -317,20 +322,68 @@ async function generateSections(
     })
   }
 
-  // 4. AI Coach Letter
-  sections.push({
-    workbook_order_id: orderId,
-    section_type: 'coach_letter',
-    section_order: sectionOrder++,
-    title: 'A Letter from Your Vision Coach',
-    content: {
-      userName: knowledgeBase?.names || 'Visionary',
-      dreamLocations: knowledgeBase?.dream_locations || [],
-      topPriorities: knowledgeBase?.top_priorities || [],
-      sentimentTrend: knowledgeBase?.sentiment_trend || 'stable'
-    },
-    status: 'complete'
-  })
+
+
+  // 4. AI Coach Letter (Ghostwriter)
+  const includeForeword = order.customization_data?.include_foreword ?? true;
+  if (includeForeword) {
+    let forewordContent = '';
+    try {
+      // Call Gemini Proxy to generate the foreword
+      const goals = knowledgeBase?.top_priorities || [];
+      const habitsList = habits.map((h: any) => h.title);
+
+      const prompt = `
+        You are the user's "Future Self" writing from 3 years in the future.
+        You have achieved these goals: ${goals.join(', ') || 'living my best life'}.
+        You stuck to these habits: ${habitsList.join(', ') || 'consistent daily action'}.
+        
+        Write a heartfelt, inspiring letter to your past self (the user today).
+        - Acknowledge the doubts they might be feeling right now.
+        - Tell them that the hard work paid off.
+        - Describe how amazing life is now that these visions are reality.
+        - Keep it under 300 words.
+        - Sign it "With gratitude,\nYour Future Self".
+        `;
+
+      const geminiResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/gemini-proxy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'raw',
+          contents: [{ parts: [{ text: prompt }] }],
+          config: { temperature: 0.7, maxOutputTokens: 1000 }
+        })
+      });
+
+      if (geminiResponse.ok) {
+        const data = await geminiResponse.json();
+        forewordContent = data.response?.candidates?.[0]?.content?.parts?.[0]?.text;
+      }
+    } catch (e) {
+      console.error('Failed to generate foreword:', e);
+    }
+
+    // Fallback if generation failed
+    if (!forewordContent) {
+      forewordContent = `Dear Visionary,\n\nI am writing to you from the future to tell you that everything you are working for is worth it. Keep going.\n\nSincerely,\nYour Future Self`;
+    }
+
+    sections.push({
+      workbook_order_id: orderId,
+      section_type: 'coach_letter',
+      section_order: sectionOrder++,
+      title: 'A Letter from Your Future Self',
+      content: {
+        userName: knowledgeBase?.names || 'Visionary',
+        text: forewordContent
+      },
+      status: 'complete'
+    })
+  }
 
   // 5. Vision Gallery (vision boards with reflection prompts)
   if (visionBoards.length > 0) {
@@ -356,7 +409,21 @@ async function generateSections(
     })
   }
 
-  // 6. Financial Snapshot
+  // 6. Goal Overview (New)
+  if (order.customization_data?.included_sections?.includes('goal_overview') || true) { // Default to true for now
+    sections.push({
+      workbook_order_id: orderId,
+      section_type: 'goal_overview',
+      section_order: sectionOrder++,
+      title: 'Annual Goals Overview',
+      content: {
+        goals: knowledgeBase?.top_priorities || []
+      },
+      status: 'complete'
+    });
+  }
+
+  // 7. Financial Snapshot
   if (knowledgeBase?.financial_summary) {
     sections.push({
       workbook_order_id: orderId,
@@ -373,7 +440,7 @@ async function generateSections(
     })
   }
 
-  // 7. Action Plan (3-year roadmap)
+  // 8. Action Plan (3-year roadmap)
   if (actionTasks.length > 0) {
     // Group by milestone year
     const tasksByYear: Record<number, any[]> = {}
@@ -398,7 +465,7 @@ async function generateSections(
     })
   }
 
-  // 8. Habit Tracker (12-month grids)
+  // 9. Habit Tracker (12-month grids)
   if (order.include_habit_tracker && habits.length > 0) {
     sections.push({
       workbook_order_id: orderId,
@@ -419,7 +486,21 @@ async function generateSections(
     })
   }
 
-  // 9. Weekly Journal (52 weeks)
+  // 10. Weekly Planner (New)
+  if (order.customization_data?.included_sections?.includes('weekly_planner')) {
+    sections.push({
+      workbook_order_id: orderId,
+      section_type: 'weekly_planner',
+      section_order: sectionOrder++,
+      title: 'Weekly Focus Planner',
+      content: {
+        weeksCount: 52
+      },
+      status: 'complete'
+    });
+  }
+
+  // 11. Weekly Journal (52 weeks)
   if (order.include_weekly_journal) {
     sections.push({
       workbook_order_id: orderId,
@@ -440,7 +521,21 @@ async function generateSections(
     })
   }
 
-  // 10. Notes Section
+  // 12. Monthly Reflection (New)
+  if (order.customization_data?.included_sections?.includes('reflection')) {
+    sections.push({
+      workbook_order_id: orderId,
+      section_type: 'reflection',
+      section_order: sectionOrder++,
+      title: 'Monthly Reflections',
+      content: {
+        monthsCount: 12
+      },
+      status: 'complete'
+    });
+  }
+
+  // 13. Notes Section
   sections.push({
     workbook_order_id: orderId,
     section_type: 'notes',
@@ -452,7 +547,7 @@ async function generateSections(
     status: 'complete'
   })
 
-  // 11. Back Cover
+  // 14. Back Cover
   sections.push({
     workbook_order_id: orderId,
     section_type: 'back_cover',
