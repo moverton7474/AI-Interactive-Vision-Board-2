@@ -1,5 +1,6 @@
 export { default as GuidedOnboarding } from './GuidedOnboarding';
 export { default as OnboardingLayout } from './OnboardingLayout';
+export { default as WelcomeStep } from './WelcomeStep';
 export { default as ThemeSelectorStep } from './ThemeSelectorStep';
 export { default as CoachIntroStep } from './CoachIntroStep';
 export { default as VisionCaptureStep } from './VisionCaptureStep';

@@ -25,6 +25,7 @@ import PartnerDashboard from './components/PartnerDashboard';
 import SlackIntegration from './components/SlackIntegration';
 import TeamLeaderboards from './components/TeamLeaderboards';
 import ManagerDashboard from './components/ManagerDashboard';
+import LandingPage from './components/LandingPage';
 import { GuidedOnboarding } from './components/onboarding';
 import { Dashboard } from './components/dashboard';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon } from './components/Icons';
@@ -759,104 +760,14 @@ const App = () => {
 
       case AppView.LANDING:
         return (
-          <>
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4 animate-fade-in relative overflow-hidden py-12">
-              <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 pointer-events-none"></div>
-
-              <h1 className="text-5xl md:text-7xl font-serif font-bold text-navy-900 mb-6 tracking-tight z-10">
-                Visionary
-              </h1>
-              <p className="text-xl md:text-2xl text-gray-600 mb-12 max-w-2xl z-10">
-                The AI-powered SaaS for designing your future. Visualize your retirement, plan your finances, and manifest your dreams.
-              </p>
-
-              {!showChat ? (
-                <div className="flex flex-col gap-4 z-10">
-                  <button
-                    onClick={() => setShowChat(true)}
-                    className="bg-navy-900 text-white text-lg font-medium px-10 py-4 rounded-full shadow-xl hover:bg-navy-800 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
-                  >
-                    <SparklesIcon className="w-6 h-6 text-gold-400" />
-                    Start Your Journey
-                  </button>
-                  <button
-                    onClick={() => setView(AppView.THEME_SELECTION)}
-                    className="text-navy-900 font-bold border-2 border-navy-900 px-10 py-3 rounded-full hover:bg-navy-50 transition-all flex items-center justify-center gap-2"
-                  >
-                    Launch Vision Wizard
-                  </button>
-                </div>
-              ) : (
-                <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200 text-left transition-all duration-500 z-10">
-                  <div className="h-80 overflow-y-auto p-6 space-y-4 bg-gray-50">
-                    {messages.map((m, i) => (
-                      <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] p-4 rounded-2xl text-sm ${m.role === 'user' ? 'bg-navy-900 text-white rounded-br-none' : 'bg-white border border-gray-200 shadow-sm text-gray-800 rounded-bl-none'}`}>
-                          {m.text}
-                        </div>
-                      </div>
-                    ))}
-                    {chatLoading && <div className="text-gray-400 text-xs ml-4">Visionary is thinking...</div>}
-                  </div>
-                  <div className="p-4 bg-white border-t border-gray-100">
-                    <form onSubmit={handleChatSubmit} className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <input
-                          type="text"
-                          value={chatInput}
-                          onChange={(e) => setChatInput(e.target.value)}
-                          placeholder="Describe your dream or use voice..."
-                          className="w-full border border-gray-300 rounded-full pl-4 pr-12 py-3 outline-none focus:border-gold-500 transition-colors"
-                        />
-                        <button
-                          type="button"
-                          onClick={startListening}
-                          className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors ${isListening ? 'bg-red-100 text-red-500 animate-pulse' : 'text-gray-400 hover:text-navy-900'}`}
-                        >
-                          <MicIcon className="w-5 h-5" />
-                        </button>
-                      </div>
-                      <button type="submit" className="bg-gold-500 text-navy-900 font-bold px-6 py-2 rounded-full hover:bg-gold-600 transition-colors">
-                        Send
-                      </button>
-                    </form>
-
-                    {/* Navigation Actions */}
-                    <div className="mt-4 flex flex-col md:flex-row justify-between items-center px-2 gap-4">
-                      <span className="text-xs text-gray-400">Step 1 of 3: Definition</span>
-                      <div className="flex items-center gap-3">
-                        {messages.length > 2 && (
-                          <>
-                            <button
-                              onClick={() => handleVisionCapture(AppView.FINANCIAL)}
-                              className="text-sm font-bold bg-navy-900 text-white px-4 py-2 rounded-lg hover:bg-navy-800 transition-colors">
-                              Next: Financial Plan &rarr;
-                            </button>
-                            <span className="text-xs text-gray-300">or</span>
-                            <button
-                              onClick={() => handleVisionCapture(AppView.VISION_BOARD)}
-                              className="text-xs text-gray-500 hover:text-navy-900 underline">
-                              Skip to Vision Board
-                            </button>
-                          </>
-                        )}
-                        {messages.length <= 2 && (
-                          <button
-                            onClick={() => setView(AppView.FINANCIAL)}
-                            className="text-xs font-bold text-navy-900 hover:text-gold-600 underline">
-                            Skip to Planning
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Pricing Section */}
-            <Pricing onUpgrade={handleUpgrade} />
-          </>
+          <LandingPage
+            onStartFree={() => setView(AppView.GUIDED_ONBOARDING)}
+            onWatchDemo={() => {
+              // Open video modal or navigate to demo
+              console.log('Watch demo clicked');
+            }}
+            onUpgrade={handleUpgrade}
+          />
         );
 
       case AppView.THEME_SELECTION:
@@ -1290,7 +1201,7 @@ const App = () => {
         <footer className="bg-navy-900 text-white py-8 mt-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-sm text-gray-400">
-              © 2024 Visionary Inc. Powered by Gemini.
+              © 2025 Visionary AI. Powered by Google Gemini.
             </div>
             <div className="flex gap-6 text-sm font-medium">
               <button onClick={downloadGuide} className="flex items-center gap-2 hover:text-gold-400 transition-colors">

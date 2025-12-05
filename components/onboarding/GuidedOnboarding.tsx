@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { OnboardingStep, OnboardingState, ActionTask, AppView } from '../../types';
 import OnboardingLayout from './OnboardingLayout';
+import WelcomeStep from './WelcomeStep';
 import ThemeSelectorStep from './ThemeSelectorStep';
 import CoachIntroStep from './CoachIntroStep';
 import VisionCaptureStep from './VisionCaptureStep';
@@ -26,6 +27,7 @@ interface Props {
 }
 
 const STEPS: OnboardingStep[] = [
+  'WELCOME',
   'THEME',
   'COACH_INTRO',
   'VISION_CAPTURE',
@@ -39,45 +41,49 @@ const STEPS: OnboardingStep[] = [
 ];
 
 const STEP_CONFIG: Record<OnboardingStep, { title: string; subtitle: string }> = {
+  WELCOME: {
+    title: 'Welcome to Visionary AI',
+    subtitle: 'Your journey to achieving your dreams starts here'
+  },
   THEME: {
-    title: 'Choose Your Coaching Style',
-    subtitle: 'Select the approach that resonates with your values'
+    title: 'Select Your Identity Theme',
+    subtitle: 'Choose how your AI Coach will connect with you'
   },
   COACH_INTRO: {
-    title: 'Meet Your Coach',
+    title: 'Meet Your AI Coach',
     subtitle: 'Your personalized guide for this journey'
   },
   VISION_CAPTURE: {
-    title: 'Capture Your Vision',
-    subtitle: 'Describe your ideal future in your own words'
+    title: 'Describe Your Dream',
+    subtitle: 'Tell us about your ideal future in your own words'
   },
   PHOTO_UPLOAD: {
-    title: 'Add a Reference Photo',
-    subtitle: 'Optional: Include yourself in your vision'
+    title: 'Add Reference Photos',
+    subtitle: 'Optional: Include yourself in your vision board'
   },
   FINANCIAL_TARGET: {
     title: 'Set Your Financial Goal',
-    subtitle: 'What are you working toward?'
+    subtitle: 'What are you working toward financially?'
   },
   VISION_GENERATION: {
-    title: 'Creating Your Vision',
+    title: 'Creating Your Vision Board',
     subtitle: 'Our AI is bringing your dream to life'
   },
   ACTION_PLAN_PREVIEW: {
-    title: 'Your Action Plan',
-    subtitle: 'Personalized steps to achieve your vision'
+    title: 'Your Personalized Action Plan',
+    subtitle: 'AI-generated steps to achieve your vision'
   },
   HABITS_SETUP: {
-    title: 'Daily Habits',
-    subtitle: 'Build the routines that support your goals'
+    title: 'Build Daily Habits',
+    subtitle: 'Create routines that support your goals'
   },
   PRINT_OFFER: {
-    title: 'Make It Real',
-    subtitle: 'Print your vision and keep it visible'
+    title: 'Make Your Vision Tangible',
+    subtitle: 'Print your vision and keep it visible daily'
   },
   COMPLETION: {
-    title: 'Welcome to Visionary!',
-    subtitle: 'Your journey starts now'
+    title: 'You\'re All Set!',
+    subtitle: 'Your journey to achievement starts now'
   }
 };
 
@@ -110,7 +116,7 @@ const GuidedOnboarding: React.FC<Props> = ({
       console.error('Error loading saved onboarding state:', e);
     }
     return {
-      currentStep: 'THEME',
+      currentStep: 'WELCOME',
       selectedHabits: []
     };
   };
@@ -153,6 +159,8 @@ const GuidedOnboarding: React.FC<Props> = ({
 
   const canProceed = useCallback(() => {
     switch (state.currentStep) {
+      case 'WELCOME':
+        return true;
       case 'THEME':
         return !!state.themeId;
       case 'COACH_INTRO':
@@ -211,6 +219,13 @@ const GuidedOnboarding: React.FC<Props> = ({
 
   const renderStep = () => {
     switch (state.currentStep) {
+      case 'WELCOME':
+        return (
+          <WelcomeStep
+            onContinue={goNext}
+          />
+        );
+
       case 'THEME':
         return (
           <ThemeSelectorStep
@@ -318,17 +333,19 @@ const GuidedOnboarding: React.FC<Props> = ({
   };
 
   // Determine if we should show navigation buttons
-  const showBackButton = currentStepIndex > 0 && state.currentStep !== 'COMPLETION';
-  const showNextButton = state.currentStep !== 'VISION_GENERATION' &&
+  const showBackButton = currentStepIndex > 0 && state.currentStep !== 'COMPLETION' && state.currentStep !== 'WELCOME';
+  const showNextButton = state.currentStep !== 'WELCOME' &&
+    state.currentStep !== 'VISION_GENERATION' &&
     state.currentStep !== 'PRINT_OFFER' &&
     state.currentStep !== 'COMPLETION';
 
   return (
     <OnboardingLayout
-      currentStep={currentStepIndex + 1}
+      step={currentStepIndex + 1}
       totalSteps={STEPS.length}
       title={stepConfig.title}
       subtitle={stepConfig.subtitle}
+      showBack={showBackButton}
       onBack={showBackButton ? goBack : undefined}
     >
       {renderStep()}

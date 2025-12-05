@@ -27,6 +27,7 @@ export enum AppView {
 
 // Guided Onboarding State (v1.6)
 export type OnboardingStep =
+  | 'WELCOME'
   | 'THEME'
   | 'COACH_INTRO'
   | 'VISION_CAPTURE'
