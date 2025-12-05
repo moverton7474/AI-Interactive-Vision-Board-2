@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import SystemSOPWidget from './SystemSOPWidget';
 import IdentityFeedWidget from './IdentityFeedWidget';
+import VoiceCoachWidget from './VoiceCoachWidget';
 
 interface Props {
   onBack?: () => void;
@@ -652,9 +653,10 @@ const PartnerDashboard: React.FC<Props> = ({ onBack }) => {
       </div>
 
       {/* Systems & Identity Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
         <SystemSOPWidget />
         <IdentityFeedWidget />
+        <VoiceCoachWidget />
       </div>
 
       {/* Quick Stats */}
