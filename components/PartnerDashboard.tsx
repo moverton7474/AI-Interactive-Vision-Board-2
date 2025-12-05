@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import SystemSOPWidget from './SystemSOPWidget';
+import IdentityFeedWidget from './IdentityFeedWidget';
 
 interface Props {
   onBack?: () => void;
@@ -624,9 +626,8 @@ const PartnerDashboard: React.FC<Props> = ({ onBack }) => {
             <div className="space-y-3">
               {feed.slice(0, 8).map((item, index) => (
                 <div key={index} className="flex items-start gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    item.isPartner ? 'bg-pink-100' : 'bg-navy-100'
-                  }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${item.isPartner ? 'bg-pink-100' : 'bg-navy-100'
+                    }`}>
                     <span className="text-sm">
                       {item.type === 'habit_completion' ? '✓' : '🌟'}
                     </span>
@@ -648,6 +649,12 @@ const PartnerDashboard: React.FC<Props> = ({ onBack }) => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Systems & Identity Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <SystemSOPWidget />
+        <IdentityFeedWidget />
       </div>
 
       {/* Quick Stats */}
