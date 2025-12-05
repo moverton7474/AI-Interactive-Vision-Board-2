@@ -621,20 +621,25 @@ async function handleActionPlan(apiKey: string, params: any, requestId: string) 
   const { visionContext, financialContext } = params
 
   const prompt = `
-You are an expert Life Execution Agent.
+You are an expert Life Execution Agent & Systems Architect.
 Vision Context: ${visionContext}
 Financial Context: ${financialContext}
 Current Date: ${new Date().toISOString()}
 
 TASK:
-Generate a 3-year roadmap.
+Generate a 3-year roadmap based on "Systems Thinking" (Dan Martell / Atomic Habits).
+Instead of just one-off tasks, define RECURRING SYSTEMS.
 USE GOOGLE SEARCH to find *real* market data (e.g. median home price in specific location, visa costs) to populate the 'marketResearchSnippet'.
 
 For each year, generate:
 1. A Title.
 2. A specific "Market Research Snippet" with REAL DATA found via search tools.
-3. 2-3 specific Action Tasks.
-4. For each task, suggest the best tool to use: 'GMAIL' (for outreach), 'MAPS' (for location scout), 'CALENDAR' (for deadlines).
+3. 2-3 specific Action Tasks (One-off).
+4. **NEW**: Define 1-2 "System SOPs" (Recurring Habits) for this phase.
+   - Name: e.g., "Weekly Finance Review"
+   - Trigger: "time" | "event"
+   - Schedule: Cron format or description (e.g., "Every Friday at 9am")
+   - Prompt: Instructions for the user.
 
 Return ONLY a valid JSON array of Milestone objects. Do not wrap in markdown code blocks.
 Schema:
@@ -642,7 +647,8 @@ Schema:
   "year": number,
   "title": string,
   "marketResearchSnippet": string,
-  "tasks": [{ "id": string, "title": string, "description": string, "dueDate": string, "type": string, "isCompleted": false, "aiMetadata": { "suggestedTool": "GMAIL" | "MAPS" | "CALENDAR" } }]
+  "tasks": [{ "id": string, "title": string, "description": string, "dueDate": string, "type": string, "isCompleted": false, "aiMetadata": { "suggestedTool": "GMAIL" | "MAPS" | "CALENDAR" } }],
+  "systemSOPs": [{ "name": string, "trigger": "time", "schedule": string, "prompt": string }]
 }]
   `
 
