@@ -78,11 +78,11 @@ const AgentChat: React.FC<AgentChatProps> = ({ userId, onClose }) => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('agent-chat', {
+      const { data, error } = await supabase.functions.invoke('amie-psychological-coach', {
         body: {
           message: userMessage.content,
-          sessionId,
-          userId
+          user_id: userId,
+          context: { sessionId }
         }
       });
 
@@ -194,11 +194,10 @@ const AgentChat: React.FC<AgentChatProps> = ({ userId, onClose }) => {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                msg.role === 'user'
+              className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === 'user'
                   ? 'bg-navy-900 text-white rounded-br-sm'
                   : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm'
-              }`}
+                }`}
             >
               <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               <p className={`text-xs mt-1 ${msg.role === 'user' ? 'text-gray-400' : 'text-gray-400'}`}>
