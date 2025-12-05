@@ -23,6 +23,8 @@ const MODELS = {
   image_fallback: 'gemini-2.0-flash-exp',
   // Fallback 2: Imagen 3 (requires Vertex AI - most users won't have access)
   image_fallback_vertex: 'imagen-3.0-generate-001',
+  // Reasoning: High-intelligence model for complex planning and projections
+  reasoning: 'gemini-1.5-pro',
 }
 
 /**
@@ -548,7 +550,7 @@ async function handleFinancialProjection(apiKey: string, params: any, requestId:
 Each object must have: "year" (number), "savings" (number), "projected" (number), "goal" (number).
 Return ONLY valid JSON.`
 
-  const response = await callGeminiAPI(apiKey, MODELS.chat, {
+  const response = await callGeminiAPI(apiKey, MODELS.reasoning, {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.3,
@@ -652,7 +654,7 @@ Schema:
 }]
   `
 
-  const response = await callGeminiAPI(apiKey, MODELS.chat, {
+  const response = await callGeminiAPI(apiKey, MODELS.reasoning, {
     contents: [{ parts: [{ text: prompt }] }],
     tools: [{ googleSearch: {} }],
     generationConfig: {
