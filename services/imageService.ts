@@ -27,6 +27,11 @@ export const getOptimizedImageUrl = (
     // Check if it's already a transformed URL to avoid double-transforming
     if (url.includes('?width=')) return url;
 
+    // TEMPORARY FIX: Disable Supabase Image Transformations as they are causing 400 errors
+    // likely due to Free Tier limitations or Signed URL conflicts.
+    return url;
+
+    /*
     const params = new URLSearchParams();
     params.append('width', width.toString());
     if (height) params.append('height', height.toString());
@@ -34,9 +39,8 @@ export const getOptimizedImageUrl = (
     params.append('format', 'origin'); // Use WebP if supported by browser (Supabase handles this)
 
     // Append transformation params
-    // Note: This assumes Supabase Image Transformations are enabled on the project
-    // If not, this will just append query params that might be ignored, which is safe
     return `${url}?${params.toString()}`;
+    */
 };
 
 /**
