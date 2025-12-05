@@ -183,7 +183,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | **Motivational Themes** | Christian, Business Executive, Health & Fitness, Retirement themes (5 seeded) | ✅ Deployed |
 | **Master Prompt Q&A** | Guided onboarding questions to build user identity profile (25+ questions seeded) | ✅ Schema Ready |
 | **Communication Router** | Unified system to route messages via Voice, SMS, Email, or Push based on urgency and user preference | ✅ Deployed |
-| **Voice Coach** | Gemini Live integration for real-time coaching conversations | 🟡 Backend Ready |
+| **Voice Coach** | Gemini Live integration for real-time coaching conversations | ✅ Deployed |
 | **Apple Watch Sync** | Micro-coaching at habit trigger moments | 🟡 Backend Ready |
 | **Smart Reminders** | Context-aware notifications that adapt to user's schedule and completion history | 🔲 Pending |
 
@@ -201,16 +201,16 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | **Manager Dashboard** | Team progress overview for enterprise admins | 🟡 Schema Ready |
 | **Partner Collaboration** | Full couple/partner shared workspace with `get_partner_connection()` function | ✅ Beta |
 
-### v2.0 — Systems Architecture Upgrade (Martell Systems) 🚧 IN PROGRESS
+### v2.0 — Systems Architecture Upgrade (Martell Systems) ✅ COMPLETED
 **Theme:** Identity Conditioning & Automated Systems
 
 | Feature | Description | Status |
 |---------|-------------|--------|
 | **Systems Database Schema** | 3 tables: `system_sops`, `resource_feed`, `psychological_frameworks` | ✅ Deployed |
-| **Input Diet (Active Feed)** | AI-curated "Netflix-style" feed of educational content | 🟡 Schema Ready |
-| **Identity Architect** | Psychological RAG engine for mindset reframing | 🟡 Schema Ready |
-| **Systems Dashboard** | Calendar-based SOP enforcement | 🟡 Schema Ready |
-| **Model Router Enforcement** | Strict routing to Gemini 3 Pro & Flash | 🟡 In Progress |
+| **Input Diet (Active Feed)** | AI-curated "Netflix-style" feed of educational content | ✅ Deployed |
+| **Identity Architect** | Psychological RAG engine for mindset reframing | ✅ Deployed |
+| **Systems Dashboard** | Calendar-based SOP enforcement | ✅ Deployed |
+| **Model Router Enforcement** | Strict routing to Gemini 3 Pro & Flash | ✅ Deployed |
 
 ### System Workflow Diagram
 
