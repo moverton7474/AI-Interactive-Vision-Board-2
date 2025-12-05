@@ -3,12 +3,29 @@ import React from 'react';
 interface Props {
   userName: string;
   themeName?: string;
+  motivationStyle?: 'encouraging' | 'challenging' | 'analytical' | 'spiritual';
   themeInsight?: string;
+  onPlayBriefing?: () => void;
 }
 
-const DashboardGreetingCard: React.FC<Props> = ({ userName, themeName, themeInsight }) => {
+const DashboardGreetingCard: React.FC<Props> = ({ userName, themeName, motivationStyle, themeInsight, onPlayBriefing }) => {
   const getGreeting = () => {
     const hour = new Date().getHours();
+
+    if (motivationStyle === 'challenging') {
+      if (hour < 12) return 'Time to execute';
+      return 'Let\'s get to work';
+    }
+
+    if (motivationStyle === 'spiritual') {
+      if (hour < 12) return 'Blessings this morning';
+      return 'Walk in purpose';
+    }
+
+    if (motivationStyle === 'analytical') {
+      return 'Status update';
+    }
+
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
@@ -45,10 +62,18 @@ const DashboardGreetingCard: React.FC<Props> = ({ userName, themeName, themeInsi
         </div>
 
         {themeInsight && (
-          <div className="mt-4 pt-4 border-t border-white/10">
-            <p className="text-navy-200 text-sm leading-relaxed italic">
+          <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between gap-4">
+            <p className="text-navy-200 text-sm leading-relaxed italic flex-1">
               "{themeInsight}"
             </p>
+
+            <button
+              onClick={onPlayBriefing}
+              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors backdrop-blur-sm whitespace-nowrap"
+            >
+              <span className="text-lg">🎙️</span>
+              Morning Briefing
+            </button>
           </div>
         )}
       </div>

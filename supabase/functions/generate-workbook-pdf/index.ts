@@ -242,19 +242,71 @@ async function generateWorkbook(supabase: any, userId: string, orderId: string) 
 
   // ... (sections generation)
 
-  // SIMULATE PDF GENERATION
-  // In a real production environment, we would use a service like DocRaptor, PrinceXML, or a Puppeteer Lambda
-  // to render the HTML content of the sections into a PDF.
-  // For this implementation, we will generate a text-based "PDF" or use a placeholder URL.
+  // ... (sections generation)
 
-  const pdfUrl = `https://visionary-storage.supabase.co/storage/v1/object/public/workbooks/${orderId}/final_workbook.pdf`;
+  // REAL PDF GENERATION
+  console.log(`Generating PDF for ${sections.length} sections...`);
+
+  // Import dynamically if needed, or assume it's imported at top
+  // For this replacement block, we'll assume generatePdf is available
+  // We need to map our sections to the format expected by generatePdf
+  // The sections array contains { content: ... }, we need to flatten or map it
+
+  const pagesToRender = sections.map(s => ({
+    type: s.section_type === 'monthly_planner' ? 'MONTHLY_PLANNER' :
+      s.section_type === 'habit_tracker' ? 'HABIT_TRACKER' :
+        'GENERIC',
+    ...s.content,
+    // Pass through structured data if present
+    monthlyData: s.content.monthlyData,
+    habitTracker: s.section_type === 'habit_tracker' ? {
+      habits: s.content.habits || [],
+      period: 'MONTH'
+    } : undefined,
+    textBlocks: [
+      { role: 'TITLE', content: s.title, position: { x: 10, y: 10 } },
+      ...(s.content.text ? [{ role: 'BODY', content: s.content.text, position: { x: 10, y: 20 } }] : [])
+    ]
+  }));
+
+  let pdfBytes: Uint8Array;
+  try {
+    const { generatePdf } = await import('./pdfGenerator.ts');
+    pdfBytes = await generatePdf(pagesToRender);
+  } catch (e: any) {
+    console.error("PDF Generation failed:", e);
+    throw new Error(`PDF Generation failed: ${e.message}`);
+  }
+
+  // Upload to Supabase Storage
+  const fileName = `${orderId}/final_workbook.pdf`;
+  const { data: uploadData, error: uploadError } = await supabase
+    .storage
+    .from('workbooks') // Ensure this bucket exists
+    .upload(fileName, pdfBytes, {
+      contentType: 'application/pdf',
+      upsert: true
+    });
+
+  if (uploadError) {
+    console.error("Storage upload failed:", uploadError);
+    throw new Error("Failed to upload generated PDF");
+  }
+
+  // Get Public URL
+  const { data: { publicUrl } } = supabase
+    .storage
+    .from('workbooks')
+    .getPublicUrl(fileName);
+
+  const pdfUrl = publicUrl;
 
   // Update order with PDF URL
   await supabase
     .from('workbook_orders')
     .update({
       merged_pdf_url: pdfUrl,
-      status: 'printing' // Move to printing status as we are about to submit
+      status: 'printing'
     })
     .eq('id', orderId);
 
@@ -559,18 +611,27 @@ async function generateSections(
     })
   }
 
-  // 10. Weekly Planner (New)
-  if (order.customization_data?.included_sections?.includes('weekly_planner')) {
-    sections.push({
-      workbook_order_id: orderId,
-      section_type: 'weekly_planner',
-      section_order: sectionOrder++,
-      title: 'Weekly Focus Planner',
-      content: {
-        weeksCount: 52
-      },
-      status: 'complete'
-    });
+  // 10. Monthly Planner (Calendar)
+  if (order.customization_data?.included_sections?.includes('monthly_planner')) {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const year = new Date().getFullYear() + 1; // Planning for next year
+
+    for (let i = 0; i < 12; i++) {
+      sections.push({
+        workbook_order_id: orderId,
+        section_type: 'monthly_planner',
+        section_order: sectionOrder++,
+        title: `${months[i]} ${year}`,
+        content: {
+          monthlyData: {
+            monthLabel: months[i],
+            year: year,
+            weeks: generateCalendarWeeks(year, i) // Helper function we'll need to add or inline
+          }
+        },
+        status: 'complete'
+      });
+    }
   }
 
   // 11. Weekly Journal (52 weeks)
@@ -689,4 +750,40 @@ async function getOrders(supabase: any, userId: string) {
     JSON.stringify({ success: true, orders: data }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   )
+}
+
+/**
+ * Helper to generate calendar weeks for a given month/year
+ */
+function generateCalendarWeeks(year: number, monthIndex: number) {
+  const firstDay = new Date(year, monthIndex, 1);
+  const lastDay = new Date(year, monthIndex + 1, 0);
+
+  const weeks = [];
+  let currentWeek = [];
+
+  // Pad start
+  for (let i = 0; i < firstDay.getDay(); i++) {
+    currentWeek.push({ id: `pad-start-${i}`, dateLabel: '' });
+  }
+
+  // Days
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    currentWeek.push({ id: `day-${d}`, dateLabel: String(d) });
+
+    if (currentWeek.length === 7) {
+      weeks.push(currentWeek);
+      currentWeek = [];
+    }
+  }
+
+  // Pad end
+  if (currentWeek.length > 0) {
+    while (currentWeek.length < 7) {
+      currentWeek.push({ id: `pad-end-${currentWeek.length}`, dateLabel: '' });
+    }
+    weeks.push(currentWeek);
+  }
+
+  return weeks;
 }

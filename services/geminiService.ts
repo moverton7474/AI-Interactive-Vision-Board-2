@@ -1,6 +1,7 @@
 
 import { supabase } from '../lib/supabase';
 import { ChatMessage, FinancialGoal, Milestone } from '../types';
+import { WorkbookPage, WorkbookPageType, WorkbookEdition, WorkbookTrimSize } from '../types/workbookTypes';
 
 /**
  * Helper to convert URL to Base64
@@ -263,3 +264,127 @@ export const generateActionPlan = async (visionContext: string, financialContext
     return data?.plan || [];
   }, 1, 1000);
 }
+
+/**
+ * Generate a complete Workbook Page JSON
+ */
+export const generateWorkbookPage = async (
+  pageType: WorkbookPageType,
+  edition: WorkbookEdition,
+  trimSize: WorkbookTrimSize,
+  aiContext: any,
+  existingPage?: WorkbookPage
+): Promise<WorkbookPage> => {
+  const systemPrompt = `You are a senior executive designer and AI layout architect.
+Your role is to generate ONE page of a premium, leather - bound Executive Vision Planner Workbook.
+
+Use minimalism, elegance, white space, and executive tone.
+    Typography:
+  - Serif for titles(refined, editorial style)
+    - Clean sans - serif for body text
+
+Color Palette:
+      - Navy, charcoal, ivory, soft gold accents
+
+You will receive:
+  - pageType
+    - edition
+    - trimSize
+    - aiContext(vision boards, goals, habits, themes)
+    - existing WorkbookPage JSON if regenerating
+
+Your output:
+  - A complete JSON object defining text blocks, image blocks, structured content(planners, calendars, trackers, roadmaps), quotes, and prompts for images.
+- JSON only, no explanations.
+
+      Rules:
+    - Cover pages must be clean and premium.
+- Quote pages use max 1–2 concise quotes.
+- Vision spreads must include prompts for aspirational imagery.
+- Roadmap pages must summarize years, quarters, goals, milestones.
+- Reflection pages must use thoughtful, high - impact questions.
+- Monthly / weekly planners must reflect standard calendar layout.
+
+Return JSON matching the WorkbookPage model.`;
+
+  const userMessage = JSON.stringify({
+    pageType,
+    edition,
+    trimSize,
+    aiContext,
+    existingPage
+  });
+
+  return withRetry(async () => {
+    const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+      body: {
+        action: 'raw',
+        model: 'gemini-1.5-flash', // Fallback to 1.5 Flash for stability
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ parts: [{ text: userMessage }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      }
+    });
+
+    if (error) throw error;
+
+    const responseText = data?.response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!responseText) throw new Error("No response from AI");
+
+    try {
+      return JSON.parse(responseText) as WorkbookPage;
+    } catch (e) {
+      console.error("Failed to parse AI response as JSON", responseText);
+      throw new Error("Invalid JSON response from AI");
+    }
+  }, 1, 1000, async () => {
+    // Fallback Mock Page
+    console.warn("Generating fallback page due to AI failure");
+    return {
+      id: "fallback-" + Date.now(),
+      edition: edition,
+      type: pageType,
+      pageNumber: 1,
+      layout: { trimSize, widthPx: 2100, heightPx: 2700, bleedPx: 37.5, safeMarginPx: 150, dpi: 300 },
+      textBlocks: [{ id: "t1", role: "TITLE", content: "Fallback Page: " + pageType }],
+      imageBlocks: [],
+      isVisible: true
+    } as WorkbookPage;
+  });
+};
+
+/**
+ * Generate AI Image Prompt for a Workbook Page
+ */
+export const generatePageImagePrompt = async (
+  pageType: WorkbookPageType,
+  goalThemes: string[]
+): Promise<string> => {
+  const promptTemplate = `Generate ONE high - end illustration or photograph for a premium executive vision planner page.
+
+    Context:
+  - pageType: ${pageType}
+  - goal themes: ${goalThemes.join(', ')}
+  - Edition: EXECUTIVE_VISION_BOOK
+    - Style: luxurious, minimalist, aspirational, vertical aspect ratio
+
+  Rules:
+  - No logos, brands, or copyrighted material.
+- Subtle luxury tones: navy, gold, ivory, matte black.
+- Focus on emotional resonance and clarity.
+
+Return only the image description prompt.`;
+
+  return withRetry(async () => {
+    const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+      body: {
+        action: 'raw',
+        model: 'gemini-1.5-flash',
+        contents: [{ parts: [{ text: promptTemplate }] }]
+      }
+    });
+
+    if (error) throw error;
+    return data?.response?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  });
+};

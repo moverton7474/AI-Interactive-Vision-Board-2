@@ -372,17 +372,18 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                         setIsGenerating(true);
                                         try {
                                             const pages = await buildInitialWorkbookPages({
-                                                edition: leatherColor === 'brown' ? 'COGNAC_LEATHER' : 'EXECUTIVE_BLACK',
-                                                trimSize: '7x9',
+                                                edition: 'EXECUTIVE_VISION_BOOK',
+                                                trimSize: 'TRADE_6x9',
                                                 goals: [], // TODO: Pass real goals
                                                 habits: selectedHabits,
                                                 visionBoardImages: selectedVisionBoards,
                                                 includeForeword
                                             });
+                                            console.log(`WorkbookWizard: Generated ${pages.length} pages`);
                                             setGeneratedPages(pages);
                                             setStep('PREVIEW');
                                         } catch (e) {
-                                            console.error(e);
+                                            console.error("WorkbookWizard: Generation failed", e);
                                         } finally {
                                             setIsGenerating(false);
                                         }
@@ -460,7 +461,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                             shipping_address: shipping,
                                             include_foreword: includeForeword,
                                             included_sections: [
-                                                ...(includeCalendar ? ['weekly_planner'] : []),
+                                                ...(includeCalendar ? ['monthly_planner'] : []),
                                                 ...(includeHabits ? ['habit_tracker'] : []),
                                                 ...(includeJournal ? ['weekly_journal'] : []),
                                                 ...(includeFinancial ? ['financial_snapshot', 'goal_overview'] : []),

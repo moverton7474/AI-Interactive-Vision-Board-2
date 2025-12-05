@@ -1,5 +1,5 @@
-import { WorkbookPage, WorkbookPageType, WorkbookTrimSize, WorkbookEdition } from '../../types/workbookTypes';
-import { generateWorkbookPageJson } from '../ai/geminiTextService';
+import { WorkbookPage, WorkbookPageType, WorkbookTrimSize, WorkbookEdition, PageLayoutMeta } from '../../types/workbookTypes';
+import { generateWorkbookPage } from '../geminiService';
 
 interface GenerateContext {
     type: WorkbookPageType;
@@ -10,35 +10,54 @@ interface GenerateContext {
 }
 
 export async function generatePage(context: GenerateContext): Promise<WorkbookPage> {
-    const pageData = await generateWorkbookPageJson(context);
+    const aiContext = {
+        goals: context.goals,
+        habits: context.habits
+    };
+
+    const pageData = await generateWorkbookPage(
+        context.type,
+        context.edition,
+        context.trimSize,
+        aiContext
+    );
+
     const layout = fillLayoutMeta(context.trimSize);
 
     return {
         ...pageData,
         layout,
         isVisible: true,
-        id: crypto.randomUUID()
+        id: crypto.randomUUID(),
+        pageNumber: 0 // Will be assigned by the sequence builder
     };
 }
 
-function fillLayoutMeta(trimSize: WorkbookTrimSize) {
-    // Return dimensions based on trim size
-    // 7x9 is standard for many planners
-    let width = 2100; // 7 inches * 300 dpi
-    let height = 2700; // 9 inches * 300 dpi
+function fillLayoutMeta(trimSize: WorkbookTrimSize): PageLayoutMeta {
+    const dpi = 300;
+    let widthPx = 2100; // 7x9 default
+    let heightPx = 2700;
 
-    if (trimSize === 'Letter') {
-        width = 2550;
-        height = 3300;
-    } else if (trimSize === 'A5') {
-        width = 1748;
-        height = 2480;
+    if (trimSize === 'LETTER_8_5x11') {
+        widthPx = 2550;
+        heightPx = 3300;
+    } else if (trimSize === 'A4_8_27x11_69') {
+        widthPx = 2480;
+        heightPx = 3508;
+    } else if (trimSize === 'A5_5_83x8_27') {
+        widthPx = 1748;
+        heightPx = 2480;
+    } else if (trimSize === 'TRADE_6x9') {
+        widthPx = 1800;
+        heightPx = 2700;
     }
 
     return {
-        pxWidth: width,
-        pxHeight: height,
-        bleed: 37.5, // 0.125 inch * 300
-        margin: 150, // 0.5 inch * 300
+        trimSize,
+        widthPx,
+        heightPx,
+        bleedPx: 37.5, // 0.125 inch
+        safeMarginPx: 150, // 0.5 inch
+        dpi
     };
 }

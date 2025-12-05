@@ -20,6 +20,7 @@ interface Habit {
 interface Props {
   userName: string;
   themeName?: string;
+  motivationStyle?: 'encouraging' | 'challenging' | 'analytical' | 'spiritual';
   themeInsight?: string;
   todayFocus?: string;
   primaryVisionUrl?: string;
@@ -33,11 +34,13 @@ interface Props {
   onToggleTask: (taskId: string) => void;
   onToggleHabit: (habitId: string) => void;
   isLoadingFocus?: boolean;
+  onPlayBriefing?: () => void;
 }
 
 const Dashboard: React.FC<Props> = ({
   userName,
   themeName,
+  motivationStyle,
   themeInsight,
   todayFocus,
   primaryVisionUrl,
@@ -50,7 +53,8 @@ const Dashboard: React.FC<Props> = ({
   onNavigate,
   onToggleTask,
   onToggleHabit,
-  isLoadingFocus
+  isLoadingFocus,
+  onPlayBriefing
 }) => {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -59,7 +63,9 @@ const Dashboard: React.FC<Props> = ({
         <DashboardGreetingCard
           userName={userName}
           themeName={themeName}
+          motivationStyle={motivationStyle}
           themeInsight={themeInsight}
+          onPlayBriefing={onPlayBriefing}
         />
 
         {/* Today's Focus */}
@@ -140,6 +146,12 @@ const Dashboard: React.FC<Props> = ({
                 className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
               >
                 📚 Knowledge Base
+              </button>
+              <button
+                onClick={() => onNavigate(AppView.PARTNER)}
+                className="px-4 py-2 text-sm font-medium text-pink-700 bg-pink-50 rounded-lg hover:bg-pink-100 transition-colors"
+              >
+                💑 Partner Workspace
               </button>
             </div>
           </div>

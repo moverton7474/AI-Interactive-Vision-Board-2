@@ -154,7 +154,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - [x] **PDF Generation:** `generate-workbook-pdf` Edge Function deployed
 - [x] **Workbook Order UI:** `WorkbookOrderModal.tsx` with enhanced 5-step wizard
 - [x] **Prodigi Notebook Integration:** Support for GLOBAL-NTB-* SKUs via `submit-to-prodigi`
-- [x] **Enhanced Wizard UX (Dec 2025):**
+- [x] **Enhanced Wizard UX:**
     - Edition metadata with "Best for..." recommendations
     - Character counters and smart defaults
     - 7 configurable workbook sections
@@ -162,20 +162,19 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
     - Desktop summary panel
     - Image error handling with gradient placeholders
 
-### v2.0: The Immersive Vision Board (FUTURE)
-- [ ] **Gemini Live Integration:** Full real-time, interruptible voice conversation with the AI Coach.
-- [ ] **Video Generation:** Use Veo to generate a 10-second video of the couple walking on the beach.
-- [ ] **Face Mapping 2.0:** Advanced consistency of user identity across multiple generated scenarios.
+### v1.6: Executive Vision Planner & Advanced Rendering ✅ COMPLETED
+- [x] **Executive Data Models:** `MonthlyPlanner`, `WeeklyPlanner`, `HabitTracker`, `Roadmap` types.
+- [x] **AI Content Engine:** Specialized prompts for structured JSON generation of calendars and trackers.
+- [x] **Premium UI/UX:**
+    - **Flipbook Preview:** Realistic 2-page spread view with spine shadows and textures.
+    - **Executive Theme:** Serif fonts, gold accents, and professional layout.
+- [x] **Advanced PDF Engine:**
+    - **Vector Graphics:** Implemented `pdf-lib` for crisp, print-ready grids and text.
+    - **Specialized Renderers:** Custom drawing logic for 5-row calendars and 31-day habit trackers.
+- [x] **Executive Leather Template:** SQL migration for new premium SKU.
 
----
-
-## 2.5 Feature Release Roadmap (v1.6 → v3.0) — NEW FEATURES
-
-> This section defines the next phases of development based on the updated Master Product Roadmap.
-
-### v1.6 — AMIE Identity Foundation & Voice Coach 🚧 IN PROGRESS
-
-**Theme:** Identity-Driven Coaching + Voice Execution
+### v1.7: AMIE Identity & Communication Engine 🚧 HIGH PRIORITY
+**Theme:** Identity-Driven Coaching + Proactive Communication
 
 | Feature | Description | Status |
 |---------|-------------|--------|
@@ -183,12 +182,10 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | **AMIE Base Layer** | Adaptive Motivational Identity Engine with theme selection | 🟡 Schema Ready |
 | **Motivational Themes** | Christian, Business Executive, Health & Fitness, Retirement themes (5 seeded) | ✅ Deployed |
 | **Master Prompt Q&A** | Guided onboarding questions to build user identity profile (25+ questions seeded) | ✅ Schema Ready |
-| **Personal Knowledge Base** | Notebook-LM style document ingestion with pgVector embeddings | ✅ Schema Ready |
-| **Theme Selector UI** | `ThemeSelector.tsx` component for onboarding | 🟡 Partial |
-| **Apple Watch Companion** | Micro-coaching at habit trigger moments. Backend complete: `watch-sync` + `watch-notifications` Edge Functions, database schema for device tokens, notifications, and sessions. iOS/watchOS native app pending. | 🟡 Backend Ready |
-| **Twilio Voice/SMS/Email Routing** | Unified messaging router with fallback channels | 🔲 Pending |
-| **Daily Focus Pads** | Print product: tear-off daily action pads | ✅ Schema Ready |
-| **Habit Cue Cards** | Print product: trigger cards for behavior change | ✅ Schema Ready |
+| **Communication Router** | Unified system to route messages via Voice, SMS, Email, or Push based on urgency and user preference | ✅ Deployed |
+| **Voice Coach** | Gemini Live integration for real-time coaching conversations | 🟡 Backend Ready |
+| **Apple Watch Sync** | Micro-coaching at habit trigger moments | 🟡 Backend Ready |
+| **Smart Reminders** | Context-aware notifications that adapt to user's schedule and completion history | 🔲 Pending |
 
 ### v2.0 — Enterprise & Team Tier 🟡 SCHEMA READY
 
@@ -197,12 +194,38 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | Feature | Description | Status |
 |---------|-------------|--------|
 | **Enterprise Database Schema** | 9 tables: partner_invitations, partner_connections, shared_goals, slack_installations, teams_installations, print_orders, teams, team_members, team_leaderboards | ✅ Deployed |
-| **Shared Goals & Dashboards** | Team goal alignment with visibility controls | 🟡 Schema Ready |
+| **Shared Goals & Dashboards** | Team goal alignment with visibility controls | ✅ Beta |
 | **Slack Bot Integration** | Daily habit prompts and goal updates in Slack | 🟡 Schema Ready |
 | **Microsoft Teams Bot** | Enterprise integration for Teams workspaces | 🟡 Schema Ready |
-| **Team Leaderboards** | Gamified team competition for habit streaks (with `calculate_team_leaderboard()` function) | 🟡 Schema Ready |
-| **Manager Dashboard** | Team progress overview for enterprise admins | 🔲 Pending |
-| **Partner Collaboration** | Full couple/partner shared workspace with `get_partner_connection()` function | 🟡 Schema Ready |
+| **Team Leaderboards** | Gamified team competition for habit streaks (with `calculate_team_leaderboard()` function) | ✅ Beta |
+| **Manager Dashboard** | Team progress overview for enterprise admins | 🟡 Schema Ready |
+| **Partner Collaboration** | Full couple/partner shared workspace with `get_partner_connection()` function | ✅ Beta |
+
+### System Workflow Diagram
+
+```mermaid
+graph TD
+    User[User] -->|Interacts| Dashboard[Dashboard UI]
+    Dashboard -->|Navigates| PartnerDash[Partner Dashboard]
+    Dashboard -->|Triggers| Briefing[Morning Briefing]
+    
+    PartnerDash -->|Invokes| PartnerEdge[Edge Function: partner-collaboration]
+    Briefing -->|Invokes| RouterEdge[Edge Function: communication-router]
+    
+    PartnerEdge -->|Reads/Writes| DB[(Supabase DB)]
+    RouterEdge -->|Reads| DB
+    
+    RouterEdge -->|Routes| Channel{Channel Selector}
+    Channel -->|High Urgency| SMS[Twilio SMS]
+    Channel -->|Voice| Call[Twilio Voice]
+    Channel -->|Standard| Push[Push Notification]
+    
+    subgraph Database
+        DB --> Partners[Partner Tables]
+        DB --> Goals[Shared Goals]
+        DB --> Profiles[User Profiles]
+    end
+```
 
 ### v3.0 — Marketplace & Certification 🔲 FUTURE
 

@@ -64,6 +64,7 @@ const App = () => {
   // AMIE Identity State
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
   const [selectedThemeName, setSelectedThemeName] = useState<string | null>(null);
+  const [motivationStyle, setMotivationStyle] = useState<'encouraging' | 'challenging' | 'analytical' | 'spiritual' | undefined>(undefined);
 
   // Shared State
   const [activeVisionPrompt, setActiveVisionPrompt] = useState('');
@@ -216,7 +217,14 @@ const App = () => {
         // Get user identity for theme name
         const { data: identity, error: identityError } = await supabase
           .from('user_identity_profiles')
-          .select('theme_id')
+          .select(`
+            theme_id,
+            theme:motivational_themes (
+              name,
+              display_name,
+              motivation_style
+            )
+          `)
           .eq('user_id', session.user.id)
           .single();
 
@@ -244,9 +252,13 @@ const App = () => {
               .select()
               .single();
           }
-        } else if (identity?.theme_id) {
-          console.log('✅ Theme loaded:', { themeId: identity.theme_id });
+        } else if (identity?.theme) {
+          console.log('✅ Theme loaded:', { theme: identity.theme });
           setSelectedThemeId(identity.theme_id);
+          // @ts-ignore
+          setSelectedThemeName(identity.theme.display_name);
+          // @ts-ignore
+          setMotivationStyle(identity.theme.motivation_style);
         }
 
         // Set user name from email
@@ -688,6 +700,26 @@ const App = () => {
     }
   };
 
+  const handlePlayBriefing = async () => {
+    if (!session?.user) return;
+    try {
+      // alert("Connecting to your AI Coach..."); // Optional: Remove alert for better UX or use toast
+      const { data, error } = await supabase.functions.invoke('communication-router', {
+        body: {
+          userId: session.user.id,
+          type: 'morning_briefing',
+          urgency: 'high'
+        }
+      });
+      if (error) throw error;
+      console.log('Briefing triggered:', data);
+      alert('Your AI Coach is calling you now!');
+    } catch (err) {
+      console.error('Failed to trigger briefing:', err);
+      alert('Failed to connect to AI Coach. Please try again.');
+    }
+  };
+
   const renderContent = () => {
     switch (view) {
       case AppView.DASHBOARD:
@@ -695,6 +727,7 @@ const App = () => {
           <Dashboard
             userName={userName}
             themeName={selectedThemeName || undefined}
+            motivationStyle={motivationStyle}
             themeInsight="Every step forward is progress toward your vision."
             todayFocus={todayFocus}
             primaryVisionUrl={primaryVisionUrl}
@@ -707,6 +740,7 @@ const App = () => {
             onNavigate={setView}
             onToggleTask={handleToggleTask}
             onToggleHabit={handleToggleHabit}
+            onPlayBriefing={handlePlayBriefing}
           />
         );
 

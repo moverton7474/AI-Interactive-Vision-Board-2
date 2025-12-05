@@ -1,4 +1,4 @@
-import { WorkbookPage, WorkbookEdition, WorkbookTrimSize } from '../../types/workbookTypes';
+import { WorkbookPage, WorkbookEdition, WorkbookTrimSize, WorkbookPageType } from '../../types/workbookTypes';
 import { generatePage } from './workbookLayoutService';
 
 export interface BuildOptions {
@@ -13,17 +13,17 @@ export interface BuildOptions {
 export async function buildInitialWorkbookPages(options: BuildOptions): Promise<WorkbookPage[]> {
     // derive page sequence from user goals, habits, theme
     // This is a scaffold, so we'll define a basic sequence
-    const pageTypes = [
-        'COVER',
+    const pageTypes: WorkbookPageType[] = [
+        'COVER_FRONT',
         'TITLE_PAGE',
-        ...(options.includeForeword ? ['FOREWORD'] : []),
-        'VISION_BOARD',
+        ...(options.includeForeword ? ['DEDICATION'] : []),
+        'VISION_BOARD_SPREAD',
         'GOAL_OVERVIEW',
         'MONTHLY_PLANNER',
         'WEEKLY_PLANNER',
-        'REFLECTION',
-        'NOTES'
-    ] as const;
+        'REFLECTION_MONTH',
+        'NOTES_LINED'
+    ];
 
     const pages: WorkbookPage[] = [];
 
