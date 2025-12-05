@@ -3,7 +3,7 @@
 **Version:** 2.0
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 5, 2025
+**Last Updated:** December 6, 2025
 
 ---
 
@@ -200,6 +200,17 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | **Team Leaderboards** | Gamified team competition for habit streaks (with `calculate_team_leaderboard()` function) | ✅ Beta |
 | **Manager Dashboard** | Team progress overview for enterprise admins | 🟡 Schema Ready |
 | **Partner Collaboration** | Full couple/partner shared workspace with `get_partner_connection()` function | ✅ Beta |
+
+### v2.0 — Systems Architecture Upgrade (Martell Systems) 🚧 IN PROGRESS
+**Theme:** Identity Conditioning & Automated Systems
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Systems Database Schema** | 3 tables: `system_sops`, `resource_feed`, `psychological_frameworks` | ✅ Deployed |
+| **Input Diet (Active Feed)** | AI-curated "Netflix-style" feed of educational content | 🟡 Schema Ready |
+| **Identity Architect** | Psychological RAG engine for mindset reframing | 🟡 Schema Ready |
+| **Systems Dashboard** | Calendar-based SOP enforcement | 🟡 Schema Ready |
+| **Model Router Enforcement** | Strict routing to Gemini 3 Pro & Flash | 🟡 In Progress |
 
 ### System Workflow Diagram
 
