@@ -51,15 +51,28 @@ serve(async (req) => {
             contextString = "Framework: Stoic Dichotomy of Control\nPrinciple: Focus only on what is in your power (your actions, thoughts) and accept what is not (outcomes, others' opinions).";
         }
 
-        // 4. Generate Response using Gemini 3 Pro (The "Identity Architect")
+        // 3.5 Retrieve User Identity & Theme Context
+        const { data: amieContext, error: contextError } = await supabase.rpc('get_amie_context', {
+            p_user_id: user_id
+        });
+
+        if (contextError) {
+            console.error("Error fetching AMIE context:", contextError);
+        }
+
+        // 4. Generate Response using Gemini 1.5 Pro (The "Identity Architect")
         // Strict Model Enforcement: gemini-1.5-pro (mapping to 3-pro-preview as per availability)
-        // Note: 'gemini-1.5-pro' is the current stable name for the high-reasoning model. 
-        // If 'gemini-3-pro-preview' is available in your region/key, use it. 
-        // I will use 'gemini-1.5-pro' as the safe proxy for "Gemini 3 Pro" class reasoning until the API name is standard.
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
+        let baseSystemPrompt = `You are AMIE, an Identity Architect and Psychological Coach.`;
+
+        // Override with Theme-specific prompt if available
+        if (amieContext?.theme?.system_prompt) {
+            baseSystemPrompt = amieContext.theme.system_prompt;
+        }
+
         const systemPrompt = `
-      You are AMIE, an Identity Architect and Psychological Coach.
+      ${baseSystemPrompt}
       
       YOUR GOAL:
       The user is struggling or asking for guidance. Do NOT give tactical financial advice or simple to-do lists.
@@ -73,7 +86,13 @@ serve(async (req) => {
       CONTEXT (Psychological Frameworks):
       ${contextString}
       
-      USER CONTEXT:
+      USER IDENTITY PROFILE:
+      ${JSON.stringify(amieContext?.identity || {})}
+      
+      USER PREFERENCES:
+      ${JSON.stringify(amieContext?.preferences || {})}
+      
+      USER CONTEXT (Session):
       ${JSON.stringify(context || {})}
       
       USER MESSAGE:
