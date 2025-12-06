@@ -109,32 +109,37 @@ async function startSession(supabase: any, userId: string, body: any) {
     throw new Error(`Invalid sessionType. Valid types: ${validTypes.join(', ')}`)
   }
 
-  // Get user's AMIE profile for personalization
+  // Get user's AMIE profile and theme
   const { data: identityProfile } = await supabase
     .from('user_identity_profiles')
-    .select('compiled_prompt, personality_snapshot')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .single()
-
-  // Get user's selected theme
-  const { data: themeSelection } = await supabase
-    .from('user_theme_selections')
     .select(`
-      amie_themes (
+      master_prompt,
+      identity_summary,
+      theme:motivational_themes (
         id,
         name,
         display_name,
-        voice_style,
-        greeting_style,
-        encouragement_phrases
+        motivation_style,
+        vocabulary_examples
       )
     `)
     .eq('user_id', userId)
-    .eq('is_active', true)
     .single()
 
-  const theme = themeSelection?.amie_themes
+  const theme = identityProfile?.theme
+
+  // Map schema fields to expected format
+  if (theme) {
+    theme.voice_style = theme.motivation_style
+    theme.greeting_style = 'warm' // Default
+    theme.encouragement_phrases = theme.vocabulary_examples
+  }
+
+  // Map profile fields
+  if (identityProfile) {
+    identityProfile.compiled_prompt = identityProfile.master_prompt
+    identityProfile.personality_snapshot = identityProfile.identity_summary
+  }
 
   // Create session record
   const { data: session, error: sessionError } = await supabase
@@ -233,27 +238,33 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
   // Get AMIE context for personalized response
   const { data: identityProfile } = await supabase
     .from('user_identity_profiles')
-    .select('compiled_prompt, personality_snapshot')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .single()
-
-  const { data: themeSelection } = await supabase
-    .from('user_theme_selections')
     .select(`
-      amie_themes (
+      master_prompt,
+      identity_summary,
+      theme:motivational_themes (
         name,
         display_name,
-        voice_style,
-        encouragement_phrases,
+        motivation_style,
+        vocabulary_examples,
         system_prompt_template
       )
     `)
     .eq('user_id', userId)
-    .eq('is_active', true)
     .single()
 
-  const theme = themeSelection?.amie_themes
+  const theme = identityProfile?.theme
+
+  // Map schema fields to expected format
+  if (theme) {
+    theme.voice_style = theme.motivation_style
+    theme.encouragement_phrases = theme.vocabulary_examples
+  }
+
+  // Map profile fields
+  if (identityProfile) {
+    identityProfile.compiled_prompt = identityProfile.master_prompt
+    identityProfile.personality_snapshot = identityProfile.identity_summary
+  }
 
   // Build system prompt for voice coaching
   const systemPrompt = buildVoiceCoachPrompt(session.session_type, theme, identityProfile)
