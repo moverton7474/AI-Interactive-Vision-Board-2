@@ -25,6 +25,7 @@ import PartnerDashboard from './components/PartnerDashboard';
 import SlackIntegration from './components/SlackIntegration';
 import TeamLeaderboards from './components/TeamLeaderboards';
 import ManagerDashboard from './components/ManagerDashboard';
+import MdalsEngineLab from './components/MdalsEngineLab';
 import { GuidedOnboarding } from './components/onboarding';
 import { Dashboard } from './components/dashboard';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon } from './components/Icons';
@@ -743,6 +744,9 @@ const App = () => {
             onPlayBriefing={handlePlayBriefing}
           />
         );
+
+      case AppView.MDALS_LAB:
+        return <MdalsEngineLab onClose={() => setView(AppView.DASHBOARD)} />;
 
       case AppView.GUIDED_ONBOARDING:
         return session?.user ? (

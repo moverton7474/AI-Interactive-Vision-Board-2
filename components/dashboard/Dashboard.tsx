@@ -92,6 +92,21 @@ const Dashboard: React.FC<Props> = ({
               targetLabel={financialTargetLabel}
               onClick={() => onNavigate(AppView.FINANCIAL)}
             />
+
+            {/* MDALS Lab Button */}
+            <button
+              onClick={() => onNavigate(AppView.MDALS_LAB)}
+              className="w-full bg-gradient-to-r from-purple-900 to-navy-900 text-white p-4 rounded-xl shadow-lg flex items-center justify-between hover:scale-105 transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🎵</span>
+                <div className="text-left">
+                  <h3 className="font-bold">MDALS Engine Lab</h3>
+                  <p className="text-xs text-purple-200">Song Finder & Music Analysis</p>
+                </div>
+              </div>
+              <span>→</span>
+            </button>
           </div>
 
           {/* Right Column */}

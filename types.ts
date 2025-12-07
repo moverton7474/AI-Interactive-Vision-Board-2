@@ -23,6 +23,7 @@ export enum AppView {
   INTEGRATIONS = 'INTEGRATIONS', // Slack, Teams integrations
   TEAM_LEADERBOARDS = 'TEAM_LEADERBOARDS', // Team competition and rankings
   MANAGER_DASHBOARD = 'MANAGER_DASHBOARD', // Enterprise team management
+  MDALS_LAB = 'MDALS_LAB', // Music-Driven Adaptive Learning Systems Lab (Song Finder)
 }
 
 // Guided Onboarding State (v1.6)
@@ -98,7 +99,7 @@ export interface Document {
   url?: string;
   type: 'UPLOAD' | 'MANUAL' | 'AI_INTERVIEW' | 'VISION';
   createdAt: number;
-  structuredData?: any; 
+  structuredData?: any;
   tags?: string[];
 }
 
@@ -107,7 +108,7 @@ export interface ActionTask {
   id: string;
   title: string;
   description: string;
-  dueDate: string; 
+  dueDate: string;
   type: 'FINANCE' | 'LIFESTYLE' | 'ADMIN';
   isCompleted: boolean;
   milestoneYear?: number;
@@ -122,7 +123,7 @@ export interface Milestone {
   year: number;
   title: string;
   tasks: ActionTask[];
-  marketResearchSnippet?: string; 
+  marketResearchSnippet?: string;
 }
 
 export interface FinancialContext {
@@ -156,12 +157,12 @@ export interface ShippingAddress {
   city: string;
   state: string;
   postalCode: string;
-  country: string; 
+  country: string;
 }
 
 export interface PrintConfig {
-  sku: string; 
-  size: string; 
+  sku: string;
+  size: string;
   finish: 'matte' | 'gloss';
   quantity: number;
 }

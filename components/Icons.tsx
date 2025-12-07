@@ -45,7 +45,7 @@ export const TrashIcon = ({ className }: { className?: string }) => (
 
 export const DownloadIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
-     <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M12 9.75V3m0 0l-3 3m3-3l3 3m-3 7.5v6" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M12 9.75V3m0 0l-3 3m3-3l3 3m-3 7.5v6" />
   </svg>
 );
 
@@ -176,11 +176,11 @@ export const GoogleIcon = ({ className }: { className?: string }) => (
 
 export const MicrosoftIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-    <path d="M11.4 11.4H0V0h11.4v11.4zm12.6 0H12.6V0H24v11.4zM11.4 24H0V12.6h11.4V24zm12.6 0H12.6V12.6H24V24z" fill="#F25022"/>
-    <path d="M11.4 11.4H0V0h11.4v11.4z" fill="#F25022"/>
-    <path d="M24 11.4H12.6V0H24v11.4z" fill="#7FBA00"/>
-    <path d="M11.4 24H0V12.6h11.4V24z" fill="#00A4EF"/>
-    <path d="M24 24H12.6V12.6H24V24z" fill="#FFB900"/>
+    <path d="M11.4 11.4H0V0h11.4v11.4zm12.6 0H12.6V0H24v11.4zM11.4 24H0V12.6h11.4V24zm12.6 0H12.6V12.6H24V24z" fill="#F25022" />
+    <path d="M11.4 11.4H0V0h11.4v11.4z" fill="#F25022" />
+    <path d="M24 11.4H12.6V0H24v11.4z" fill="#7FBA00" />
+    <path d="M11.4 24H0V12.6h11.4V24z" fill="#00A4EF" />
+    <path d="M24 24H12.6V12.6H24V24z" fill="#FFB900" />
   </svg>
 );
 
@@ -337,3 +337,15 @@ export const ChevronRightIcon = ({ className }: { className?: string }) => (
 
 // Alias for XMarkIcon
 export const XIcon = XMarkIcon;
+
+export const SearchIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+  </svg>
+);
+
+export const MusicIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z" />
+  </svg>
+);
