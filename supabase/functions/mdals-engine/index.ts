@@ -575,12 +575,13 @@ serve(async (req) => {
   }
 
   // Initialize environment
-  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
+  // Support both GEMINI_API_KEY and GEMINI_API_KEY2 for flexibility
+  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GEMINI_API_KEY2')
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
   if (!GEMINI_API_KEY) {
-    return errorResponse('GEMINI_API_KEY not configured', 500)
+    return errorResponse('GEMINI_API_KEY or GEMINI_API_KEY2 not configured', 500)
   }
 
   const supabase = createClient(SUPABASE_URL ?? '', SUPABASE_SERVICE_ROLE_KEY ?? '')
