@@ -269,65 +269,124 @@ async function triggerEventNotification(supabase: any, params: any) {
  */
 async function checkHabitReminders(supabase: any) {
   const now = new Date()
-  const currentHour = now.getHours()
-  const currentMinute = now.getMinutes()
-  const timeWindow = `${currentHour.toString().padStart(2, '0')}:${Math.floor(currentMinute / 15) * 15}` // 15-min windows
 
-  // Find habits with reminders due now
+  // Find all active habits
   const { data: habits, error } = await supabase
     .from('habits')
     .select(`
       *,
       profiles:user_id (names),
-      user_comm_preferences:user_id (phone_number, preferred_channel)
+      user_comm_preferences:user_id (phone_number, preferred_channel, timezone)
     `)
     .eq('is_active', true)
-    .not('reminder_time', 'is', null)
 
   if (error) throw error
 
   const sent = []
 
+  // Group by user to optimize checks
+  const habitsByUser: Record<string, any[]> = {}
   for (const habit of habits || []) {
-    // Check if reminder time matches (within 15 min window)
-    const reminderHour = parseInt(habit.reminder_time?.split(':')[0] || '0')
-    const reminderMin = parseInt(habit.reminder_time?.split(':')[1] || '0')
+    if (!habitsByUser[habit.user_id]) habitsByUser[habit.user_id] = []
+    habitsByUser[habit.user_id].push(habit)
+  }
 
-    if (Math.abs(currentHour - reminderHour) === 0 && Math.abs(currentMinute - reminderMin) < 15) {
-      // Check if already completed today
-      const today = now.toISOString().split('T')[0]
-      const { data: completion } = await supabase
-        .from('habit_completions')
-        .select('id')
-        .eq('habit_id', habit.id)
-        .eq('completed_at', today)
-        .single()
+  // Process each user
+  for (const userId of Object.keys(habitsByUser)) {
+    const userHabits = habitsByUser[userId]
+    if (userHabits.length === 0) continue
 
-      if (!completion) {
-        // Calculate streak
-        const { data: streakData } = await supabase
-          .rpc('calculate_streak', { p_habit_id: habit.id })
+    const prefs = userHabits[0].user_comm_preferences
+    const timezone = prefs?.timezone || 'UTC'
 
-        // Send reminder
-        const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
-        await fetch(`${SUPABASE_URL}/functions/v1/send-sms`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-          },
-          body: JSON.stringify({
-            userId: habit.user_id,
-            template: 'habit_reminder',
-            templateData: {
-              name: habit.profiles?.names?.split(' ')[0] || 'there',
-              habitTitle: habit.title,
-              streak: streakData || 0
-            }
+    // Get user's local time
+    let localTimeStr: string;
+    try {
+      localTimeStr = new Date().toLocaleString('en-US', { timeZone: timezone, hour12: false });
+    } catch (e) {
+      console.warn(`Invalid timezone ${timezone}, falling back to UTC`);
+      localTimeStr = new Date().toLocaleString('en-US', { timeZone: 'UTC', hour12: false });
+    }
+
+    const localDate = new Date(localTimeStr)
+    const currentHour = localDate.getHours()
+    const currentMinute = localDate.getMinutes()
+
+    // Determine "Smart" hour (Peak Activity) for this user
+    // We infer this logic: If we haven't cached it, we fetch it via RPC
+    let smartHour = 9; // Default
+    try {
+      const { data: peak } = await supabase.rpc('get_user_peak_activity_hour', { p_user_id: userId })
+      if (peak !== null) smartHour = peak
+    } catch (e) {
+      console.warn('Failed to get peak activity:', e)
+    }
+
+    // Check each habit
+    for (const habit of userHabits) {
+      let shouldRemind = false
+
+      if (habit.reminder_time) {
+        // Strict Time Match (User Local Time)
+        const [h, m] = habit.reminder_time.split(':').map(Number)
+        // Match if hour is exact and minute is within last 15 mins (cron window)
+        // Assuming cron runs every 15 mins
+        if (currentHour === h && Math.abs(currentMinute - m) < 15) {
+          shouldRemind = true
+        }
+      } else {
+        // Smart Reminder (No fixed time)
+        // Send if current hour matches Peak Activity Hour
+        // And it's the top of the hour (0-15 mins) to avoid repeat
+        if (currentHour === smartHour && currentMinute < 15) {
+          shouldRemind = true
+        }
+      }
+
+      if (shouldRemind) {
+        // Check if already completed today (in User Local Date)
+        // Need formatting YYYY-MM-DD in local time
+        const year = localDate.getFullYear()
+        const month = String(localDate.getMonth() + 1).padStart(2, '0')
+        const day = String(localDate.getDate()).padStart(2, '0')
+        const todayStr = `${year}-${month}-${day}` // Local "Today"
+
+        const { data: completion } = await supabase
+          .from('habit_completions')
+          .select('id')
+          .eq('habit_id', habit.id)
+          .eq('completed_at', todayStr)
+          .single()
+
+        if (!completion) {
+          // Calculate streak
+          const { data: streakData } = await supabase
+            .rpc('calculate_streak', { p_habit_id: habit.id })
+
+          // Send reminder (Reuse existing send logic)
+          // Note: We use existing sendSmsNotification helper indirectly or direct fetch
+          // Existing code used direct fetch to send-sms. We keep that pattern.
+
+          const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+          await fetch(`${SUPABASE_URL}/functions/v1/send-sms`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({
+              userId: habit.user_id,
+              template: 'habit_reminder',
+              templateData: {
+                name: habit.profiles?.names?.split(' ')[0] || 'there',
+                habitTitle: habit.title,
+                streak: streakData || 0
+              }
+            })
           })
-        })
 
-        sent.push({ habitId: habit.id, userId: habit.user_id })
+          sent.push({ habitId: habit.id, userId: habit.user_id, type: habit.reminder_time ? 'fixed' : 'smart' })
+        }
       }
     }
   }
