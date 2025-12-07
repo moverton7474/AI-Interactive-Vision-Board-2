@@ -25,10 +25,10 @@ import PartnerDashboard from './components/PartnerDashboard';
 import SlackIntegration from './components/SlackIntegration';
 import TeamLeaderboards from './components/TeamLeaderboards';
 import ManagerDashboard from './components/ManagerDashboard';
-import MdalsEngineLab from './components/MdalsEngineLab';
+import MdalsTestPanel from './components/mdals/MdalsTestPanel';
 import { GuidedOnboarding } from './components/onboarding';
 import { Dashboard } from './components/dashboard';
-import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon } from './components/Icons';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -745,9 +745,6 @@ const App = () => {
           />
         );
 
-      case AppView.MDALS_LAB:
-        return <MdalsEngineLab onClose={() => setView(AppView.DASHBOARD)} />;
-
       case AppView.GUIDED_ONBOARDING:
         return session?.user ? (
           <GuidedOnboarding
@@ -963,6 +960,13 @@ const App = () => {
         return <TeamLeaderboards onBack={() => setView(AppView.LANDING)} />;
       case AppView.MANAGER_DASHBOARD:
         return <ManagerDashboard onBack={() => setView(AppView.LANDING)} />;
+      case AppView.MDALS_LAB:
+        return session?.user?.id ? (
+          <MdalsTestPanel
+            userId={session.user.id}
+            onClose={() => setView(AppView.DASHBOARD)}
+          />
+        ) : null;
       default:
         return null;
     }
@@ -1258,6 +1262,9 @@ const App = () => {
                       </button>
                       <button onClick={() => { setView(AppView.MANAGER_DASHBOARD); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                         <ChartBarIcon className="w-4 h-4" /> Manager
+                      </button>
+                      <button onClick={() => { setView(AppView.MDALS_LAB); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2">
+                        <MusicNoteIcon className="w-4 h-4" /> MDALS Lab
                       </button>
                       <div className="border-t border-gray-100 my-1" />
                       <button onClick={() => { setShowWorkbookModal(true); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
