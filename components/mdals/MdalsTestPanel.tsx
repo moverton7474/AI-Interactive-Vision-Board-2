@@ -13,6 +13,30 @@ interface MdalsTestPanelProps {
   onClose?: () => void;
 }
 
+// Song suggestion from AI finder
+interface SongSuggestion {
+  title: string;
+  artist: string;
+  album?: string;
+  year?: string;
+  confidence: 'high' | 'medium' | 'low';
+  reason: string;
+  genre?: string;
+  search_tip?: string;
+}
+
+// Genre options for song finder
+const GENRE_OPTIONS = [
+  { value: 'christian', label: 'Christian/Gospel' },
+  { value: 'worship', label: 'Worship' },
+  { value: 'pop', label: 'Pop' },
+  { value: 'rock', label: 'Rock' },
+  { value: 'r&b', label: 'R&B/Soul' },
+  { value: 'country', label: 'Country' },
+  { value: 'hip-hop', label: 'Hip-Hop' },
+  { value: 'classical', label: 'Classical' },
+];
+
 // Available domains for learning
 const DOMAIN_OPTIONS = [
   { value: 'spiritual', label: 'Spiritual / Christian' },
@@ -33,6 +57,16 @@ const SOURCE_OPTIONS: { value: MdalsSongSourceType; label: string }[] = [
 ];
 
 const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
+  // Song Finder state
+  const [showSongFinder, setShowSongFinder] = useState(false);
+  const [songDescription, setSongDescription] = useState('');
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [songMood, setSongMood] = useState('');
+  const [songEra, setSongEra] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [songSuggestions, setSongSuggestions] = useState<SongSuggestion[]>([]);
+  const [clarifyingQuestions, setClarifyingQuestions] = useState<string[]>([]);
+
   // Form state
   const [songTitle, setSongTitle] = useState('');
   const [artist, setArtist] = useState('');
@@ -59,6 +93,63 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
         ? prev.filter(d => d !== domain)
         : [...prev, domain]
     );
+  };
+
+  // Toggle genre selection for song finder
+  const toggleGenre = (genre: string) => {
+    setSelectedGenres(prev =>
+      prev.includes(genre)
+        ? prev.filter(g => g !== genre)
+        : [...prev, genre]
+    );
+  };
+
+  // AI Song Finder search
+  const handleFindSong = async () => {
+    if (!songDescription.trim() || songDescription.trim().length < 10) {
+      setError('Please describe the song in more detail (at least 10 characters)');
+      return;
+    }
+
+    setIsSearching(true);
+    setError(null);
+    setSongSuggestions([]);
+    setClarifyingQuestions([]);
+
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine/find-song', {
+        body: {
+          description: songDescription.trim(),
+          genres: selectedGenres.length > 0 ? selectedGenres : undefined,
+          mood: songMood.trim() || undefined,
+          era: songEra.trim() || undefined,
+        }
+      });
+
+      if (fnError) throw fnError;
+      if (!data.success) throw new Error(data.error || 'Song search failed');
+
+      setSongSuggestions(data.suggestions || []);
+      setClarifyingQuestions(data.clarifying_questions || []);
+    } catch (err: any) {
+      console.error('Song finder error:', err);
+      setError(err.message || 'Failed to find song');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Select a song suggestion and populate the form
+  const handleSelectSuggestion = (suggestion: SongSuggestion) => {
+    setSongTitle(suggestion.title);
+    setArtist(suggestion.artist);
+    setSongSuggestions([]);
+    setClarifyingQuestions([]);
+    setShowSongFinder(false);
+    setSongDescription('');
+    setSelectedGenres([]);
+    setSongMood('');
+    setSongEra('');
   };
 
   // Analyze song
@@ -175,6 +266,162 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
             {error}
           </div>
         )}
+
+        {/* AI Song Finder */}
+        <div className="bg-gray-800 rounded-xl p-6 mb-6">
+          <button
+            onClick={() => setShowSongFinder(!showSongFinder)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔍</span>
+              <div>
+                <h2 className="text-lg font-semibold text-yellow-400">Can't Remember the Song?</h2>
+                <p className="text-sm text-gray-400">Let AI help you find it from your description</p>
+              </div>
+            </div>
+            <span className="text-gray-400 text-xl">{showSongFinder ? '▼' : '▶'}</span>
+          </button>
+
+          {showSongFinder && (
+            <div className="mt-4 pt-4 border-t border-gray-700">
+              {/* Song Description */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Describe the song you're looking for
+                </label>
+                <textarea
+                  value={songDescription}
+                  onChange={(e) => setSongDescription(e.target.value)}
+                  placeholder="e.g., 'That Christian song about chains being gone and freedom' or 'The Hillsong song about trusting God in the deep water' or 'A worship song from the 2000s about surrender'"
+                  rows={3}
+                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Include any details you remember: lyrics themes, artist hints, genre, era, mood, etc.
+                </p>
+              </div>
+
+              {/* Genre Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Genre (optional)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {GENRE_OPTIONS.map(genre => (
+                    <button
+                      key={genre.value}
+                      onClick={() => toggleGenre(genre.value)}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                        selectedGenres.includes(genre.value)
+                          ? 'bg-yellow-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {genre.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Optional Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Mood/Feel (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={songMood}
+                    onChange={(e) => setSongMood(e.target.value)}
+                    placeholder="e.g., uplifting, peaceful, powerful"
+                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Era/Time Period (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={songEra}
+                    onChange={(e) => setSongEra(e.target.value)}
+                    placeholder="e.g., 2010s, 90s, recent"
+                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Search Button */}
+              <button
+                onClick={handleFindSong}
+                disabled={isSearching || songDescription.trim().length < 10}
+                className="px-6 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+              >
+                {isSearching ? 'Searching...' : 'Find My Song'}
+              </button>
+
+              {/* Song Suggestions */}
+              {songSuggestions.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-300 mb-3">
+                    Possible Matches (click to select):
+                  </h3>
+                  <div className="space-y-3">
+                    {songSuggestions.map((suggestion, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSelectSuggestion(suggestion)}
+                        className="w-full text-left p-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors border border-gray-600 hover:border-yellow-500"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-white">{suggestion.title}</span>
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                suggestion.confidence === 'high'
+                                  ? 'bg-green-900 text-green-200'
+                                  : suggestion.confidence === 'medium'
+                                  ? 'bg-yellow-900 text-yellow-200'
+                                  : 'bg-gray-600 text-gray-300'
+                              }`}>
+                                {suggestion.confidence}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-400">
+                              by {suggestion.artist}
+                              {suggestion.year && ` (${suggestion.year})`}
+                              {suggestion.genre && ` • ${suggestion.genre}`}
+                            </p>
+                            <p className="text-sm text-gray-300 mt-1">{suggestion.reason}</p>
+                            {suggestion.search_tip && (
+                              <p className="text-xs text-gray-500 mt-1 italic">{suggestion.search_tip}</p>
+                            )}
+                          </div>
+                          <span className="text-yellow-400 ml-4">Select →</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Clarifying Questions */}
+              {clarifyingQuestions.length > 0 && (
+                <div className="mt-4 p-3 bg-blue-900/30 border border-blue-700 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-300 mb-2">
+                    To help narrow down your search:
+                  </h4>
+                  <ul className="list-disc list-inside text-sm text-blue-200 space-y-1">
+                    {clarifyingQuestions.map((q, i) => (
+                      <li key={i}>{q}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Song Input Form */}
         <div className="bg-gray-800 rounded-xl p-6 mb-6">

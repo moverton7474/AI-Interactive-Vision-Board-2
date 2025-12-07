@@ -16,12 +16,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
   buildSongAnalysisPrompt,
   buildPlanGenerationPrompt,
+  buildSongFinderPrompt,
   parseAnalysisResponse,
   parsePlanResponse,
+  parseSongFinderResponse,
   type SongAnalysisInput,
   type PlanGenerationInput,
+  type SongFinderInput,
   type SongAnalysisResult,
-  type LearningPlanResult
+  type LearningPlanResult,
+  type SongFinderResult
 } from './promptTemplates.ts'
 
 declare const Deno: any;
@@ -503,6 +507,64 @@ async function handleGetPlans(
 }
 
 // ============================================
+// FIND SONG ENDPOINT (AI Song Finder)
+// ============================================
+
+interface FindSongRequest {
+  description: string;
+  genres?: string[];
+  mood?: string;
+  era?: string;
+  language?: string;
+}
+
+async function handleFindSong(
+  req: Request,
+  geminiApiKey: string
+): Promise<Response> {
+  const body: FindSongRequest = await req.json()
+
+  // Validate input
+  if (!body.description?.trim()) {
+    return errorResponse('Missing required field: description')
+  }
+
+  if (body.description.trim().length < 10) {
+    return errorResponse('Description too short. Please provide more details about the song.')
+  }
+
+  try {
+    // Build and call LLM prompt
+    const finderInput: SongFinderInput = {
+      description: body.description.trim(),
+      genres: body.genres,
+      mood: body.mood,
+      era: body.era,
+      language: body.language
+    }
+
+    const prompt = buildSongFinderPrompt(finderInput)
+    console.log(`Finding song from description: "${body.description.substring(0, 50)}..."`)
+
+    const llmResponse = await callGemini(prompt, geminiApiKey)
+
+    // Parse response
+    const result: SongFinderResult = parseSongFinderResponse(llmResponse)
+
+    // Return response
+    return jsonResponse({
+      success: true,
+      suggestions: result.suggestions,
+      clarifying_questions: result.clarifying_questions
+    })
+
+  } catch (error: any) {
+    console.error('Find song error:', error)
+    return errorResponse(error.message || 'Failed to find song', 500)
+  }
+}
+
+// ============================================
 // MAIN HANDLER
 // ============================================
 
@@ -553,12 +615,19 @@ serve(async (req) => {
         }
         return await handleGetPlans(req, supabase)
 
+      case 'find-song':
+        if (req.method !== 'POST') {
+          return errorResponse('Method not allowed', 405)
+        }
+        return await handleFindSong(req, GEMINI_API_KEY)
+
       default:
         // Default behavior for base path: show available endpoints
         return jsonResponse({
           service: 'MDALS Engine',
-          version: '1.0',
+          version: '1.1',
           endpoints: [
+            { method: 'POST', path: '/find-song', description: 'AI-powered song finder from fuzzy descriptions' },
             { method: 'POST', path: '/analyze-song', description: 'Analyze a song and extract themes' },
             { method: 'POST', path: '/generate-plan', description: 'Generate a learning plan from song insights' },
             { method: 'GET', path: '/songs', description: 'Get user songs with insights' },

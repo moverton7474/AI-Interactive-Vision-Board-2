@@ -348,6 +348,128 @@ export function parseAnalysisResponse(text: string): SongAnalysisResult {
   }
 }
 
+// ============================================
+// SONG FINDER PROMPT
+// ============================================
+
+export interface SongFinderInput {
+  description: string;
+  genres?: string[];
+  mood?: string;
+  era?: string;
+  language?: string;
+}
+
+export function buildSongFinderPrompt(input: SongFinderInput): string {
+  const { description, genres = [], mood, era, language = 'en' } = input;
+
+  return `You are a music expert with encyclopedic knowledge of songs across all genres, eras, and cultures.
+Your role is to help users identify songs based on partial or fuzzy descriptions.
+
+## Task
+A user is trying to find a song but doesn't know the exact title or artist. Help them identify it based on their description.
+
+## User's Description
+"${description}"
+
+${genres.length > 0 ? `**Preferred Genres:** ${genres.join(', ')}` : ''}
+${mood ? `**Mood/Feel:** ${mood}` : ''}
+${era ? `**Era/Time Period:** ${era}` : ''}
+
+## Instructions
+1. Based on the description, identify the most likely songs the user is thinking of
+2. Consider:
+   - Lyrical content they might be describing
+   - Themes or messages mentioned
+   - Artist clues (voice type, band vs solo, etc.)
+   - Musical style hints
+   - Any specific phrases or words they remember
+3. Provide your top 3-5 most likely matches
+4. For each match, explain WHY you think it might be the song they're looking for
+
+## CRITICAL RULES
+- **DO NOT quote or reproduce any lyrics** - describe them generally instead
+- Provide enough context for the user to verify if it's the right song
+- If the description is too vague, still provide your best guesses but note the uncertainty
+- Include both well-known and lesser-known possibilities
+
+## Output Format
+Return ONLY valid JSON in this exact structure:
+
+\`\`\`json
+{
+  "suggestions": [
+    {
+      "title": "Song Title",
+      "artist": "Artist Name",
+      "album": "Album Name (if known)",
+      "year": "Release Year (if known)",
+      "confidence": "high|medium|low",
+      "reason": "1-2 sentences explaining why this might be the song they're looking for",
+      "genre": "Primary genre",
+      "search_tip": "Suggestion for how to verify (e.g., 'Search for [title] + [keyword]')"
+    }
+  ],
+  "clarifying_questions": [
+    "Optional: Questions that might help narrow down if none of these match"
+  ]
+}
+\`\`\`
+
+Provide 3-5 suggestions ranked by likelihood. If you're very confident about one, put it first with "high" confidence.
+${language !== 'en' ? `\nRespond in ${language}.` : ''}`;
+}
+
+export interface SongFinderResult {
+  suggestions: Array<{
+    title: string;
+    artist: string;
+    album?: string;
+    year?: string;
+    confidence: 'high' | 'medium' | 'low';
+    reason: string;
+    genre?: string;
+    search_tip?: string;
+  }>;
+  clarifying_questions?: string[];
+}
+
+export function parseSongFinderResponse(text: string): SongFinderResult {
+  // Try to extract JSON from markdown code blocks
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  const jsonStr = jsonMatch ? jsonMatch[1] : text;
+
+  try {
+    const parsed = JSON.parse(jsonStr.trim());
+
+    // Validate required fields
+    if (!Array.isArray(parsed.suggestions)) {
+      parsed.suggestions = [];
+    }
+
+    // Validate each suggestion
+    for (const suggestion of parsed.suggestions) {
+      if (!suggestion.title) suggestion.title = 'Unknown';
+      if (!suggestion.artist) suggestion.artist = 'Unknown Artist';
+      if (!suggestion.confidence) suggestion.confidence = 'medium';
+      if (!suggestion.reason) suggestion.reason = '';
+    }
+
+    if (!Array.isArray(parsed.clarifying_questions)) {
+      parsed.clarifying_questions = [];
+    }
+
+    return parsed as SongFinderResult;
+  } catch (error) {
+    console.error('Failed to parse song finder response:', error);
+    throw new Error('Failed to parse AI response. Please try again.');
+  }
+}
+
+// ============================================
+// JSON PARSING UTILITIES
+// ============================================
+
 export function parsePlanResponse(text: string): LearningPlanResult {
   // Try to extract JSON from markdown code blocks
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
