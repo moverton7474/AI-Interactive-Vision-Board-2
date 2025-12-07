@@ -184,8 +184,9 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | **Master Prompt Q&A** | Guided onboarding questions to build user identity profile (25+ questions seeded) | ✅ Schema Ready |
 | **Communication Router** | Unified system to route messages via Voice, SMS, Email, or Push based on urgency and user preference | ✅ Deployed |
 | **Voice Coach** | Gemini Live integration for real-time coaching conversations | ✅ Deployed |
+| **MDALS Music Engine** | Music-Driven Adaptive Learning System for song analysis and learning plans | ✅ Deployed |
 | **Apple Watch Sync** | Micro-coaching at habit trigger moments | 🟡 Backend Ready |
-| **Smart Reminders** | Context-aware notifications that adapt to user's schedule and completion history | 🔲 Pending |
+| **Smart Reminders** | Context-aware notifications using 'Peak Activity' logic | 🟡 Backend Ready |
 
 ### v2.0 — Enterprise & Team Tier 🟡 SCHEMA READY
 
