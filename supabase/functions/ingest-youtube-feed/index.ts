@@ -1,11 +1,44 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai";
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Helper for Gemini
+function cleanJson(text: string) {
+    return text.replace(/```json/g, '').replace(/```/g, '').trim();
+}
+
+async function callGemini(apiKey: string, prompt: string) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 2048,
+            }
+        })
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Gemini API Error: ${response.status} ${errText}`);
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+        throw new Error("Gemini returned empty response");
+    }
+
+    return cleanJson(text);
+}
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
@@ -25,22 +58,15 @@ serve(async (req) => {
             throw new Error('Missing API Keys');
         }
 
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        // Use Flash for cost/speed efficiency as per spec
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
         // 1. Get Users to Process (Active users)
-        // For now, we'll just process the user triggering the function, or a specific user_id passed in body
-        // In production cron, this would loop through all active users.
         const { user_id } = await req.json().catch(() => ({}));
 
         let usersToProcess = [];
         if (user_id) {
             usersToProcess = [{ id: user_id }];
         } else {
-            // Fetch top 5 active users for batch processing (limit to avoid timeouts)
             const { data: users, error } = await supabase
-                .from('profiles') // Assuming profiles table exists and links to auth.users
+                .from('profiles')
                 .select('id')
                 .limit(5);
 
@@ -91,7 +117,6 @@ serve(async (req) => {
                 const title = item.snippet.title;
                 const description = item.snippet.description;
 
-                // Check if already exists
                 const { data: existing } = await supabase
                     .from('resource_feed')
                     .select('id')
@@ -101,7 +126,6 @@ serve(async (req) => {
 
                 if (existing) continue;
 
-                // AI Filter
                 const prompt = `
           Analyze this YouTube video for a user with these goals: ${JSON.stringify(goals)}.
           Video Title: ${title}
@@ -118,11 +142,9 @@ serve(async (req) => {
           }
         `;
 
-                const result = await model.generateContent(prompt);
-                const response = result.response;
-                const text = response.text();
-
                 try {
+                    const text = await callGemini(GEMINI_API_KEY, prompt);
+
                     // Extract JSON from response
                     const jsonMatch = text.match(/\{[\s\S]*\}/);
                     if (!jsonMatch) continue;
@@ -154,7 +176,7 @@ serve(async (req) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 
-    } catch (error) {
+    } catch (error: any) {
         return new Response(JSON.stringify({ error: error.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 400,
