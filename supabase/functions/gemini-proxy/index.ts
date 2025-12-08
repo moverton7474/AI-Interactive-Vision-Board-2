@@ -190,7 +190,6 @@ async function handleDiagnose(apiKey: string, requestId: string) {
   // Test each model
   const modelsToTest = [
     { name: 'gemini-2.0-flash', type: 'chat' },
-    { name: 'gemini-1.5-flash', type: 'chat' },
     { name: 'imagen-3.0-generate-001', type: 'image' },
   ]
 

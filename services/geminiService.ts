@@ -319,7 +319,7 @@ Return JSON matching the WorkbookPage model.`;
     const { data, error } = await supabase.functions.invoke('gemini-proxy', {
       body: {
         action: 'raw',
-        model: 'gemini-1.5-flash', // Fallback to 1.5 Flash for stability
+        model: 'gemini-2.0-flash', // Use 2.0 Flash for stability
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: [{ parts: [{ text: userMessage }] }],
         generationConfig: { responseMimeType: "application/json" }
@@ -379,7 +379,7 @@ Return only the image description prompt.`;
     const { data, error } = await supabase.functions.invoke('gemini-proxy', {
       body: {
         action: 'raw',
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash',
         contents: [{ parts: [{ text: promptTemplate }] }]
       }
     });
