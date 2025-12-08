@@ -33,6 +33,7 @@ import { sendVisionChatMessage, generateVisionSummary } from './services/geminiS
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 import { ToastProvider } from './components/ToastContext';
+import NotificationSettings from './components/settings/NotificationSettings';
 
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -743,6 +744,21 @@ const App = () => {
             onToggleHabit={handleToggleHabit}
             onPlayBriefing={handlePlayBriefing}
           />
+        );
+
+      case AppView.SETTINGS:
+        return (
+          <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white transition-colors duration-300">
+            <div className="max-w-4xl mx-auto p-4 pt-8">
+              <button
+                onClick={() => setView(AppView.DASHBOARD)}
+                className="mb-6 flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors font-medium"
+              >
+                <span className="text-xl">←</span> Back to Dashboard
+              </button>
+              <NotificationSettings />
+            </div>
+          </div>
         );
 
       case AppView.GUIDED_ONBOARDING:

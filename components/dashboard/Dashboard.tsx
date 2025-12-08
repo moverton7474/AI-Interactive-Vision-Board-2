@@ -168,6 +168,12 @@ const Dashboard: React.FC<Props> = ({
               >
                 💑 Partner Workspace
               </button>
+              <button
+                onClick={() => onNavigate(AppView.SETTINGS)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                ⚙️ Settings
+              </button>
             </div>
           </div>
         </div>
