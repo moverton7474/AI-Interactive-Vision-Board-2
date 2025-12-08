@@ -16,7 +16,7 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 // 2. gemini-2.0-flash-exp - Can generate images with responseModalities, but experimental
 // 3. gemini-2.0-flash-preview-image-generation - Specific image generation model (if available)
 const MODELS = {
-  chat: 'gemini-1.5-flash-001',
+  chat: 'gemini-2.0-flash',
   // Primary: Try the dedicated image generation preview model
   image_primary: 'gemini-2.0-flash-preview-image-generation',
   // Fallback 1: Standard experimental model with image output
@@ -183,7 +183,6 @@ async function handleDiagnose(apiKey: string, requestId: string) {
   // Test each model
   const modelsToTest = [
     { name: 'gemini-2.0-flash', type: 'chat' },
-    { name: 'gemini-1.5-flash', type: 'chat' },
     { name: 'imagen-3.0-generate-001', type: 'image' },
   ]
 
