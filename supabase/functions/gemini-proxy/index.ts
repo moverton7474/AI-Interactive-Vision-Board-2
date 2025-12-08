@@ -16,7 +16,7 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 // 2. gemini-2.0-flash-exp - Can generate images with responseModalities, but experimental
 // 3. gemini-2.0-flash-preview-image-generation - Specific image generation model (if available)
 const MODELS = {
-  chat: 'gemini-1.5-flash-001',
+  chat: 'gemini-2.0-flash-001',
   // Primary: Try the dedicated image generation preview model
   image_primary: 'gemini-2.0-flash-preview-image-generation',
   // Fallback 1: Standard experimental model with image output
@@ -24,7 +24,7 @@ const MODELS = {
   // Fallback 2: Imagen 3 (requires Vertex AI - most users won't have access)
   image_fallback_vertex: 'imagen-3.0-generate-001',
   // Reasoning: High-intelligence model for complex planning and projections
-  reasoning: 'gemini-1.5-pro',
+  reasoning: 'gemini-2.0-flash-001',
 }
 
 /**
