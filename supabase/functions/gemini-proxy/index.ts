@@ -16,15 +16,22 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 // 2. gemini-2.0-flash-exp - Can generate images with responseModalities, but experimental
 // 3. gemini-2.0-flash-preview-image-generation - Specific image generation model (if available)
 const MODELS = {
+  // Chat: Use Gemini 2.0 Flash for conversational AI
   chat: 'gemini-2.0-flash-001',
-  // Primary: Try the dedicated image generation preview model
-  image_primary: 'gemini-2.0-flash-preview-image-generation',
-  // Fallback 1: Standard experimental model with image output
-  image_fallback: 'gemini-2.0-flash-exp',
-  // Fallback 2: Imagen 3 (requires Vertex AI - most users won't have access)
-  image_fallback_vertex: 'imagen-3.0-generate-001',
-  // Reasoning: High-intelligence model for complex planning and projections
-  reasoning: 'gemini-2.0-flash-001',
+
+  // Image Generation Models (in priority order)
+  // Primary: Imagen 4.0 - Professional quality, widely supported
+  image_primary: 'imagen-4.0-generate-001',
+
+  // Fallback 1: Imagen 4.0 Ultra - Highest quality
+  image_fallback: 'imagen-4.0-ultra-generate-001',
+
+  // Fallback 2: Gemini 2.5 Flash with image generation
+  image_fallback_gemini: 'gemini-2.5-flash-image',
+
+  // Reasoning: Use Gemini 2.5 Pro for complex planning and projections
+  // (Gemini 2.5 is more capable than 2.0 for reasoning tasks)
+  reasoning: 'gemini-2.5-pro',
 }
 
 /**
@@ -381,23 +388,23 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   errors['gemini_preview'] = previewResult.error || 'Unknown error'
   console.warn(`[${requestId}] Gemini Preview Image Gen failed: ${previewResult.error}`)
 
-  // Attempt 2: Try Gemini 2.0 Flash Experimental with image output
-  const geminiExpResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback, requestId, aspectRatio)
-  if (geminiExpResult.success) {
-    console.log(`[${requestId}] Gemini 2.0 Flash Exp succeeded`)
-    return successResponse({ image: geminiExpResult.image }, requestId)
+  // Attempt 2: Try Imagen 4.0 Ultra (highest quality)
+  const imagenUltraResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback, requestId, aspectRatio)
+  if (imagenUltraResult.success) {
+    console.log(`[${requestId}] Imagen 4.0 Ultra succeeded`)
+    return successResponse({ image: imagenUltraResult.image }, requestId)
   }
-  errors['gemini_exp'] = geminiExpResult.error || 'Unknown error'
-  console.warn(`[${requestId}] Gemini 2.0 Flash Exp failed: ${geminiExpResult.error}`)
+  errors['imagen_ultra'] = imagenUltraResult.error || 'Unknown error'
+  console.warn(`[${requestId}] Imagen 4.0 Ultra failed: ${imagenUltraResult.error}`)
 
-  // Attempt 3: Try Imagen 3 (requires Vertex AI)
-  const imagenResult = await tryImagenGeneration(apiKey, finalPrompt, requestId, aspectRatio)
-  if (imagenResult.success) {
-    console.log(`[${requestId}] Imagen 3 succeeded`)
-    return successResponse({ image: imagenResult.image }, requestId)
+  // Attempt 3: Try Gemini 2.5 Flash with image generation
+  const geminiFlashImageResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback_gemini, requestId, aspectRatio)
+  if (geminiFlashImageResult.success) {
+    console.log(`[${requestId}] Gemini 2.5 Flash Image succeeded`)
+    return successResponse({ image: geminiFlashImageResult.image }, requestId)
   }
-  errors['imagen3'] = imagenResult.error || 'Unknown error'
-  console.warn(`[${requestId}] Imagen 3 failed: ${imagenResult.error}`)
+  errors['gemini_flash_image'] = geminiFlashImageResult.error || 'Unknown error'
+  console.warn(`[${requestId}] Gemini 2.5 Flash Image failed: ${geminiFlashImageResult.error}`)
 
   console.error(`[${requestId}] All image generation methods failed:`, JSON.stringify(errors))
 
