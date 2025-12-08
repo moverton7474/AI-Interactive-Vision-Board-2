@@ -91,6 +91,7 @@ export interface UserProfile {
   credits: number;
   subscription_tier: string;
   onboarding_completed?: boolean; // New Field
+  financial_target?: number;
 }
 
 // Financial Documents / Knowledge Base
