@@ -180,7 +180,7 @@ serve(async (req) => {
     console.error('Agent chat error:', error.message)
     return new Response(
       JSON.stringify({ error: error.message || 'Unknown error' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   }
 })

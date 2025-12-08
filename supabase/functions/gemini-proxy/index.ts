@@ -792,7 +792,7 @@ function errorResponse(message: string, status: number, requestId: string): Resp
       timestamp: new Date().toISOString(),
       help: 'Run with action: "diagnose" to check API key and model availability'
     }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status }
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
   )
 }
 

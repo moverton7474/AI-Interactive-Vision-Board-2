@@ -186,7 +186,7 @@ serve(async (req) => {
   } catch (error: any) {
     console.error("MDALS Engine Error:", error);
     return new Response(JSON.stringify({ success: false, error: error.message || String(error) }), {
-      status: 400,
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
