@@ -11,7 +11,8 @@ function cleanJson(text: string) {
 }
 
 async function callGemini(apiKey: string, prompt: string) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  // Use the correct model name (gemini-2.0-flash-001, not gemini-2.0-flash)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -56,22 +57,35 @@ serve(async (req) => {
     // FIND SONG
     // ========================================================================
     if (path === 'find-song') {
-      console.log("Debugging: Listing available models...");
-      const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
-      const listResp = await fetch(listUrl);
-      const listData = await listResp.json();
+      const { query, mood, domain_preferences } = body;
 
-      if (!listResp.ok) {
-        throw new Error(`Failed to list models: ${JSON.stringify(listData)}`);
-      }
+      const prompt = `
+        Find or suggest a song that matches this search:
+        Query: "${query || ''}"
+        Mood: "${mood || 'uplifting'}"
+        Relevant Domains: ${JSON.stringify(domain_preferences || [])}
 
-      // Return the list of models to the user to see what IS supported
+        Return valid JSON with a song suggestion:
+        {
+          "title": "Song Title",
+          "artist": "Artist Name",
+          "genre": "Genre",
+          "mood": "Primary mood",
+          "reason": "Why this song fits the query",
+          "preview_url": null,
+          "spotify_id": null
+        }
+      `;
+
+      const output = await callGemini(GEMINI_API_KEY, prompt);
+      const data = JSON.parse(output);
+
       return new Response(JSON.stringify({
-        success: false,
-        error: "AVAILABLE MODELS: " + JSON.stringify(listData, null, 2),
+        success: true,
+        song_id: crypto.randomUUID(),
+        ...data
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
       });
     }
 
