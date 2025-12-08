@@ -1,10 +1,43 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Helper to clean JSON output from markdown code blocks
+function cleanJson(text: string) {
+  return text.replace(/```json/g, '').replace(/```/g, '').trim();
+}
+
+async function callGemini(apiKey: string, prompt: string) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API Error: ${response.status} ${errText}`);
+  }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new Error("Gemini returned empty response");
+  }
+
+  return cleanJson(text);
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,9 +51,6 @@ serve(async (req) => {
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     if (!GEMINI_API_KEY) throw new Error('Missing GEMINI_API_KEY');
-
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     // ========================================================================
     // FIND SONG
@@ -55,8 +85,7 @@ serve(async (req) => {
         }
       `;
 
-      const result = await model.generateContent(prompt);
-      const output = cleanJson(result.response.text());
+      const output = await callGemini(GEMINI_API_KEY, prompt);
       const data = JSON.parse(output);
 
       return new Response(JSON.stringify({ success: true, ...data }), {
@@ -94,8 +123,7 @@ serve(async (req) => {
         }
       `;
 
-      const result = await model.generateContent(prompt);
-      const output = cleanJson(result.response.text());
+      const output = await callGemini(GEMINI_API_KEY, prompt);
       const data = JSON.parse(output);
 
       return new Response(JSON.stringify({
@@ -140,8 +168,7 @@ serve(async (req) => {
         }
       `;
 
-      const result = await model.generateContent(prompt);
-      const output = cleanJson(result.response.text());
+      const output = await callGemini(GEMINI_API_KEY, prompt);
       const data = JSON.parse(output);
 
       return new Response(JSON.stringify({
@@ -156,15 +183,11 @@ serve(async (req) => {
 
     throw new Error(`Unknown path: ${path}`);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("MDALS Engine Error:", error);
-    return new Response(JSON.stringify({ success: false, error: error.message }), {
+    return new Response(JSON.stringify({ success: false, error: error.message || String(error) }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
-
-function cleanJson(text: string) {
-  return text.replace(/```json/g, '').replace(/```/g, '').trim();
-}
