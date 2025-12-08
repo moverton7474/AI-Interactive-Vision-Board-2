@@ -46,9 +46,12 @@ serve(async (req) => {
   }
 
   try {
-    const url = new URL(req.url);
-    const path = url.pathname.split('/').pop(); // "find-song", "analyze-song", etc.
     const body = await req.json();
+
+    // Support both URL path-based routing AND body.action routing
+    const url = new URL(req.url);
+    const pathAction = url.pathname.split('/').pop(); // "find-song", "analyze-song", etc.
+    const action = body.action || pathAction; // Prefer body.action if provided
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     if (!GEMINI_API_KEY) throw new Error('Missing GEMINI_API_KEY');
@@ -56,25 +59,36 @@ serve(async (req) => {
     // ========================================================================
     // FIND SONG
     // ========================================================================
-    if (path === 'find-song') {
-      const { query, mood, domain_preferences } = body;
+    if (action === 'find-song') {
+      const { description, query, genres, mood, era, domain_preferences } = body;
+      const searchQuery = description || query || '';
 
       const prompt = `
         Find or suggest a song that matches this search:
-        Query: "${query || ''}"
+        Description: "${searchQuery}"
+        Genres: ${JSON.stringify(genres || [])}
         Mood: "${mood || 'uplifting'}"
+        Era: "${era || 'any'}"
         Relevant Domains: ${JSON.stringify(domain_preferences || [])}
 
-        Return valid JSON with a song suggestion:
+        Return valid JSON with song suggestions (array) and optional clarifying questions:
         {
-          "title": "Song Title",
-          "artist": "Artist Name",
-          "genre": "Genre",
-          "mood": "Primary mood",
-          "reason": "Why this song fits the query",
-          "preview_url": null,
-          "spotify_id": null
+          "suggestions": [
+            {
+              "title": "Song Title",
+              "artist": "Artist Name",
+              "album": "Album Name (if known)",
+              "year": "Year (if known)",
+              "genre": "Genre",
+              "confidence": "high" | "medium" | "low",
+              "reason": "Why this song fits the description",
+              "search_tip": "Tip for finding this song on streaming platforms"
+            }
+          ],
+          "clarifying_questions": ["Optional question to narrow search"]
         }
+
+        Provide 1-3 song suggestions that best match the description.
       `;
 
       const output = await callGemini(GEMINI_API_KEY, prompt);
@@ -82,8 +96,8 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
-        song_id: crypto.randomUUID(),
-        ...data
+        suggestions: data.suggestions || [],
+        clarifying_questions: data.clarifying_questions || []
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -92,7 +106,7 @@ serve(async (req) => {
     // ========================================================================
     // ANALYZE SONG
     // ========================================================================
-    if (path === 'analyze-song') {
+    if (action === 'analyze-song') {
       const { song, domain_preferences, user_notes } = body;
 
       const prompt = `
@@ -134,7 +148,7 @@ serve(async (req) => {
     // ========================================================================
     // GENERATE PLAN
     // ========================================================================
-    if (path === 'generate-plan') {
+    if (action === 'generate-plan') {
       const { goal_description, duration_days, domain_preferences } = body;
 
       const prompt = `
@@ -177,7 +191,7 @@ serve(async (req) => {
       });
     }
 
-    throw new Error(`Unknown path: ${path}`);
+    throw new Error(`Unknown action: ${action}. Valid actions: find-song, analyze-song, generate-plan`);
 
   } catch (error: any) {
     console.error("MDALS Engine Error:", error);

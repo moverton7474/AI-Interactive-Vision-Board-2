@@ -63,6 +63,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   // Modals
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showSubModal, setShowSubModal] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
 
   // Reference Library State
   const [showLibrary, setShowLibrary] = useState(true);
@@ -348,6 +349,52 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         <SubscriptionModal tier="PRO" onClose={onSubClose} />
       )}
 
+      {/* Image Lightbox Modal */}
+      {showLightbox && resultImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setShowLightbox(false)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            onClick={() => setShowLightbox(false)}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img
+            src={resultImage}
+            alt="Vision Board Full Size"
+            className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadImage(resultImage);
+              }}
+              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg backdrop-blur-sm transition-colors"
+            >
+              <DownloadIcon className="w-4 h-4" />
+              Download
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLightbox(false);
+                setShowPrintModal(true);
+              }}
+              className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 px-4 py-2 rounded-lg transition-colors"
+            >
+              <PrinterIcon className="w-4 h-4" />
+              Order Print
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col gap-8">
         <div className="flex flex-col md:flex-row gap-8">
@@ -561,7 +608,21 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
                 {resultImage && (
                   <div className="relative group">
-                    <img src={resultImage} alt="Vision" className="max-w-full max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-gold-500" />
+                    <img
+                      src={resultImage}
+                      alt="Vision"
+                      className="max-w-full max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-gold-500 cursor-pointer transition-transform hover:scale-[1.02]"
+                      onClick={() => setShowLightbox(true)}
+                      title="Click to enlarge"
+                    />
+
+                    {/* Enlarge hint */}
+                    <div className="absolute top-4 left-4 bg-black/60 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                      </svg>
+                      Click to enlarge
+                    </div>
 
                     <button
                       onClick={(e) => {

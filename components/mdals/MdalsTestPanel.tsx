@@ -117,8 +117,9 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
     setClarifyingQuestions([]);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine/find-song', {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
         body: {
+          action: 'find-song',
           description: songDescription.trim(),
           genres: selectedGenres.length > 0 ? selectedGenres : undefined,
           mood: songMood.trim() || undefined,
@@ -164,8 +165,9 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
     setPlanResult(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine/analyze-song', {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
         body: {
+          action: 'analyze-song',
           song: {
             title: songTitle.trim(),
             artist: artist.trim() || undefined,
@@ -205,8 +207,9 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine/generate-plan', {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
         body: {
+          action: 'generate-plan',
           user_id: userId,
           song_id: analysisResult.song_id,
           goal_description: goalDescription.trim(),
