@@ -574,13 +574,12 @@ Then provide 3 specific, actionable next steps for next week.
 
 Format response as JSON:
 {
-  "insights": "Your weekly review paragraphs here...",
   "nextSteps": ["Step 1", "Step 2", "Step 3"]
 }`
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -634,7 +633,7 @@ function generateFallbackInsights(
   if (habitCompletionRate >= 80) {
     insights += `Great week! You achieved a ${habitCompletionRate}% habit completion rate, showing strong commitment to your goals. `
   } else if (habitCompletionRate >= 50) {
-    insights += `Solid progress this week with ${habitCompletionRate}% habit completion. Every step forward counts! `
+    insights += `Solid progress this week with ${habitCompletionRate}% habit completion.Every step forward counts! `
   } else {
     insights += `This week was challenging with ${habitCompletionRate}% habit completion, but that's okay - awareness is the first step to improvement. `
   }

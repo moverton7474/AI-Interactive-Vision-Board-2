@@ -62,7 +62,7 @@ serve(async (req) => {
 
         // 4. Generate Response using Gemini 1.5 Pro (The "Identity Architect")
         // Strict Model Enforcement: gemini-1.5-pro (mapping to 3-pro-preview as per availability)
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
 
         let baseSystemPrompt = `You are AMIE, an Identity Architect and Psychological Coach.`;
 
