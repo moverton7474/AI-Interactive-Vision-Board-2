@@ -12,25 +12,27 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
 // Available models for different tasks
 // Image generation options:
-// 1. imagen-3.0-generate-001 - Best quality, requires Vertex AI (Google Cloud + billing)
-// 2. gemini-2.0-flash-exp - Can generate images with responseModalities, but experimental
-// 3. gemini-2.0-flash-preview-image-generation - Specific image generation model (if available)
+// 1. gemini-2.5-flash-image - Production quality Gemini native image gen (recommended)
+// 2. gemini-2.0-flash-exp - Experimental model with image generation (older)
+// 3. imagen-3.0-generate-002 - Imagen 3, uses different API endpoint (:predict)
 const MODELS = {
   // Chat: Use Gemini 2.0 Flash for conversational AI
   chat: 'gemini-2.0-flash-001',
 
   // Image Generation Models (in priority order)
-  // Primary: Imagen 4.0 - Professional quality, widely supported
-  image_primary: 'imagen-4.0-generate-001',
+  // Primary: Gemini 2.5 Flash Image - Best native image generation
+  // Uses responseModalities: ['IMAGE', 'TEXT'] with :generateContent
+  image_gemini_primary: 'gemini-2.5-flash-image',
 
-  // Fallback 1: Imagen 4.0 Ultra - Highest quality
-  image_fallback: 'imagen-4.0-ultra-generate-001',
+  // Fallback 1: Gemini 2.0 Flash Experimental - Older but stable
+  // Uses responseModalities: ['IMAGE', 'TEXT'] with :generateContent
+  image_gemini_fallback: 'gemini-2.0-flash-exp',
 
-  // Fallback 2: Gemini 2.5 Flash with image generation
-  image_fallback_gemini: 'gemini-2.5-flash-image',
+  // Fallback 2: Imagen 3 - Uses different endpoint (:predict)
+  // Note: May require specific API permissions
+  image_imagen: 'imagen-3.0-generate-002',
 
   // Reasoning: Use Gemini 2.5 Pro for complex planning and projections
-  // (Gemini 2.5 is more capable than 2.0 for reasoning tasks)
   reasoning: 'gemini-2.5-pro',
 }
 
@@ -189,15 +191,17 @@ async function handleDiagnose(apiKey: string, requestId: string) {
 
   // Test each model
   const modelsToTest = [
-    { name: 'gemini-2.0-flash', type: 'chat' },
-    { name: 'imagen-3.0-generate-001', type: 'image' },
+    { name: MODELS.chat, type: 'chat' },
+    { name: MODELS.image_gemini_primary, type: 'gemini_image' },
+    { name: MODELS.image_gemini_fallback, type: 'gemini_image' },
+    { name: MODELS.image_imagen, type: 'imagen' },
   ]
 
   for (const model of modelsToTest) {
     try {
-      console.log(`[${requestId}] Testing model: ${model.name}`)
+      console.log(`[${requestId}] Testing model: ${model.name} (${model.type})`)
 
-      if (model.type === 'image') {
+      if (model.type === 'imagen') {
         // Test Imagen with predict endpoint
         const response = await fetch(
           `${GEMINI_API_BASE}/models/${model.name}:predict?key=${apiKey}`,
@@ -217,6 +221,33 @@ async function handleDiagnose(apiKey: string, requestId: string) {
         results.models[model.name] = {
           available: response.ok,
           status,
+          type: 'imagen',
+          error: response.ok ? null : parseGeminiError(body)
+        }
+      } else if (model.type === 'gemini_image') {
+        // Test Gemini image model with generateContent (just check if model is accessible)
+        const response = await fetch(
+          `${GEMINI_API_BASE}/models/${model.name}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: 'Describe a beautiful sunset.' }] }],
+              generationConfig: {
+                maxOutputTokens: 50,
+                responseModalities: ['TEXT'] // Just text to check model availability
+              }
+            })
+          }
+        )
+
+        const status = response.status
+        const body = await response.text()
+
+        results.models[model.name] = {
+          available: response.ok,
+          status,
+          type: 'gemini_image',
           error: response.ok ? null : parseGeminiError(body)
         }
       } else {
@@ -239,6 +270,7 @@ async function handleDiagnose(apiKey: string, requestId: string) {
         results.models[model.name] = {
           available: response.ok,
           status,
+          type: 'chat',
           error: response.ok ? null : parseGeminiError(body)
         }
       }
@@ -246,6 +278,7 @@ async function handleDiagnose(apiKey: string, requestId: string) {
       results.models[model.name] = {
         available: false,
         status: 0,
+        type: model.type,
         error: error.message
       }
     }
@@ -256,18 +289,25 @@ async function handleDiagnose(apiKey: string, requestId: string) {
     .filter(([_, v]: any) => v.available)
     .map(([k]) => k)
 
+  const availableImageModels = Object.entries(results.models)
+    .filter(([_, v]: any) => v.available && (v.type === 'gemini_image' || v.type === 'imagen'))
+    .map(([k]) => k)
+
   results.summary = {
     totalModels: modelsToTest.length,
     availableModels: availableModels.length,
     available: availableModels,
-    canGenerateImages: availableModels.some(m => m.includes('imagen')),
-    canChat: availableModels.some(m => m.includes('gemini'))
+    canGenerateImages: availableImageModels.length > 0,
+    availableImageModels,
+    canChat: availableModels.some(m => m.includes('gemini') && !m.includes('image'))
   }
 
   if (results.summary.availableModels === 0) {
     results.recommendation = 'No models are accessible. Please verify your GEMINI_API_KEY is valid and has not expired. Get a new key at https://aistudio.google.com/app/apikey'
   } else if (!results.summary.canGenerateImages) {
-    results.recommendation = 'Image generation models are not accessible. Imagen 3 requires a Google Cloud project with Vertex AI enabled and billing configured.'
+    results.recommendation = 'No image generation models are accessible. Please ensure your API key has access to gemini-2.5-flash-image, gemini-2.0-flash-exp, or imagen-3.0-generate-002. Visit https://aistudio.google.com/app/apikey to check your key permissions.'
+  } else {
+    results.recommendation = `Image generation is available using: ${availableImageModels.join(', ')}`
   }
 
   console.log(`[${requestId}] Diagnostics complete:`, JSON.stringify(results.summary))
@@ -378,32 +418,35 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 
   const errors: Record<string, string> = {}
 
-  // Attempt 1: Try dedicated image generation preview model
-  const previewResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_primary, requestId, aspectRatio)
-  if (previewResult.success) {
-    console.log(`[${requestId}] Gemini Preview Image Gen succeeded`)
-    return successResponse({ image: previewResult.image }, requestId)
-  }
-  errors['gemini_preview'] = previewResult.error || 'Unknown error'
-  console.warn(`[${requestId}] Gemini Preview Image Gen failed: ${previewResult.error}`)
-
-  // Attempt 2: Try Imagen 4.0 Ultra (highest quality)
-  const imagenUltraResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback, requestId, aspectRatio)
-  if (imagenUltraResult.success) {
-    console.log(`[${requestId}] Imagen 4.0 Ultra succeeded`)
-    return successResponse({ image: imagenUltraResult.image }, requestId)
-  }
-  errors['imagen_ultra'] = imagenUltraResult.error || 'Unknown error'
-  console.warn(`[${requestId}] Imagen 4.0 Ultra failed: ${imagenUltraResult.error}`)
-
-  // Attempt 3: Try Gemini 2.5 Flash with image generation
-  const geminiFlashImageResult = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_fallback_gemini, requestId, aspectRatio)
-  if (geminiFlashImageResult.success) {
+  // Attempt 1: Try Gemini 2.5 Flash Image (best native image generation)
+  // Uses :generateContent endpoint with responseModalities
+  const gemini25Result = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_gemini_primary, requestId, aspectRatio)
+  if (gemini25Result.success) {
     console.log(`[${requestId}] Gemini 2.5 Flash Image succeeded`)
-    return successResponse({ image: geminiFlashImageResult.image }, requestId)
+    return successResponse({ image: gemini25Result.image }, requestId)
   }
-  errors['gemini_flash_image'] = geminiFlashImageResult.error || 'Unknown error'
-  console.warn(`[${requestId}] Gemini 2.5 Flash Image failed: ${geminiFlashImageResult.error}`)
+  errors['gemini_2.5_flash_image'] = gemini25Result.error || 'Unknown error'
+  console.warn(`[${requestId}] Gemini 2.5 Flash Image failed: ${gemini25Result.error}`)
+
+  // Attempt 2: Try Gemini 2.0 Flash Experimental (older but stable)
+  // Uses :generateContent endpoint with responseModalities
+  const gemini20Result = await tryGeminiImageGeneration(apiKey, finalPrompt, images, MODELS.image_gemini_fallback, requestId, aspectRatio)
+  if (gemini20Result.success) {
+    console.log(`[${requestId}] Gemini 2.0 Flash Exp succeeded`)
+    return successResponse({ image: gemini20Result.image }, requestId)
+  }
+  errors['gemini_2.0_flash_exp'] = gemini20Result.error || 'Unknown error'
+  console.warn(`[${requestId}] Gemini 2.0 Flash Exp failed: ${gemini20Result.error}`)
+
+  // Attempt 3: Try Imagen 3 (uses different :predict endpoint)
+  // Note: This may require specific API permissions
+  const imagenResult = await tryImagenGeneration(apiKey, finalPrompt, requestId, aspectRatio)
+  if (imagenResult.success) {
+    console.log(`[${requestId}] Imagen 3 succeeded`)
+    return successResponse({ image: imagenResult.image }, requestId)
+  }
+  errors['imagen_3'] = imagenResult.error || 'Unknown error'
+  console.warn(`[${requestId}] Imagen 3 failed: ${imagenResult.error}`)
 
   console.error(`[${requestId}] All image generation methods failed:`, JSON.stringify(errors))
 
@@ -428,13 +471,14 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 
 /**
  * Try Imagen 3 generation
+ * Uses :predict endpoint (different from Gemini's :generateContent)
  */
 async function tryImagenGeneration(apiKey: string, prompt: string, requestId: string, aspectRatio?: string): Promise<{ success: boolean; image?: string; error?: string }> {
   try {
-    console.log(`[${requestId}] Trying Imagen 3...`)
+    console.log(`[${requestId}] Trying Imagen 3 (${MODELS.image_imagen})...`)
 
     const response = await fetch(
-      `${GEMINI_API_BASE}/models/${MODELS.image_primary}:predict?key=${apiKey}`,
+      `${GEMINI_API_BASE}/models/${MODELS.image_imagen}:predict?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -510,8 +554,12 @@ async function tryGeminiImageGeneration(
       text: `Generate an image: ${prompt}. Create a high-quality, photorealistic vision board image.`
     })
 
-    // For Gemini 2.0 Flash Exp, we need responseModalities to enable image generation
-    const isExpModel = model.includes('exp') || model.includes('2.0')
+    // Detect if model needs responseModalities for image generation
+    // All Gemini native image generation models need this setting
+    const needsResponseModalities =
+      model.includes('flash-image') ||  // gemini-2.5-flash-image
+      model.includes('exp') ||           // gemini-2.0-flash-exp
+      model.includes('image-generation') // gemini-*-preview-image-generation
 
     const requestBody: any = {
       contents: [{ parts }],
@@ -521,8 +569,8 @@ async function tryGeminiImageGeneration(
       }
     }
 
-    // Add responseModalities for experimental models that support image output
-    if (isExpModel) {
+    // Add responseModalities for Gemini models that support native image output
+    if (needsResponseModalities) {
       requestBody.generationConfig.responseModalities = ['IMAGE', 'TEXT']
       console.log(`[${requestId}] Using responseModalities for ${model}`)
     }
