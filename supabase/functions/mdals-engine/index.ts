@@ -56,40 +56,22 @@ serve(async (req) => {
     // FIND SONG
     // ========================================================================
     if (path === 'find-song') {
-      const { description, genres, mood, era } = body;
+      console.log("Debugging: Listing available models...");
+      const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
+      const listResp = await fetch(listUrl);
+      const listData = await listResp.json();
 
-      const prompt = `
-        You are a highly knowledgeable music "Song Finder".
-        User Description: "${description}"
-        Genres: ${JSON.stringify(genres || [])}
-        Mood: ${mood || 'Any'}
-        Era: ${era || 'Any'}
+      if (!listResp.ok) {
+        throw new Error(`Failed to list models: ${JSON.stringify(listData)}`);
+      }
 
-        Task: Identify 3-5 potential song matches.
-        Also provide 2-3 clarifying questions if the description is vague.
-
-        Return valid JSON in this format:
-        {
-          "suggestions": [
-            {
-              "title": "Song Title",
-              "artist": "Artist",
-              "confidence": "high" | "medium" | "low",
-              "reason": "Why it matches",
-              "year": "Year",
-              "genre": "Genre",
-              "search_tip": "Tip to confirm (e.g. check lyrics 'xyz')"
-            }
-          ],
-          "clarifying_questions": ["Question 1", "Question 2"]
-        }
-      `;
-
-      const output = await callGemini(GEMINI_API_KEY, prompt);
-      const data = JSON.parse(output);
-
-      return new Response(JSON.stringify({ success: true, ...data }), {
+      // Return the list of models to the user to see what IS supported
+      return new Response(JSON.stringify({
+        success: false,
+        error: "AVAILABLE MODELS: " + JSON.stringify(listData, null, 2),
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
       });
     }
 
