@@ -993,7 +993,7 @@ CREATE POLICY "Team members can view goals" ON team_goals
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (30 Active)
+### Supabase Edge Functions (30 Active + Shared Utilities)
 
 | Function | Status | Purpose |
 |----------|--------|---------|
