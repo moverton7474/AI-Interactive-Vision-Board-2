@@ -92,6 +92,7 @@ export interface UserProfile {
   subscription_tier: string;
   onboarding_completed?: boolean; // New Field
   financial_target?: number;
+  primary_vision_id?: string;
 }
 
 // Financial Documents / Knowledge Base
