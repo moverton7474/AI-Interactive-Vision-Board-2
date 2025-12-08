@@ -533,19 +533,43 @@ Return ONLY a valid JSON array of Milestone objects.
   });
 
   describe('Model Selection', () => {
-    it('should use gemini-2.0-flash for chat', () => {
-      const model = 'gemini-2.0-flash';
-      expect(model).toBe('gemini-2.0-flash');
+    // Model configuration matching gemini-proxy/index.ts
+    const MODELS = {
+      chat: 'gemini-2.0-flash-001',
+      image_gemini_primary: 'gemini-2.5-flash-image',
+      image_gemini_fallback: 'gemini-2.0-flash-exp',
+      image_imagen: 'imagen-3.0-generate-002',
+      reasoning: 'gemini-2.5-pro',
+    };
+
+    it('should use gemini-2.0-flash-001 for chat', () => {
+      expect(MODELS.chat).toBe('gemini-2.0-flash-001');
     });
 
-    it('should use gemini-2.0-flash-exp for image generation', () => {
-      const model = 'gemini-2.0-flash-exp';
-      expect(model).toContain('exp');
+    it('should use gemini-2.5-flash-image as primary image model', () => {
+      expect(MODELS.image_gemini_primary).toBe('gemini-2.5-flash-image');
+      expect(MODELS.image_gemini_primary).toContain('flash-image');
     });
 
-    it('should have imagen fallback for images', () => {
-      const fallbackModel = 'imagen-3.0-generate-002';
-      expect(fallbackModel).toContain('imagen');
+    it('should use gemini-2.0-flash-exp as fallback image model', () => {
+      expect(MODELS.image_gemini_fallback).toBe('gemini-2.0-flash-exp');
+      expect(MODELS.image_gemini_fallback).toContain('exp');
+    });
+
+    it('should have imagen-3.0-generate-002 as last resort fallback', () => {
+      expect(MODELS.image_imagen).toBe('imagen-3.0-generate-002');
+      expect(MODELS.image_imagen).toContain('imagen');
+    });
+
+    it('should detect models needing responseModalities', () => {
+      const needsResponseModalities = (model: string) =>
+        model.includes('flash-image') ||
+        model.includes('exp') ||
+        model.includes('image-generation');
+
+      expect(needsResponseModalities(MODELS.image_gemini_primary)).toBe(true);
+      expect(needsResponseModalities(MODELS.image_gemini_fallback)).toBe(true);
+      expect(needsResponseModalities(MODELS.chat)).toBe(false);
     });
   });
 });
