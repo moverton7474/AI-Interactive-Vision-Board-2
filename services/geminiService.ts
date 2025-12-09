@@ -99,7 +99,8 @@ export const editVisionImage = async (
   embeddedText?: string,
   titleText?: string,
   style?: string,
-  aspectRatio?: string
+  aspectRatio?: string,
+  identityPrompt?: string  // NEW: Identity preservation prompt from reference images
 ): Promise<string | null> => {
   const rawImageList = Array.isArray(images) ? images : [images];
   const processedImages: string[] = [];
@@ -132,7 +133,8 @@ export const editVisionImage = async (
         embeddedText,
         titleText,
         style,
-        aspectRatio
+        aspectRatio,
+        identityPrompt  // NEW: Pass identity prompt to proxy
       }
     });
 
@@ -351,6 +353,41 @@ Return JSON matching the WorkbookPage model.`;
       isVisible: true
     } as WorkbookPage;
   });
+};
+
+/**
+ * Fetch Vision Scene Prompt from user's onboarding profile
+ * Pre-fills VisionBoard with personalized prompts based on user's vision profile
+ */
+export const fetchVisionScenePrompt = async (): Promise<{
+  scenePrompt: string;
+  goalText?: string;
+  headerText?: string;
+} | null> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('vision-scene-prompt', {
+      body: {} // No body needed; auth identifies user
+    });
+
+    if (error) {
+      console.error("Failed to fetch vision scene prompt:", error);
+      return null;
+    }
+
+    if (!data?.success) {
+      console.warn("Vision scene prompt returned unsuccessful:", data?.error);
+      return null;
+    }
+
+    return {
+      scenePrompt: data.scenePrompt,
+      goalText: data.goalText,
+      headerText: data.headerText
+    };
+  } catch (err) {
+    console.error("Error fetching vision scene prompt:", err);
+    return null;
+  }
 };
 
 /**

@@ -238,7 +238,11 @@ export const deleteVisionImage = async (id: string): Promise<void> => {
 
 /* --- REFERENCE IMAGES --- */
 
-export const saveReferenceImage = async (base64Url: string, tags: string[]): Promise<ReferenceImage> => {
+export const saveReferenceImage = async (
+  base64Url: string,
+  tags: string[],
+  identityDescription?: string
+): Promise<ReferenceImage> => {
   try {
     const id = crypto.randomUUID();
     const blob = base64ToBlob(base64Url);
@@ -262,7 +266,8 @@ export const saveReferenceImage = async (base64Url: string, tags: string[]): Pro
         id: id,
         image_url: publicUrl,
         tags: tags,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        identity_description: identityDescription || null
       }]);
 
     if (dbError) throw dbError;
@@ -271,7 +276,8 @@ export const saveReferenceImage = async (base64Url: string, tags: string[]): Pro
       id,
       url: publicUrl,
       tags,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      identityDescription
     };
   } catch (error) {
     console.error("Failed to save reference image", error);
@@ -292,7 +298,8 @@ export const getReferenceLibrary = async (): Promise<ReferenceImage[]> => {
       id: row.id,
       url: row.image_url,
       tags: row.tags || [],
-      createdAt: new Date(row.created_at).getTime()
+      createdAt: new Date(row.created_at).getTime(),
+      identityDescription: row.identity_description || undefined
     }));
   } catch (error) {
     return [];

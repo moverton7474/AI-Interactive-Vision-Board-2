@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { editVisionImage, enhanceVisionPrompt, getVisionSuggestions } from '../services/geminiService';
+import { editVisionImage, enhanceVisionPrompt, getVisionSuggestions, fetchVisionScenePrompt } from '../services/geminiService';
 import { useToast } from '../components/ToastContext';
 import {
   saveVisionImage,
@@ -118,6 +118,34 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       setPromptInput(initialPrompt);
     }
   }, [initialImage, initialPrompt]);
+
+  // Pre-fill prompts from user's vision profile (auto-goal injection)
+  useEffect(() => {
+    const preloadScenePrompt = async () => {
+      // Don't override if user already has content
+      if (promptInput || initialPrompt || initialImage) return;
+
+      try {
+        const result = await fetchVisionScenePrompt();
+        if (result) {
+          if (result.scenePrompt && !promptInput) {
+            setPromptInput(result.scenePrompt);
+          }
+          if (result.goalText && !goalText) {
+            setGoalText(result.goalText);
+          }
+          if (result.headerText && !headerText) {
+            setHeaderText(result.headerText);
+          }
+          console.log('Vision scene prompt pre-filled from user profile');
+        }
+      } catch (err) {
+        console.error('Error preloading scene prompt:', err);
+      }
+    };
+
+    preloadScenePrompt();
+  }, []); // Run once on mount
 
 
 
@@ -245,6 +273,12 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       const refUrls = selectedRefs.map(r => r.url);
       const refTags = selectedRefs.flatMap(r => r.tags).join(', ');
 
+      // Build identity prompt from selected references with identity descriptions
+      const identityPrompt = selectedRefs
+        .map(r => r.identityDescription)
+        .filter(Boolean)
+        .join('\n\n');
+
       const imagesToProcess = [baseImage, ...refUrls];
 
       let fullPrompt = promptInput;
@@ -257,7 +291,9 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         fullPrompt,
         goalText,
         headerText,
-        selectedStyle // Pass selected style
+        selectedStyle, // Pass selected style
+        undefined, // aspectRatio
+        identityPrompt || undefined // Pass identity prompt for likeness preservation
       );
 
       if (editedImage) {

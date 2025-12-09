@@ -82,6 +82,7 @@ export interface ReferenceImage {
   url: string;
   tags: string[];
   createdAt: number;
+  identityDescription?: string; // Neutral physical description for identity preservation
 }
 
 export interface UserProfile {

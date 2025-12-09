@@ -385,12 +385,23 @@ ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
  * 3. Imagen 3 (requires Vertex AI - most won't have access)
  */
 async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
-  const { images = [], prompt, embeddedText, titleText, style, aspectRatio } = params
+  const { images = [], prompt, embeddedText, titleText, style, aspectRatio, identityPrompt } = params
 
-  console.log(`[${requestId}] Image generation requested. Images: ${images.length}, Style: ${style}, Tier: ${profile?.subscription_tier}`)
+  console.log(`[${requestId}] Image generation requested. Images: ${images.length}, Style: ${style}, Tier: ${profile?.subscription_tier}, HasIdentityPrompt: ${!!identityPrompt}`)
 
   // Build prompt for image generation
   let finalPrompt = prompt || 'Create a beautiful, inspiring vision board image.'
+
+  // Prepend identity preservation instructions if identityPrompt is provided
+  if (identityPrompt) {
+    finalPrompt =
+      `Use the same people from the provided reference photos. ` +
+      `Preserve their faces, skin tone, age, hairstyles, and general body proportions. ` +
+      `Do NOT make them younger, thinner, or change their ethnicity.\n\n` +
+      `Identity Description:\n${identityPrompt}\n\n` +
+      finalPrompt
+    console.log(`[${requestId}] Identity preservation prompt applied`)
+  }
 
   if (titleText) {
     finalPrompt += ` Include the title "${titleText}" prominently in the image.`
