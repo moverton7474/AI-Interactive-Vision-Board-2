@@ -237,6 +237,8 @@ serve(async (req) => {
       const data = JSON.parse(output);
 
       // Save learning plan to database
+      // Note: Database constraint allows: 'active', 'completed', 'paused', 'abandoned'
+      // Using 'paused' for plans that haven't been started yet
       const { data: savedPlan, error: planError } = await supabase
         .from('mdals_learning_plans')
         .insert({
@@ -247,7 +249,7 @@ serve(async (req) => {
           duration_days: duration_days,
           domain_preferences: domain_preferences,
           plan_json: data.days,
-          status: 'pending', // Not started yet
+          status: 'paused', // Not started yet (using 'paused' per DB constraint)
           current_day: 0,
           model_used: 'gemini-2.0-flash-001',
         })
@@ -263,7 +265,7 @@ serve(async (req) => {
         success: true,
         plan_id: savedPlan.id,
         duration_days,
-        status: 'pending',
+        status: 'paused',
         ...data
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

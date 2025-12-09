@@ -875,7 +875,7 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
                 <h2 className="text-lg font-semibold text-green-400">{planResult.title}</h2>
                 <p className="text-gray-400">{planResult.duration_days}-Day Learning Journey</p>
               </div>
-              {planResult.status === 'pending' && !activePlan && (
+              {planResult.status === 'paused' && !activePlan && (
                 <button
                   onClick={handleStartPlan}
                   disabled={isStartingPlan}
