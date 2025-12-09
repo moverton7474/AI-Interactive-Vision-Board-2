@@ -1,9 +1,9 @@
 # VISIONARY AI — MASTER PRODUCT & DEVELOPMENT ROADMAP
 
-**Version:** 2.1
+**Version:** 2.2
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 8, 2025
+**Last Updated:** December 9, 2025
 
 ---
 
@@ -2430,3 +2430,596 @@ Visionary AI becomes the **category-defining platform** for identity-driven goal
 - Multi-channel coaching (watch, voice, SMS, email, push)
 
 **Target:** 100,000 active users by end of 2026, with 15% paid conversion and $2M ARR.
+
+---
+
+## 21. Visualize Identity & Auto-Goal Injection (NEW)
+
+> **Feature:** Better likeness & body type in generated images, grounded on reference photos, with automatic injection of goals & vision statements from onboarding.
+
+### 21.1 Context & Relevant Stack
+
+**Repo:** `AI-Interactive-Vision-Board-2`
+**Key technologies:**
+
+- React + TypeScript SPA (`App.tsx`, `components/*`)
+- Supabase (Postgres + Auth + Storage)
+- Supabase Edge Functions (Deno) in `/supabase/functions`
+- Google Gemini models via `supabase/functions/gemini-proxy`
+  - `gemini-2.5-flash-image` (primary)
+  - `gemini-2.0-flash-exp` (image-capable fallback)
+  - Imagen 3 fallback
+
+**Visualize / Vision Flow (today):**
+
+- `components/VisionBoard.tsx`
+  - Lets user upload a base image, select reference images, type a prompt, optional goal/header text, select style.
+  - Calls `editVisionImage` from `services/geminiService.ts`.
+- `services/geminiService.ts`
+  - `editVisionImage` converts URLs → base64 and calls Supabase function `gemini-proxy` with `action: 'generate_image'`.
+- `supabase/functions/gemini-proxy/index.ts`
+  - `handleImageGeneration` builds a prompt from `prompt`, `titleText`, `embeddedText`.
+  - `tryGeminiImageGeneration` sends images + text to Gemini image models.
+
+**Onboarding / Vision Data (today):**
+
+- `components/onboarding/GuidedOnboarding.tsx`
+  - Tracks `OnboardingState` (vision text, financial target, primary vision image, habits, etc.).
+  - Persists to **localStorage** only; `saveOnboardingState` in `App.tsx` just logs.
+- `types.ts`
+  - `OnboardingState` includes:
+    - `visionText`, `financialTarget`, `financialTargetLabel`, `primaryVisionId`, `primaryVisionUrl`, etc.
+- Database:
+  - `SUPABASE_SCHEMA.sql` defines:
+    - `vision_boards(id, user_id, created_at, prompt, image_url, is_favorite)`
+    - `reference_images(id, created_at, image_url, tags, user_id)`
+    - No table yet for onboarding vision/goals.
+
+**Goal of this work:**
+
+1. **Better likeness & body type** in generated images, grounded on one or more reference photos.
+2. **Automatic injection of goals & vision statements** from onboarding into the Visualize prompt so users don't have to retype them.
+
+---
+
+### 21.2 High-Level Design
+
+#### 1. Identity-aware image generation
+
+- Extend `reference_images` to include `identity_description TEXT`.
+- When VisionBoard calls `editVisionImage`, build an `identityPrompt` from selected references.
+- Propagate `identityPrompt` to `gemini-proxy`.
+- `gemini-proxy` prepends a consistent identity-preservation instruction to the final prompt.
+
+#### 2. Persisted onboarding vision/goal profile
+
+- Add a new table: `user_vision_profiles`.
+- On GuidedOnboarding completion, persist a normalized vision profile for the user:
+  - `vision_text`
+  - `financial_target`
+  - `financial_target_label`
+  - `primary_vision_url`
+  - optional `domain` (retirement, career, travel, health).
+- This gives the backend a stable place to pull "vision & goals" from.
+
+#### 3. Scene-prompt builder for Visualize
+
+- New Supabase edge function `vision-scene-prompt`.
+- Given the current user:
+  - Read `user_vision_profiles` & latest/favorite `vision_boards`.
+  - Build a rich `scenePrompt` that describes:
+    - The user's vision (e.g., "Milton and Lisa retired in Thailand in 2027…").
+    - Emotional tone (relaxed, joyful, etc.).
+  - Return `scenePrompt`, plus suggested `goalText` and `headerText`.
+- `VisionBoard` calls this function to pre-fill its prompt and goal/header fields when the user opens the Visualize view.
+
+#### 4. Optional P1: likeness scoring / auto-regen
+
+- After generation, a small "self-check" call compares the reference image vs generated image and returns a likeness score.
+- If below threshold, auto-regen once with stronger identity emphasis.
+- This is *optional* and can be implemented as a follow-up PR.
+
+---
+
+### 21.3 Implementation Guide
+
+#### Target Files
+
+You will primarily touch:
+
+- `components/VisionBoard.tsx`
+- `services/geminiService.ts`
+- `services/storageService.ts`
+- `supabase/functions/gemini-proxy/index.ts`
+- `SUPABASE_SCHEMA.sql`
+- `components/onboarding/GuidedOnboarding.tsx`
+- `App.tsx`
+- (New) `supabase/functions/vision-scene-prompt/index.ts`
+
+---
+
+#### Step 1 – Add `identity_description` to `reference_images`
+
+**1.1. Schema**
+
+In `SUPABASE_SCHEMA.sql`, update the `reference_images` table definition to include an optional `identity_description` field.
+
+```sql
+-- Reference Images
+CREATE TABLE IF NOT EXISTS public.reference_images (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    image_url TEXT NOT NULL,
+    tags TEXT[] DEFAULT '{}',
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE,
+    identity_description TEXT  -- NEW: neutral physical description of person/couple
+);
+
+-- Migration for existing databases:
+ALTER TABLE public.reference_images
+ADD COLUMN IF NOT EXISTS identity_description TEXT;
+```
+
+**1.2. Types & storage service**
+
+In `types.ts`, extend `ReferenceImage`:
+
+```typescript
+export interface ReferenceImage {
+  id: string;
+  url: string;
+  tags: string[];
+  createdAt: number;
+  identityDescription?: string; // NEW
+}
+```
+
+In `services/storageService.ts`:
+
+- Update `saveReferenceImage` to accept optional `identityDescription?: string`.
+- Ensure it writes `identity_description` to Supabase.
+- Map `identity_description` back when fetching reference images.
+
+```typescript
+// Signature
+export const saveReferenceImage = async (
+  base64Url: string,
+  tags: string[],
+  identityDescription?: string
+): Promise<ReferenceImage> => {
+  // existing code...
+  const { error: dbError } = await supabase
+    .from('reference_images')
+    .insert([{
+      id,
+      image_url: publicUrl,
+      tags,
+      created_at: new Date().toISOString(),
+      identity_description: identityDescription || null // NEW
+    }]);
+
+  return {
+    id,
+    url: publicUrl,
+    tags,
+    createdAt: Date.now(),
+    identityDescription
+  };
+};
+
+export const getReferenceLibrary = async (): Promise<ReferenceImage[]> => {
+  // ...
+  return data.map((row: any) => ({
+    id: row.id,
+    url: row.image_url,
+    tags: row.tags || [],
+    createdAt: new Date(row.created_at).getTime(),
+    identityDescription: row.identity_description || undefined
+  }));
+};
+```
+
+---
+
+#### Step 2 – Plumb identityPrompt through to Gemini
+
+**2.1. Extend editVisionImage**
+
+In `services/geminiService.ts`, change the signature:
+
+```typescript
+export const editVisionImage = async (
+  images: string | string[],
+  prompt: string,
+  embeddedText?: string,
+  titleText?: string,
+  style?: string,
+  aspectRatio?: string,
+  identityPrompt?: string          // NEW
+): Promise<string | null> => {
+  // ... existing image processing ...
+
+  return withRetry(async () => {
+    const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+      body: {
+        action: 'generate_image',
+        images: processedImages,
+        prompt,
+        embeddedText,
+        titleText,
+        style,
+        aspectRatio,
+        identityPrompt            // NEW
+      }
+    });
+
+    // existing error handling and return
+  });
+};
+```
+
+**2.2. Update VisionBoard.handleGenerate to build identityPrompt**
+
+In `components/VisionBoard.tsx`, inside `handleGenerate`:
+
+After computing `selectedRefs`, `refUrls`, and `refTags`, add:
+
+```typescript
+const identityPrompt = selectedRefs
+  .map((r) => r.identityDescription)
+  .filter(Boolean)
+  .join('\n\n');
+```
+
+Call `editVisionImage` with the new argument:
+
+```typescript
+const editedImage = await editVisionImage(
+  imagesToProcess,
+  fullPrompt,
+  goalText,
+  headerText,
+  selectedStyle,
+  selectedAspectRatio,
+  identityPrompt || undefined
+);
+```
+
+**2.3. Use identityPrompt in gemini-proxy**
+
+In `supabase/functions/gemini-proxy/index.ts`, update `handleImageGeneration`:
+
+Include `identityPrompt` in the destructuring:
+
+```typescript
+async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
+  const {
+    images = [],
+    prompt,
+    embeddedText,
+    titleText,
+    style,
+    aspectRatio,
+    identityPrompt // NEW
+  } = params;
+```
+
+Prepend identity instructions when building `finalPrompt`:
+
+```typescript
+  let finalPrompt = prompt || 'Create a beautiful, inspiring vision board image.';
+
+  if (identityPrompt) {
+    finalPrompt =
+      `Use the same people from the provided reference photos. ` +
+      `Preserve their faces, skin tone, age, hairstyles, and general body proportions. ` +
+      `Do NOT make them younger, thinner, or change their ethnicity.\n\n` +
+      `Identity Description:\n${identityPrompt}\n\n` +
+      finalPrompt;
+  }
+
+  if (titleText) {
+    finalPrompt += ` Include the title "${titleText}" prominently in the image.`;
+  }
+
+  if (embeddedText) {
+    finalPrompt += ` Include the text "${embeddedText}" naturally in the scene.`;
+  }
+```
+
+---
+
+#### Step 3 – Persist Onboarding Vision/Goals in a New Table
+
+**3.1. Schema: user_vision_profiles**
+
+Add to `SUPABASE_SCHEMA.sql`:
+
+```sql
+-- User Vision Profiles (Onboarding summary)
+CREATE TABLE IF NOT EXISTS public.user_vision_profiles (
+    user_id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    vision_text TEXT,
+    financial_target NUMERIC,
+    financial_target_label TEXT,
+    primary_vision_url TEXT,
+    primary_vision_id UUID,
+    domain TEXT  -- e.g. 'RETIREMENT', 'CAREER', etc.
+);
+```
+
+**3.2. Save onboarding completion to Supabase**
+
+In `App.tsx`, replace the existing `saveOnboardingState` with:
+
+```typescript
+const saveOnboardingState = useCallback(async (state: Partial<OnboardingState>) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const payload: any = {
+      user_id: user.id,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (state.visionText !== undefined) payload.vision_text = state.visionText;
+    if (state.financialTarget !== undefined) payload.financial_target = state.financialTarget;
+    if (state.financialTargetLabel !== undefined) payload.financial_target_label = state.financialTargetLabel;
+    if (state.primaryVisionUrl !== undefined) payload.primary_vision_url = state.primaryVisionUrl;
+    if (state.primaryVisionId !== undefined) payload.primary_vision_id = state.primaryVisionId;
+    // Domain inference can be added later
+
+    await supabase
+      .from('user_vision_profiles')
+      .upsert(payload, { onConflict: 'user_id' });
+  } catch (err) {
+    console.error('Error saving onboarding state to user_vision_profiles:', err);
+  }
+}, []);
+```
+
+---
+
+#### Step 4 – Create vision-scene-prompt Edge Function
+
+Create a new folder & file: `supabase/functions/vision-scene-prompt/index.ts`
+
+**Behavior:**
+
+- Authenticate user from Authorization header.
+- Pull:
+  - Vision profile from `user_vision_profiles` for `user_id`.
+  - Latest or favorite `vision_boards` row for that user.
+- Build a "scene prompt" string that can drive the Visualize feature.
+- Return:
+
+```json
+{
+  "success": true,
+  "scenePrompt": "... string ...",
+  "goalText": "Retire in Thailand by 2027.",
+  "headerText": "The Overton Family Vision 2027"
+}
+```
+
+**Sample implementation:**
+
+```typescript
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false }
+    });
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ success: false, error: "Missing Authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    );
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ success: false, error: "Invalid auth token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    const userId = user.id;
+
+    // Fetch vision profile
+    const { data: profile } = await supabase
+      .from("user_vision_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    // Fetch latest or favorite vision board
+    const { data: boards } = await supabase
+      .from("vision_boards")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const latestBoard = boards && boards[0];
+
+    const visionText: string = profile?.vision_text || latestBoard?.prompt || "";
+    const financialTarget = profile?.financial_target;
+    const financialLabel: string = profile?.financial_target_label || "";
+    const primaryUrl: string = profile?.primary_vision_url || latestBoard?.image_url || "";
+
+    // Build scene prompt
+    let scenePrompt = visionText || "A joyful scene representing the user's core life vision.";
+
+    if (primaryUrl) {
+      scenePrompt += " The scene should feel like a natural evolution of their primary vision board image.";
+    }
+
+    if (financialTarget && financialLabel) {
+      scenePrompt += ` Visually represent their goal of ${financialLabel} (target: ${financialTarget}).`;
+    } else if (financialLabel) {
+      scenePrompt += ` Visually represent their goal: ${financialLabel}.`;
+    }
+
+    const goalText = financialLabel || visionText || "";
+    const headerText = "My Vision Board";
+
+    return new Response(JSON.stringify({
+      success: true,
+      scenePrompt,
+      goalText,
+      headerText
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+
+  } catch (err) {
+    console.error("vision-scene-prompt error:", err);
+    return new Response(JSON.stringify({ success: false, error: "Internal error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+});
+```
+
+---
+
+#### Step 5 – Wire vision-scene-prompt into VisionBoard
+
+In `services/geminiService.ts` (or a new service file), add:
+
+```typescript
+export const fetchVisionScenePrompt = async (): Promise<{
+  scenePrompt: string;
+  goalText?: string;
+  headerText?: string;
+} | null> => {
+  const { data, error } = await supabase.functions.invoke('vision-scene-prompt', {
+    body: {}
+  });
+
+  if (error || !data?.success) {
+    console.error("Failed to fetch vision scene prompt:", error || data?.error);
+    return null;
+  }
+
+  return {
+    scenePrompt: data.scenePrompt,
+    goalText: data.goalText,
+    headerText: data.headerText
+  };
+};
+```
+
+In `components/VisionBoard.tsx`:
+
+- Import `fetchVisionScenePrompt`.
+- In a `useEffect`, prefill prompt/goal/header if empty:
+
+```typescript
+useEffect(() => {
+  const preloadScene = async () => {
+    if (promptInput) return; // don't override if user already typed
+    try {
+      const result = await fetchVisionScenePrompt();
+      if (result?.scenePrompt) {
+        setPromptInput(result.scenePrompt);
+      }
+      if (result?.goalText && !goalText) {
+        setGoalText(result.goalText);
+      }
+      if (result?.headerText && !headerText) {
+        setHeaderText(result.headerText);
+      }
+    } catch (err) {
+      console.error("Error preloading scene prompt:", err);
+    }
+  };
+
+  preloadScene();
+}, []);
+```
+
+---
+
+#### Step 6 (Optional P1) – Likeness Scoring & Auto-Regeneration
+
+This can be a separate PR:
+
+1. Add a new `action: 'compare_images'` path in `gemini-proxy` that:
+   - Accepts `referenceImage` and `generatedImage` (as base64 strings).
+   - Calls a Gemini vision model asking for a JSON `{ score, notes }` describing likeness.
+
+2. From `VisionBoard`, after image generation:
+   - Call this comparison once.
+   - If `score < 7`, show a subtle banner "Image doesn't strongly match your reference; regenerating…" and retry with strengthened `identityPrompt`.
+
+---
+
+### 21.4 PR Roadmap (Dev-Ready)
+
+Each of these steps can be treated as a PR:
+
+| PR | Title | Description | Dependencies |
+|----|-------|-------------|--------------|
+| **PR-001** | Add `identity_description` column | Update `reference_images` schema, `ReferenceImage` type, and storage service | None |
+| **PR-002** | Wire `identityPrompt` through to Gemini | Update `editVisionImage`, `VisionBoard`, and `gemini-proxy` | PR-001 |
+| **PR-003** | Implement `user_vision_profiles` table | Create table, save onboarding state from `App.tsx` | None |
+| **PR-004** | Implement `vision-scene-prompt` edge function | New edge function to build scene prompts | PR-003 |
+| **PR-005** | Pre-fill VisionBoard prompts | Call `vision-scene-prompt` on mount, prefill fields | PR-004 |
+| **PR-006** | Add likeness scoring & auto-regen loop (optional) | Image comparison endpoint + auto-retry logic | PR-002 |
+
+Each PR should compile, run, and be testable independently.
+
+---
+
+### 21.5 Implementation Notes
+
+**Preserve existing behavior:**
+- Keep existing retry behavior via `withRetry` in `geminiService.ts`.
+- Keep logging in `gemini-proxy` consistent; add log lines when `identityPrompt` is present.
+- Avoid breaking existing free/pro/elite style tier checks in `VisionBoard`.
+
+**TypeScript best practices:**
+- Be explicit in TypeScript types; do not rely on `any` unless the existing code already does.
+- Keep changes small and focused around the steps above.
+
+**Testing:**
+- Test identity preservation with various reference photos.
+- Verify onboarding data persists correctly to `user_vision_profiles`.
+- Confirm scene prompts pre-fill correctly in VisionBoard.
+
+---
+
+### 21.6 Success Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Identity preservation accuracy | 80%+ likeness score | User feedback / AI comparison |
+| Scene prompt adoption | 70%+ use pre-filled prompts | Analytics on prompt modification |
+| Onboarding completion to Visualize | 50%+ conversion | Funnel tracking |
+| User satisfaction with generated images | 4.5+/5 | Post-generation survey |
