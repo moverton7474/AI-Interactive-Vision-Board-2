@@ -664,8 +664,52 @@ const App = () => {
   }, []);
 
   const saveOnboardingState = useCallback(async (state: Partial<OnboardingState>) => {
-    // Can be used for saving intermediate state
-    console.log('Saving onboarding state:', state);
+    // Save onboarding state to user_vision_profiles for scene prompt generation
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('No user authenticated, skipping vision profile save');
+        return;
+      }
+
+      const payload: Record<string, any> = {
+        user_id: user.id,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Map OnboardingState fields to user_vision_profiles columns
+      if (state.visionText !== undefined) payload.vision_text = state.visionText;
+      if (state.financialTarget !== undefined) payload.financial_target = state.financialTarget;
+      if (state.financialTargetLabel !== undefined) payload.financial_target_label = state.financialTargetLabel;
+      if (state.primaryVisionUrl !== undefined) payload.primary_vision_url = state.primaryVisionUrl;
+      if (state.primaryVisionId !== undefined) payload.primary_vision_id = state.primaryVisionId;
+
+      // Infer domain from theme name if available
+      if (state.themeName) {
+        const themeLower = state.themeName.toLowerCase();
+        if (themeLower.includes('retire') || themeLower.includes('legacy')) {
+          payload.domain = 'RETIREMENT';
+        } else if (themeLower.includes('career') || themeLower.includes('business')) {
+          payload.domain = 'CAREER';
+        } else if (themeLower.includes('travel') || themeLower.includes('adventure')) {
+          payload.domain = 'TRAVEL';
+        } else if (themeLower.includes('health') || themeLower.includes('wellness')) {
+          payload.domain = 'HEALTH';
+        }
+      }
+
+      const { error } = await supabase
+        .from('user_vision_profiles')
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if (error) {
+        console.error('Error saving to user_vision_profiles:', error);
+      } else {
+        console.log('Vision profile saved successfully:', payload);
+      }
+    } catch (err) {
+      console.error('Error saving onboarding state to user_vision_profiles:', err);
+    }
   }, []);
 
   const downloadGuide = () => {

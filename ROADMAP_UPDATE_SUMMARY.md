@@ -1,7 +1,49 @@
-# Roadmap Update Summary - December 8, 2025
+# Roadmap Update Summary - December 9, 2025
 
 ## Overview
 Updated all roadmap documentation to accurately reflect the current state of the Visionary AI platform (v2.1). This comprehensive update documents significant infrastructure work completed between v1.6 and v2.0 that was not previously reflected in the roadmaps.
+
+---
+
+## Latest Update: December 9, 2025
+
+### Section 21 Added: Visualize Identity & Auto-Goal Injection
+
+A comprehensive new section has been added to ROADMAP.md covering the **Visualize Identity & Auto-Goal Injection** feature. This feature addresses two key needs:
+
+1. **Better likeness & body type** in generated images, grounded on reference photos
+2. **Automatic injection of goals & vision statements** from onboarding into Visualize prompts
+
+**Key Components:**
+- `identity_description` column added to `reference_images` table
+- `user_vision_profiles` table for persisting onboarding data
+- New `vision-scene-prompt` edge function for scene prompt generation
+- Identity preservation instructions in `gemini-proxy`
+- Auto-prefill of VisionBoard prompts from user profile
+
+**PR Roadmap (6 PRs):**
+| PR | Title |
+|----|-------|
+| PR-001 | Add `identity_description` column to reference_images |
+| PR-002 | Wire `identityPrompt` through to Gemini |
+| PR-003 | Implement `user_vision_profiles` table |
+| PR-004 | Implement `vision-scene-prompt` edge function |
+| PR-005 | Pre-fill VisionBoard prompts |
+| PR-006 | Add likeness scoring & auto-regen loop (optional) |
+
+**Target Files:**
+- `components/VisionBoard.tsx`
+- `services/geminiService.ts`
+- `services/storageService.ts`
+- `supabase/functions/gemini-proxy/index.ts`
+- `SUPABASE_SCHEMA.sql`
+- `components/onboarding/GuidedOnboarding.tsx`
+- `App.tsx`
+- (New) `supabase/functions/vision-scene-prompt/index.ts`
+
+---
+
+## Previous Update: December 8, 2025
 
 ## Files Updated
 
