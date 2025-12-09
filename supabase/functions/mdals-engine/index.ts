@@ -1,9 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Initialize Supabase client
+function getSupabaseClient() {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 // Helper to clean JSON output from markdown code blocks
 function cleanJson(text: string) {
@@ -107,7 +118,8 @@ serve(async (req) => {
     // ANALYZE SONG
     // ========================================================================
     if (action === 'analyze-song') {
-      const { song, domain_preferences, user_notes } = body;
+      const { song, domain_preferences, user_notes, user_id } = body;
+      const supabase = getSupabaseClient();
 
       const prompt = `
         Analyze this song for a "Vision Board" & "Personal Growth" context.
@@ -136,9 +148,51 @@ serve(async (req) => {
       const output = await callGemini(GEMINI_API_KEY, prompt);
       const data = JSON.parse(output);
 
+      // Save song to database
+      const { data: savedSong, error: songError } = await supabase
+        .from('mdals_songs')
+        .insert({
+          user_id: user_id,
+          title: song.title,
+          artist: song.artist || null,
+          album: song.album || null,
+          source_type: song.source_type || 'manual',
+          source_url: song.source_url || null,
+          user_notes: user_notes || null,
+        })
+        .select()
+        .single();
+
+      if (songError) {
+        console.error('Error saving song:', songError);
+        throw new Error(`Failed to save song: ${songError.message}`);
+      }
+
+      // Save song insights to database
+      const { data: savedInsight, error: insightError } = await supabase
+        .from('mdals_song_insights')
+        .insert({
+          song_id: savedSong.id,
+          summary: data.summary,
+          themes: data.themes,
+          emotions: data.emotions,
+          domain_tags: data.domain_tags,
+          references: data.references,
+          domain_preferences: domain_preferences,
+          model_used: 'gemini-2.0-flash-001',
+        })
+        .select()
+        .single();
+
+      if (insightError) {
+        console.error('Error saving insight:', insightError);
+        throw new Error(`Failed to save insight: ${insightError.message}`);
+      }
+
       return new Response(JSON.stringify({
         success: true,
-        song_id: crypto.randomUUID(), // Mock ID for now
+        song_id: savedSong.id,
+        insight_id: savedInsight.id,
         ...data
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -149,7 +203,8 @@ serve(async (req) => {
     // GENERATE PLAN
     // ========================================================================
     if (action === 'generate-plan') {
-      const { goal_description, duration_days, domain_preferences } = body;
+      const { goal_description, duration_days, domain_preferences, user_id, song_id } = body;
+      const supabase = getSupabaseClient();
 
       const prompt = `
         Create a ${duration_days}-Day actionable Learning Plan based on this goal:
@@ -181,17 +236,215 @@ serve(async (req) => {
       const output = await callGemini(GEMINI_API_KEY, prompt);
       const data = JSON.parse(output);
 
+      // Save learning plan to database
+      const { data: savedPlan, error: planError } = await supabase
+        .from('mdals_learning_plans')
+        .insert({
+          user_id: user_id,
+          song_id: song_id,
+          title: data.title,
+          goal_description: goal_description,
+          duration_days: duration_days,
+          domain_preferences: domain_preferences,
+          plan_json: data.days,
+          status: 'pending', // Not started yet
+          current_day: 0,
+          model_used: 'gemini-2.0-flash-001',
+        })
+        .select()
+        .single();
+
+      if (planError) {
+        console.error('Error saving plan:', planError);
+        throw new Error(`Failed to save plan: ${planError.message}`);
+      }
+
       return new Response(JSON.stringify({
         success: true,
-        plan_id: crypto.randomUUID(),
+        plan_id: savedPlan.id,
         duration_days,
+        status: 'pending',
         ...data
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    throw new Error(`Unknown action: ${action}. Valid actions: find-song, analyze-song, generate-plan`);
+    // ========================================================================
+    // START PLAN - Activate a plan and schedule daily notifications
+    // ========================================================================
+    if (action === 'start-plan') {
+      const { plan_id, user_id } = body;
+      const supabase = getSupabaseClient();
+
+      // Get the plan
+      const { data: plan, error: fetchError } = await supabase
+        .from('mdals_learning_plans')
+        .select('*')
+        .eq('id', plan_id)
+        .eq('user_id', user_id)
+        .single();
+
+      if (fetchError || !plan) {
+        throw new Error('Plan not found or access denied');
+      }
+
+      if (plan.status === 'active') {
+        throw new Error('Plan is already active');
+      }
+
+      // Update plan status to active
+      const { error: updateError } = await supabase
+        .from('mdals_learning_plans')
+        .update({
+          status: 'active',
+          started_at: new Date().toISOString(),
+          current_day: 1,
+        })
+        .eq('id', plan_id);
+
+      if (updateError) {
+        throw new Error(`Failed to activate plan: ${updateError.message}`);
+      }
+
+      // Schedule daily notifications for each day of the plan
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+      const days = plan.plan_json || [];
+
+      for (const day of days) {
+        // Schedule notification for each day (at 8am user's time by default)
+        const scheduledDate = new Date();
+        scheduledDate.setDate(scheduledDate.getDate() + (day.day - 1)); // Day 1 = today
+        scheduledDate.setHours(8, 0, 0, 0);
+
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/schedule-notification`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({
+              action: 'schedule',
+              userId: user_id,
+              checkinType: 'mdals_daily',
+              scheduledFor: scheduledDate.toISOString(),
+              channel: 'sms',
+              content: {
+                template: 'mdals_daily',
+                templateData: {
+                  planTitle: plan.title,
+                  dayNumber: day.day,
+                  totalDays: plan.duration_days,
+                  focus: day.focus,
+                  activities: day.activities,
+                  reflection: day.reflection,
+                }
+              }
+            })
+          });
+        } catch (scheduleError) {
+          console.warn(`Failed to schedule notification for day ${day.day}:`, scheduleError);
+          // Continue anyway - notifications are nice-to-have
+        }
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        plan_id: plan_id,
+        status: 'active',
+        started_at: new Date().toISOString(),
+        current_day: 1,
+        notifications_scheduled: days.length,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ========================================================================
+    // GET ACTIVE PLAN - Load user's active learning plan
+    // ========================================================================
+    if (action === 'get-active-plan') {
+      const { user_id } = body;
+      const supabase = getSupabaseClient();
+
+      const { data: plan, error } = await supabase
+        .from('mdals_learning_plans')
+        .select(`
+          *,
+          mdals_songs (title, artist)
+        `)
+        .eq('user_id', user_id)
+        .eq('status', 'active')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        throw new Error(`Failed to fetch plan: ${error.message}`);
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        has_active_plan: !!plan,
+        plan: plan || null,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ========================================================================
+    // COMPLETE DAY - Mark a day as completed and advance progress
+    // ========================================================================
+    if (action === 'complete-day') {
+      const { plan_id, user_id, day_number } = body;
+      const supabase = getSupabaseClient();
+
+      // Get the plan
+      const { data: plan, error: fetchError } = await supabase
+        .from('mdals_learning_plans')
+        .select('*')
+        .eq('id', plan_id)
+        .eq('user_id', user_id)
+        .single();
+
+      if (fetchError || !plan) {
+        throw new Error('Plan not found or access denied');
+      }
+
+      const newDay = Math.min(day_number + 1, plan.duration_days);
+      const isCompleted = newDay > plan.duration_days;
+
+      const updateData: any = {
+        current_day: isCompleted ? plan.duration_days : newDay,
+      };
+
+      if (isCompleted) {
+        updateData.status = 'completed';
+        updateData.completed_at = new Date().toISOString();
+      }
+
+      const { error: updateError } = await supabase
+        .from('mdals_learning_plans')
+        .update(updateData)
+        .eq('id', plan_id);
+
+      if (updateError) {
+        throw new Error(`Failed to update progress: ${updateError.message}`);
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        plan_id: plan_id,
+        current_day: updateData.current_day,
+        status: isCompleted ? 'completed' : 'active',
+        is_completed: isCompleted,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    throw new Error(`Unknown action: ${action}. Valid actions: find-song, analyze-song, generate-plan, start-plan, get-active-plan, complete-day`);
 
   } catch (error: any) {
     console.error("MDALS Engine Error:", error);
