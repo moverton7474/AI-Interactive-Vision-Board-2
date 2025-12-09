@@ -37,10 +37,22 @@ serve(async (req) => {
         // 1. Handle Subscription (Remote Logic)
         if (session.mode === 'subscription') {
             if (userId) {
-                await supabase
+                // PRO subscription: Update tier and add credits
+                const { error } = await supabase
                     .from('profiles')
-                    .update({ subscription_tier: 'PRO' })
+                    .update({
+                        subscription_tier: 'PRO',
+                        credits: 500  // PRO users get 500 credits
+                    })
                     .eq('id', userId)
+
+                if (error) {
+                    console.error('Failed to update profile for subscription:', error);
+                } else {
+                    console.log('Successfully upgraded user to PRO:', userId);
+                }
+            } else {
+                console.error('No userId found in subscription session metadata');
             }
         }
         // 2. Handle Credits (Remote Logic)
