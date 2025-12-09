@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { editVisionImage, enhanceVisionPrompt, getVisionSuggestions, fetchVisionScenePrompt } from '../services/geminiService';
+import { editVisionImage, enhanceVisionPrompt, getVisionSuggestions, fetchVisionScenePrompt, fetchUserGoalsAndVision } from '../services/geminiService';
 import { useToast } from '../components/ToastContext';
 import {
   saveVisionImage,
@@ -79,6 +79,16 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
 
+  // User Goals State
+  const [userGoals, setUserGoals] = useState<{
+    visionText?: string;
+    financialTarget?: number;
+    financialTargetLabel?: string;
+    domain?: string;
+    tasks: Array<{ id: string; title: string; description?: string; type: string; isCompleted: boolean }>;
+  } | null>(null);
+  const [showGoalsPanel, setShowGoalsPanel] = useState(true);
+
   const handleGetSuggestions = async () => {
     setIsSuggesting(true);
     try {
@@ -146,6 +156,23 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
     preloadScenePrompt();
   }, []); // Run once on mount
+
+  // Fetch user goals on mount
+  useEffect(() => {
+    const loadUserGoals = async () => {
+      try {
+        const goals = await fetchUserGoalsAndVision();
+        if (goals) {
+          setUserGoals(goals);
+          console.log('User goals loaded:', goals.tasks.length, 'tasks');
+        }
+      } catch (err) {
+        console.error('Error loading user goals:', err);
+      }
+    };
+
+    loadUserGoals();
+  }, []);
 
 
 
@@ -429,6 +456,86 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
             </button>
           </div>
         </div>
+      )}
+
+      {/* My Goals Panel - Shows stored onboarding goals */}
+      {userGoals && (userGoals.visionText || userGoals.tasks.length > 0 || userGoals.financialTarget) && showGoalsPanel && (
+        <div className="w-full mb-6">
+          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl shadow-lg border border-purple-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-navy-900 flex items-center gap-2">
+                <span className="text-lg">🎯</span> My Vision & Goals
+              </h3>
+              <button
+                onClick={() => setShowGoalsPanel(false)}
+                className="text-gray-400 hover:text-gray-600 text-sm"
+              >
+                Hide
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Vision Summary */}
+              {userGoals.visionText && (
+                <div className="bg-white/70 rounded-xl p-4 border border-purple-100">
+                  <p className="text-xs font-bold text-purple-600 uppercase tracking-wide mb-2">My Vision</p>
+                  <p className="text-sm text-gray-700 line-clamp-3">{userGoals.visionText}</p>
+                </div>
+              )}
+
+              {/* Financial Goal */}
+              {userGoals.financialTarget && (
+                <div className="bg-white/70 rounded-xl p-4 border border-purple-100">
+                  <p className="text-xs font-bold text-green-600 uppercase tracking-wide mb-2">Financial Target</p>
+                  <p className="text-2xl font-bold text-navy-900">${userGoals.financialTarget.toLocaleString()}</p>
+                  {userGoals.financialTargetLabel && (
+                    <p className="text-xs text-gray-500 mt-1">{userGoals.financialTargetLabel}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Action Tasks */}
+              {userGoals.tasks.length > 0 && (
+                <div className="bg-white/70 rounded-xl p-4 border border-purple-100">
+                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-2">Action Tasks ({userGoals.tasks.length})</p>
+                  <ul className="space-y-1">
+                    {userGoals.tasks.slice(0, 3).map(task => (
+                      <li key={task.id} className="flex items-center gap-2 text-sm">
+                        <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${task.isCompleted ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                          {task.isCompleted && (
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path d="M4.5 12.75l6 6 9-13.5" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className={`truncate ${task.isCompleted ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                          {task.title}
+                        </span>
+                      </li>
+                    ))}
+                    {userGoals.tasks.length > 3 && (
+                      <li className="text-xs text-indigo-500 font-medium">+{userGoals.tasks.length - 3} more tasks</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-purple-500 mt-3 text-center">
+              These goals from your onboarding are used to personalize your vision boards.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Collapsed Goals Toggle */}
+      {userGoals && (userGoals.visionText || userGoals.tasks.length > 0) && !showGoalsPanel && (
+        <button
+          onClick={() => setShowGoalsPanel(true)}
+          className="mb-4 text-sm text-purple-600 hover:text-purple-800 flex items-center gap-1"
+        >
+          <span>🎯</span> Show My Goals
+        </button>
       )}
 
       {/* Main Content Area */}
