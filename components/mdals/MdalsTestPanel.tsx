@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import type {
   MdalsSongSourceType,
@@ -11,6 +11,22 @@ import type {
 interface MdalsTestPanelProps {
   userId: string;
   onClose?: () => void;
+}
+
+// Active plan from database
+interface ActivePlan {
+  id: string;
+  title: string;
+  goal_description: string;
+  duration_days: number;
+  current_day: number;
+  status: string;
+  started_at: string;
+  plan_json: MdalsLearningPlanDay[];
+  mdals_songs?: {
+    title: string;
+    artist: string;
+  };
 }
 
 // Song suggestion from AI finder
@@ -84,7 +100,110 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
   // Loading states
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [isStartingPlan, setIsStartingPlan] = useState(false);
+  const [isCompletingDay, setIsCompletingDay] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Active plan state
+  const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
+  const [isLoadingActivePlan, setIsLoadingActivePlan] = useState(true);
+
+  // Load active plan on mount
+  useEffect(() => {
+    loadActivePlan();
+  }, [userId]);
+
+  const loadActivePlan = async () => {
+    setIsLoadingActivePlan(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
+        body: {
+          action: 'get-active-plan',
+          user_id: userId,
+        }
+      });
+
+      if (fnError) throw fnError;
+      if (data.has_active_plan && data.plan) {
+        setActivePlan(data.plan);
+      }
+    } catch (err: any) {
+      console.error('Failed to load active plan:', err);
+    } finally {
+      setIsLoadingActivePlan(false);
+    }
+  };
+
+  // Start plan handler
+  const handleStartPlan = async () => {
+    if (!planResult?.plan_id) {
+      setError('No plan to start');
+      return;
+    }
+
+    setIsStartingPlan(true);
+    setError(null);
+
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
+        body: {
+          action: 'start-plan',
+          plan_id: planResult.plan_id,
+          user_id: userId,
+        }
+      });
+
+      if (fnError) throw fnError;
+      if (!data.success) throw new Error(data.error || 'Failed to start plan');
+
+      // Reload active plan
+      await loadActivePlan();
+
+      // Clear the form results since we now have an active plan
+      setPlanResult(null);
+      setAnalysisResult(null);
+    } catch (err: any) {
+      console.error('Start plan error:', err);
+      setError(err.message || 'Failed to start plan');
+    } finally {
+      setIsStartingPlan(false);
+    }
+  };
+
+  // Complete day handler
+  const handleCompleteDay = async () => {
+    if (!activePlan) return;
+
+    setIsCompletingDay(true);
+    setError(null);
+
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
+        body: {
+          action: 'complete-day',
+          plan_id: activePlan.id,
+          user_id: userId,
+          day_number: activePlan.current_day,
+        }
+      });
+
+      if (fnError) throw fnError;
+      if (!data.success) throw new Error(data.error || 'Failed to complete day');
+
+      if (data.is_completed) {
+        // Plan is complete!
+        setActivePlan(null);
+      } else {
+        // Reload to get updated progress
+        await loadActivePlan();
+      }
+    } catch (err: any) {
+      console.error('Complete day error:', err);
+      setError(err.message || 'Failed to complete day');
+    } finally {
+      setIsCompletingDay(false);
+    }
+  };
 
   // Toggle domain selection
   const toggleDomain = (domain: string) => {
@@ -117,8 +236,9 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
     setClarifyingQuestions([]);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine/find-song', {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
         body: {
+          action: 'find-song',
           description: songDescription.trim(),
           genres: selectedGenres.length > 0 ? selectedGenres : undefined,
           mood: songMood.trim() || undefined,
@@ -164,8 +284,9 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
     setPlanResult(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine/analyze-song', {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
         body: {
+          action: 'analyze-song',
           song: {
             title: songTitle.trim(),
             artist: artist.trim() || undefined,
@@ -205,8 +326,9 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine/generate-plan', {
+      const { data, error: fnError } = await supabase.functions.invoke('mdals-engine', {
         body: {
+          action: 'generate-plan',
           user_id: userId,
           song_id: analysisResult.song_id,
           goal_description: goalDescription.trim(),
@@ -266,6 +388,94 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
             {error}
           </div>
         )}
+
+        {/* Active Plan Progress Dashboard */}
+        {isLoadingActivePlan ? (
+          <div className="bg-gray-800 rounded-xl p-6 mb-6 animate-pulse">
+            <div className="h-6 bg-gray-700 rounded w-1/3 mb-4"></div>
+            <div className="h-4 bg-gray-700 rounded w-2/3"></div>
+          </div>
+        ) : activePlan ? (
+          <div className="bg-gradient-to-r from-green-900/50 to-emerald-900/50 border border-green-500/50 rounded-xl p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <span className="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded-full uppercase">
+                  Active Plan
+                </span>
+                <h2 className="text-xl font-bold text-white mt-2">{activePlan.title}</h2>
+                {activePlan.mdals_songs && (
+                  <p className="text-green-200 text-sm">
+                    Based on "{activePlan.mdals_songs.title}" by {activePlan.mdals_songs.artist}
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                <div className="text-4xl font-bold text-green-400">
+                  Day {activePlan.current_day}
+                </div>
+                <div className="text-green-200 text-sm">of {activePlan.duration_days}</div>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-xs text-green-200 mb-1">
+                <span>Progress</span>
+                <span>{Math.round((activePlan.current_day / activePlan.duration_days) * 100)}%</span>
+              </div>
+              <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-500"
+                  style={{ width: `${(activePlan.current_day / activePlan.duration_days) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Today's Focus */}
+            {activePlan.plan_json && activePlan.plan_json[activePlan.current_day - 1] && (
+              <div className="bg-gray-800/50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold text-green-300 mb-2">
+                  Today's Focus: {activePlan.plan_json[activePlan.current_day - 1].focus}
+                </h3>
+                <div className="space-y-2">
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-400 mb-1">Activities:</h4>
+                    <ul className="list-disc list-inside text-sm text-gray-300">
+                      {activePlan.plan_json[activePlan.current_day - 1].activities.map((a, i) => (
+                        <li key={i}>{a}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-400 mb-1">Reflection:</h4>
+                    <p className="text-sm text-gray-300 italic">
+                      "{activePlan.plan_json[activePlan.current_day - 1].reflection}"
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-400 mb-1">Prayer/Action:</h4>
+                    <p className="text-sm text-gray-300">
+                      {activePlan.plan_json[activePlan.current_day - 1].prayer_or_action}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Complete Day Button */}
+            <button
+              onClick={handleCompleteDay}
+              disabled={isCompletingDay}
+              className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold text-white transition-colors"
+            >
+              {isCompletingDay
+                ? 'Completing...'
+                : activePlan.current_day >= activePlan.duration_days
+                ? 'Complete Plan! 🎉'
+                : `Complete Day ${activePlan.current_day} ✓`}
+            </button>
+          </div>
+        ) : null}
 
         {/* AI Song Finder */}
         <div className="bg-gray-800 rounded-xl p-6 mb-6">
@@ -660,8 +870,21 @@ const MdalsTestPanel: React.FC<MdalsTestPanelProps> = ({ userId, onClose }) => {
         {/* Learning Plan Results */}
         {planResult && (
           <div className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-2 text-green-400">{planResult.title}</h2>
-            <p className="text-gray-400 mb-4">{planResult.duration_days}-Day Learning Journey</p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-green-400">{planResult.title}</h2>
+                <p className="text-gray-400">{planResult.duration_days}-Day Learning Journey</p>
+              </div>
+              {planResult.status === 'pending' && !activePlan && (
+                <button
+                  onClick={handleStartPlan}
+                  disabled={isStartingPlan}
+                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold text-white transition-all shadow-lg hover:shadow-green-500/25"
+                >
+                  {isStartingPlan ? 'Starting...' : '🚀 Start This Plan'}
+                </button>
+              )}
+            </div>
 
             <div className="space-y-4">
               {planResult.days.map((day: MdalsLearningPlanDay) => (

@@ -16,6 +16,8 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
   // Track which image has the share menu open
   const [activeShareId, setActiveShareId] = useState<string | null>(null);
   const [printImage, setPrintImage] = useState<VisionImage | null>(null);
+  // Lightbox state
+  const [lightboxImage, setLightboxImage] = useState<VisionImage | null>(null);
 
   useEffect(() => {
     loadGallery();
@@ -103,8 +105,87 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
     console.log('✅ Print modal opened');
   }
 
+  const handleImageClick = (e: React.MouseEvent, img: VisionImage) => {
+    // Show lightbox instead of immediately selecting for refine
+    e.stopPropagation();
+    setLightboxImage(img);
+  };
+
+  const handleRefineFromLightbox = () => {
+    if (lightboxImage) {
+      onSelect(lightboxImage);
+      setLightboxImage(null);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto animate-fade-in pb-12" onClick={() => setActiveShareId(null)}>
+      {/* Image Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
+            onClick={() => setLightboxImage(null)}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <div className="flex flex-col items-center gap-4 max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={lightboxImage.url}
+              alt={lightboxImage.prompt}
+              className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl"
+            />
+
+            {/* Prompt display */}
+            <p className="text-white/80 text-sm text-center max-w-2xl px-4">
+              {lightboxImage.prompt}
+            </p>
+
+            {/* Action buttons */}
+            <div className="flex gap-3 mt-2">
+              <button
+                onClick={handleRefineFromLightbox}
+                className="flex items-center gap-2 bg-gradient-to-r from-navy-900 to-navy-800 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                <SparklesIcon className="w-4 h-4 text-gold-400" />
+                Refine This
+              </button>
+              <button
+                onClick={(e) => downloadImage(e, lightboxImage.url)}
+                className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg backdrop-blur-sm transition-colors"
+              >
+                <DownloadIcon className="w-4 h-4" />
+                Download
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxImage(null);
+                  setPrintImage(lightboxImage);
+                }}
+                className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 px-4 py-2 rounded-lg transition-colors"
+              >
+                <PrinterIcon className="w-4 h-4" />
+                Order Print
+              </button>
+              <button
+                onClick={(e) => handleDelete(e, lightboxImage.id)}
+                className="flex items-center gap-2 bg-red-500/80 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                <TrashIcon className="w-4 h-4" />
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {printImage && (
         <PrintOrderModal
           image={printImage}
@@ -140,7 +221,7 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
           {images.map((img) => (
             <div
               key={img.id}
-              onClick={() => onSelect(img)}
+              onClick={(e) => handleImageClick(e, img)}
               className="group relative bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl hover:border-gold-400 transition-all cursor-pointer aspect-[16/9]"
             >
               <OptimizedImage
@@ -148,6 +229,7 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
                 alt={img.prompt}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 width={800}
+                priority={true}
               />
 
               {/* Background gradient overlay - non-interactive */}
@@ -248,9 +330,12 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
                 </div>
               </div>
 
-              {/* Refine Badge */}
-              <div className="absolute top-3 right-3 bg-gold-500 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-full opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 shadow-lg z-20 pointer-events-none">
-                Refine This
+              {/* View Badge */}
+              <div className="absolute top-3 right-3 bg-white/90 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-full opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 shadow-lg z-20 pointer-events-none flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                </svg>
+                View Full Size
               </div>
             </div>
           ))}
