@@ -386,12 +386,83 @@ const App = () => {
           });
       }
 
+      // Save generated tasks to action_tasks table
+      if (state.generatedTasks && state.generatedTasks.length > 0) {
+        const taskRecords = state.generatedTasks.map(task => ({
+          user_id: session.user.id,
+          title: task.title,
+          description: task.description || '',
+          type: task.type || 'ADMIN',
+          due_date: task.dueDate,
+          is_completed: false,
+          ai_metadata: task.aiMetadata || null
+        }));
+
+        const { error: tasksError } = await supabase
+          .from('action_tasks')
+          .insert(taskRecords);
+
+        if (tasksError) {
+          console.error('Error saving tasks:', tasksError);
+        } else {
+          console.log(`Saved ${taskRecords.length} tasks from onboarding`);
+        }
+      }
+
+      // Save selected habits to habits table
+      if (state.selectedHabits && state.selectedHabits.length > 0) {
+        const habitRecords = state.selectedHabits.map(habit => ({
+          user_id: session.user.id,
+          title: habit.name || habit,
+          description: '',
+          frequency: 'daily',
+          is_active: true,
+          current_streak: 0
+        }));
+
+        const { error: habitsError } = await supabase
+          .from('habits')
+          .insert(habitRecords);
+
+        if (habitsError) {
+          console.error('Error saving habits:', habitsError);
+        } else {
+          console.log(`Saved ${habitRecords.length} habits from onboarding`);
+        }
+      }
+
+      // Ingest onboarding data into Knowledge Base
+      try {
+        const onboardingContent = buildOnboardingKBContent(state);
+        if (onboardingContent) {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+            await supabase.functions.invoke('knowledge-ingest?action=ingest', {
+              body: {
+                sourceType: 'notes',
+                sourceName: 'Vision & Goals (Onboarding)',
+                content: onboardingContent
+              },
+              headers: {
+                Authorization: `Bearer ${currentSession.access_token}`
+              }
+            });
+            console.log('Onboarding data ingested into Knowledge Base');
+          }
+        }
+      } catch (kbError) {
+        console.error('Error ingesting onboarding to KB:', kbError);
+      }
+
       // Update local state
       setOnboardingCompleted(true);
       setFinancialTarget(state.financialTarget);
       setPrimaryVisionUrl(state.primaryVisionUrl);
       setSelectedThemeId(state.themeId || null);
       setSelectedThemeName(state.themeName || null);
+      if (state.generatedTasks) {
+        setDashboardTasks(state.generatedTasks);
+      }
 
       // Navigate to dashboard
       setView(AppView.DASHBOARD);
@@ -399,6 +470,54 @@ const App = () => {
       console.error('Error saving onboarding:', err);
     }
   }, [session]);
+
+  // Helper function to build Knowledge Base content from onboarding
+  const buildOnboardingKBContent = (state: OnboardingState): string => {
+    const sections: string[] = [];
+
+    sections.push('# My Vision & Goals');
+    sections.push(`Created: ${new Date().toLocaleDateString()}`);
+    sections.push('');
+
+    if (state.themeName) {
+      sections.push(`## Coaching Theme: ${state.themeName}`);
+      sections.push('');
+    }
+
+    if (state.visionText) {
+      sections.push('## My Vision Statement');
+      sections.push(state.visionText);
+      sections.push('');
+    }
+
+    if (state.financialTarget !== undefined && state.financialTargetLabel) {
+      sections.push('## Financial Goal');
+      sections.push(`Target: $${state.financialTarget.toLocaleString()}`);
+      sections.push(`Description: ${state.financialTargetLabel}`);
+      sections.push('');
+    }
+
+    if (state.generatedTasks && state.generatedTasks.length > 0) {
+      sections.push('## Action Plan Tasks');
+      state.generatedTasks.forEach((task, i) => {
+        sections.push(`${i + 1}. **${task.title}**`);
+        if (task.description) sections.push(`   ${task.description}`);
+        sections.push(`   Type: ${task.type}`);
+      });
+      sections.push('');
+    }
+
+    if (state.selectedHabits && state.selectedHabits.length > 0) {
+      sections.push('## Selected Habits');
+      state.selectedHabits.forEach((habit: any) => {
+        const habitName = typeof habit === 'string' ? habit : habit.name;
+        sections.push(`- ${habitName}`);
+      });
+      sections.push('');
+    }
+
+    return sections.join('\n');
+  };
 
   // Dashboard Task Toggle
   const handleToggleTask = useCallback(async (taskId: string) => {

@@ -391,6 +391,61 @@ export const fetchVisionScenePrompt = async (): Promise<{
 };
 
 /**
+ * Fetch user's goals and vision profile from the database
+ * Returns stored goals, vision text, and financial targets for display in VisionBoard
+ */
+export const fetchUserGoalsAndVision = async (): Promise<{
+  visionText?: string;
+  financialTarget?: number;
+  financialTargetLabel?: string;
+  domain?: string;
+  tasks: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    type: string;
+    isCompleted: boolean;
+  }>;
+} | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Fetch vision profile
+    const { data: visionProfile } = await supabase
+      .from('user_vision_profiles')
+      .select('vision_text, financial_target, financial_target_label, domain')
+      .eq('user_id', user.id)
+      .single();
+
+    // Fetch action tasks
+    const { data: tasks } = await supabase
+      .from('action_tasks')
+      .select('id, title, description, type, is_completed')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(10);
+
+    return {
+      visionText: visionProfile?.vision_text,
+      financialTarget: visionProfile?.financial_target,
+      financialTargetLabel: visionProfile?.financial_target_label,
+      domain: visionProfile?.domain,
+      tasks: (tasks || []).map(t => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        type: t.type,
+        isCompleted: t.is_completed
+      }))
+    };
+  } catch (err) {
+    console.error('Error fetching user goals:', err);
+    return null;
+  }
+};
+
+/**
  * Generate AI Image Prompt for a Workbook Page
  */
 export const generatePageImagePrompt = async (
