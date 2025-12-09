@@ -37,12 +37,11 @@ serve(async (req) => {
         // 1. Handle Subscription (Remote Logic)
         if (session.mode === 'subscription') {
             if (userId) {
-                // PRO subscription: Update tier, add credits, set status to active
+                // PRO subscription: Update tier and add credits
                 const { error } = await supabase
                     .from('profiles')
                     .update({
                         subscription_tier: 'PRO',
-                        subscription_status: 'active',
                         credits: 500  // PRO users get 500 credits
                     })
                     .eq('id', userId)
