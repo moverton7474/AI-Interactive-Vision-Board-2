@@ -27,7 +27,7 @@ import TeamLeaderboards from './components/TeamLeaderboards';
 import ManagerDashboard from './components/ManagerDashboard';
 import MdalsTestPanel from './components/mdals/MdalsTestPanel';
 import { GuidedOnboarding } from './components/onboarding';
-import { Dashboard } from './components/dashboard';
+import { Dashboard, DashboardV2 } from './components/dashboard';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
@@ -888,26 +888,14 @@ const App = () => {
   const renderContent = () => {
     switch (view) {
       case AppView.DASHBOARD:
-        return (
-          <Dashboard
+        return session?.user ? (
+          <DashboardV2
+            userId={session.user.id}
+            userEmail={session.user.email}
             userName={userName}
-            themeName={selectedThemeName || undefined}
-            motivationStyle={motivationStyle}
-            themeInsight="Every step forward is progress toward your vision."
-            todayFocus={todayFocus}
-            primaryVisionUrl={primaryVisionUrl}
-            primaryVisionTitle={primaryVisionTitle}
-            tasks={dashboardTasks}
-            habits={dashboardHabits}
-            financialTarget={financialTarget}
-            financialCurrent={0}
-            financialTargetLabel="3-Year Goal"
             onNavigate={setView}
-            onToggleTask={handleToggleTask}
-            onToggleHabit={handleToggleHabit}
-            onPlayBriefing={handlePlayBriefing}
           />
-        );
+        ) : null;
 
       case AppView.SETTINGS:
         return (
