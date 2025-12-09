@@ -411,9 +411,9 @@ const App = () => {
 
       // Save selected habits to habits table
       if (state.selectedHabits && state.selectedHabits.length > 0) {
-        const habitRecords = state.selectedHabits.map(habit => ({
+        const habitRecords = state.selectedHabits.map((habit: any) => ({
           user_id: session.user.id,
-          title: habit.name || habit,
+          title: typeof habit === 'string' ? habit : habit.name,
           description: '',
           frequency: 'daily',
           is_active: true,
