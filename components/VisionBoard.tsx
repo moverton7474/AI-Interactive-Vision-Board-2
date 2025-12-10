@@ -797,6 +797,21 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                   </button>
 
                   <button
+                    onClick={() => {
+                      if (confirm('Discard this vision? This cannot be undone.')) {
+                        setResultImage(null);
+                        setCurrentPrompt('');
+                        showToast('Vision discarded', 'info');
+                      }
+                    }}
+                    className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg transition-colors font-medium text-sm"
+                    title="Discard this vision"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                    Delete
+                  </button>
+
+                  <button
                     onClick={() => setShowPrintModal(true)}
                     className="p-2 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg shadow transition-colors"
                     title="Order Poster Print"
