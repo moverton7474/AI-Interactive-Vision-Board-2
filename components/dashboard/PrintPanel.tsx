@@ -48,7 +48,8 @@ const PrintPanel: React.FC<Props> = ({
     }
   };
 
-  const formatProductType = (type: string): string => {
+  const formatProductType = (type: string | undefined | null): string => {
+    if (!type) return 'Print Product';
     const types: Record<string, string> = {
       poster: 'Vision Poster',
       canvas: 'Canvas Print',
