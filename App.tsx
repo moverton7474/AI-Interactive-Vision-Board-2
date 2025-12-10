@@ -268,20 +268,38 @@ const App = () => {
         setUserName(displayName);
         console.log('✅ User name set:', { displayName });
 
+        // Check if user has ANY vision boards (not just primary)
+        let hasAnyVisions = false;
+        try {
+          const { data: visionCount, error: countError } = await supabase
+            .from('vision_boards')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', session.user.id);
+
+          if (!countError && visionCount && visionCount.length > 0) {
+            hasAnyVisions = true;
+            console.log('✅ User has vision boards');
+          }
+        } catch (e) {
+          console.warn('Could not check vision boards:', e);
+        }
+
         // Route to appropriate view
         // User goes to Dashboard if:
         // 1. onboarding_completed is true, OR
-        // 2. They have a primary vision (meaning they've used the app before)
-        const shouldGoToDashboard = profile?.onboarding_completed || profile?.primary_vision_id;
+        // 2. They have a primary vision, OR
+        // 3. They have ANY vision boards
+        const shouldGoToDashboard = profile?.onboarding_completed || profile?.primary_vision_id || hasAnyVisions;
 
         if (shouldGoToDashboard) {
           console.log('🏠 Routing to Dashboard', {
             onboardingCompleted: profile?.onboarding_completed,
-            hasPrimaryVision: !!profile?.primary_vision_id
+            hasPrimaryVision: !!profile?.primary_vision_id,
+            hasAnyVisions
           });
           setView(AppView.DASHBOARD);
           // Also mark onboarding as complete if they have content
-          if (!profile?.onboarding_completed && profile?.primary_vision_id) {
+          if (!profile?.onboarding_completed && (profile?.primary_vision_id || hasAnyVisions)) {
             setOnboardingCompleted(true);
           }
         } else {

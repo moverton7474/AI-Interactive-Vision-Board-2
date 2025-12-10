@@ -392,7 +392,7 @@ const WorkbookOrderModal: React.FC<Props> = ({
     return pages;
   }, [selectedTemplate, wizardState]);
 
-  const isExecutiveEdition = selectedTemplate?.name.toLowerCase().includes('executive');
+  const isExecutiveEdition = selectedTemplate?.name?.toLowerCase().includes('executive');
 
   // ============================================
   // RENDER HELPERS
@@ -421,7 +421,7 @@ const WorkbookOrderModal: React.FC<Props> = ({
   const renderTemplateStep = () => {
     const isRecommended = (template: WorkbookTemplate) => {
       return (defaultEdition || hasActionPlan) &&
-        template.name.toLowerCase().includes('executive');
+        template.name?.toLowerCase().includes('executive');
     };
 
     return (

@@ -122,7 +122,7 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
 
   const handleCustomize = async (product: Product) => {
     // Intercept Workbook products to use the new Wizard
-    if (product.product_type === 'workbook' || product.name.toLowerCase().includes('workbook')) {
+    if (product.product_type === 'workbook' || product.name?.toLowerCase().includes('workbook')) {
       setShowWorkbookWizard(true);
       return;
     }
