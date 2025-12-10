@@ -169,6 +169,7 @@ export interface PrintConfig {
   size: string;
   finish: 'matte' | 'gloss';
   quantity: number;
+  productType?: 'poster' | 'canvas'; // Added for v1 - poster/canvas support
 }
 
 export interface PosterOrder {
@@ -182,6 +183,7 @@ export interface PosterOrder {
   shippingAddress: ShippingAddress;
   config: PrintConfig;
   vendorOrderId?: string;
+  productType?: 'poster' | 'canvas'; // Added for v1 - poster/canvas support
 }
 
 // --- Templates ---

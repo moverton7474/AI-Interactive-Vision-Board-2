@@ -94,7 +94,8 @@ export const createPosterOrder = async (
   shipping: ShippingAddress,
   config: PrintConfig,
   totalPrice: number,
-  discountApplied: boolean
+  discountApplied: boolean,
+  productType: ProductType = 'poster' // Default to poster for backward compatibility
 ): Promise<PosterOrder | null> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -107,9 +108,10 @@ export const createPosterOrder = async (
         user_id: user.id,
         vision_board_id: visionBoardId,
         shipping_address: shipping,
-        print_config: config,
+        print_config: { ...config, productType }, // Include productType in config
         total_price: totalPrice,
         discount_applied: discountApplied,
+        product_type: productType, // Save to dedicated column
         status: 'pending', // Start as pending until Prodigi confirms
         vendor_order_id: null
       }])
