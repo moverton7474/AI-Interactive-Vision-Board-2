@@ -269,11 +269,23 @@ const App = () => {
         console.log('✅ User name set:', { displayName });
 
         // Route to appropriate view
-        if (profile?.onboarding_completed) {
-          console.log('🏠 Routing to Dashboard (onboarding complete)');
+        // User goes to Dashboard if:
+        // 1. onboarding_completed is true, OR
+        // 2. They have a primary vision (meaning they've used the app before)
+        const shouldGoToDashboard = profile?.onboarding_completed || profile?.primary_vision_id;
+
+        if (shouldGoToDashboard) {
+          console.log('🏠 Routing to Dashboard', {
+            onboardingCompleted: profile?.onboarding_completed,
+            hasPrimaryVision: !!profile?.primary_vision_id
+          });
           setView(AppView.DASHBOARD);
+          // Also mark onboarding as complete if they have content
+          if (!profile?.onboarding_completed && profile?.primary_vision_id) {
+            setOnboardingCompleted(true);
+          }
         } else {
-          console.log('📋 Routing to Onboarding (not yet complete)');
+          console.log('📋 Routing to Onboarding (new user)');
           setView(AppView.GUIDED_ONBOARDING);
         }
 
@@ -1352,9 +1364,10 @@ const App = () => {
 
   // Safety check: Redirect logged-in users to Dashboard if they're on an unexpected view
   useEffect(() => {
-    if (session && onboardingCompleted === true) {
-      // If user is logged in with completed onboarding but on LANDING or unexpected initial state
-      if (view === AppView.LANDING) {
+    // Only run this check if user is logged in and we've finished loading profile
+    if (session && onboardingCompleted !== null) {
+      // If user has completed onboarding but is on LANDING, redirect to Dashboard
+      if (onboardingCompleted === true && view === AppView.LANDING) {
         console.log('🔄 Safety redirect: Moving logged-in user from LANDING to DASHBOARD');
         setView(AppView.DASHBOARD);
       }

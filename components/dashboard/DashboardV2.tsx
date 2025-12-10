@@ -183,14 +183,16 @@ const DashboardV2: React.FC<Props> = ({
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Fetch habits
+      // Fetch habits (is_active filter removed - column may not exist in all environments)
       const { data: habitsData, error: habitsError } = await supabase
         .from('habits')
-        .select('id, title, description, frequency, current_streak, is_active')
-        .eq('user_id', userId)
-        .eq('is_active', true);
+        .select('id, title, description, frequency, current_streak')
+        .eq('user_id', userId);
 
-      if (habitsError) throw habitsError;
+      if (habitsError) {
+        console.warn('Habits query error:', habitsError.message);
+        // Don't throw - allow graceful fallback to empty habits
+      }
 
       // Fetch today's completions
       const { data: completionsData, error: completionsError } = await supabase
@@ -203,8 +205,9 @@ const DashboardV2: React.FC<Props> = ({
 
       const completedHabitIds = new Set(completionsData?.map(c => c.habit_id) || []);
 
-      // Map icons based on habit title
-      const getHabitIcon = (title: string): string => {
+      // Map icons based on habit title (with null safety)
+      const getHabitIcon = (title: string | undefined | null): string => {
+        if (!title) return '⭐';
         const lowerTitle = title.toLowerCase();
         if (lowerTitle.includes('meditat') || lowerTitle.includes('mindful')) return '🧘';
         if (lowerTitle.includes('exercise') || lowerTitle.includes('workout') || lowerTitle.includes('gym')) return '💪';
