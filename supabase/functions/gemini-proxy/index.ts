@@ -387,20 +387,41 @@ ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
 async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
   const { images = [], prompt, embeddedText, titleText, style, aspectRatio, identityPrompt } = params
 
-  console.log(`[${requestId}] Image generation requested. Images: ${images.length}, Style: ${style}, Tier: ${profile?.subscription_tier}, HasIdentityPrompt: ${!!identityPrompt}`)
+  // Enhanced logging for likeness pipeline debugging (no PII logged)
+  const referenceImageCount = images.length > 1 ? images.length - 1 : 0 // First image is base
+  const hasIdentity = !!identityPrompt
+  const identityLength = identityPrompt ? identityPrompt.length : 0
+
+  console.log(`[${requestId}] Image generation requested:`, JSON.stringify({
+    baseImage: images.length > 0,
+    referenceImages: referenceImageCount,
+    style: style || 'default',
+    tier: profile?.subscription_tier || 'unknown',
+    hasIdentityPrompt: hasIdentity,
+    identityPromptLength: identityLength,
+    hasTitle: !!titleText,
+    hasEmbeddedText: !!embeddedText
+  }))
 
   // Build prompt for image generation
   let finalPrompt = prompt || 'Create a beautiful, inspiring vision board image.'
 
   // Prepend identity preservation instructions if identityPrompt is provided
   if (identityPrompt) {
+    // Enhanced likeness preservation prompt with more specific instructions
     finalPrompt =
-      `Use the same people from the provided reference photos. ` +
-      `Preserve their faces, skin tone, age, hairstyles, and general body proportions. ` +
-      `Do NOT make them younger, thinner, or change their ethnicity.\n\n` +
-      `Identity Description:\n${identityPrompt}\n\n` +
-      finalPrompt
-    console.log(`[${requestId}] Identity preservation prompt applied`)
+      `CRITICAL IDENTITY PRESERVATION INSTRUCTIONS:\n` +
+      `Use the attached reference photos to match the faces, skin tone, age, hairstyle, and approximate body type of the people shown. ` +
+      `Keep them visually consistent across all areas of the vision board. ` +
+      `Do NOT make them younger, thinner, taller, or change their ethnicity or distinctive features.\n\n` +
+      `Identity Guidance:\n${identityPrompt}\n\n` +
+      `Generation Instructions:\n${finalPrompt}`
+
+    console.log(`[${requestId}] Identity preservation applied:`, JSON.stringify({
+      identityDescriptionCount: identityPrompt.split('\n\n').filter(Boolean).length,
+      referenceImagesIncluded: referenceImageCount,
+      totalPromptLength: finalPrompt.length
+    }))
   }
 
   if (titleText) {
