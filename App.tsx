@@ -1110,23 +1110,23 @@ const App = () => {
       case AppView.ORDER_HISTORY:
         return <OrderHistory />;
       case AppView.HABITS:
-        return <HabitTracker onBack={() => setView(AppView.LANDING)} />;
+        return <HabitTracker onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.WEEKLY_REVIEWS:
-        return <WeeklyReviews onBack={() => setView(AppView.LANDING)} />;
+        return <WeeklyReviews onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.KNOWLEDGE_BASE:
-        return <KnowledgeBase onBack={() => setView(AppView.LANDING)} />;
+        return <KnowledgeBase onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.VOICE_COACH:
-        return <VoiceCoach onBack={() => setView(AppView.LANDING)} />;
+        return <VoiceCoach onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.PRINT_PRODUCTS:
-        return <PrintProducts onBack={() => setView(AppView.LANDING)} />;
+        return <PrintProducts onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.PARTNER:
-        return <PartnerDashboard onBack={() => setView(AppView.LANDING)} />;
+        return <PartnerDashboard onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.INTEGRATIONS:
-        return <SlackIntegration onBack={() => setView(AppView.LANDING)} />;
+        return <SlackIntegration onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.TEAM_LEADERBOARDS:
-        return <TeamLeaderboards onBack={() => setView(AppView.LANDING)} />;
+        return <TeamLeaderboards onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.MANAGER_DASHBOARD:
-        return <ManagerDashboard onBack={() => setView(AppView.LANDING)} />;
+        return <ManagerDashboard onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.MDALS_LAB:
         return session?.user?.id ? (
           <MdalsTestPanel
@@ -1350,12 +1350,28 @@ const App = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view]);
 
+  // Safety check: Redirect logged-in users to Dashboard if they're on an unexpected view
+  useEffect(() => {
+    if (session && onboardingCompleted === true) {
+      // If user is logged in with completed onboarding but on LANDING or unexpected initial state
+      if (view === AppView.LANDING) {
+        console.log('🔄 Safety redirect: Moving logged-in user from LANDING to DASHBOARD');
+        setView(AppView.DASHBOARD);
+      }
+    }
+  }, [session, onboardingCompleted, view]);
+
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div></div>;
   }
 
   if (!session) {
     return <Login />;
+  }
+
+  // Show loading while profile is being loaded for logged-in users
+  if (onboardingCompleted === null) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div></div>;
   }
 
 
