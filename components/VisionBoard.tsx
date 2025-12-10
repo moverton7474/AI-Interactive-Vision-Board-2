@@ -70,6 +70,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [references, setReferences] = useState<ReferenceImage[]>([]);
   const [selectedRefIds, setSelectedRefIds] = useState<string[]>([]);
   const [newRefTag, setNewRefTag] = useState('');
+  const [newRefIdentityDesc, setNewRefIdentityDesc] = useState('');
   const [isRefUploading, setIsRefUploading] = useState(false);
 
   // Credit State
@@ -204,11 +205,13 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         const base64 = reader.result as string;
         try {
           const tags = newRefTag ? [newRefTag] : ['reference'];
-          await saveReferenceImage(base64, tags);
+          // Pass identity description for likeness preservation
+          await saveReferenceImage(base64, tags, newRefIdentityDesc || undefined);
           setNewRefTag('');
+          setNewRefIdentityDesc('');
           await loadReferences();
-          await loadReferences();
-          showToast("Reference added to library", 'success');
+          const hasIdentity = newRefIdentityDesc ? ' with identity description' : '';
+          showToast(`Reference added to library${hasIdentity}`, 'success');
         } catch (e) {
           showToast("Failed to upload reference", 'error');
         } finally {
@@ -320,6 +323,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       if (editedImage) {
         setResultImage(editedImage);
         setCurrentPrompt(fullPrompt + (goalText ? ` (Goal: ${goalText})` : '') + (headerText ? ` (Title: ${headerText})` : ''));
+        showToast("Vision board generated successfully!", 'success');
 
         // Deduct Credit
         const success = await decrementCredits();
@@ -327,10 +331,30 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
           setCredits(prev => (prev !== null ? prev - 1 : 0));
         }
       } else {
-        setError("Could not generate image. Please try a different prompt.");
+        const errorMsg = "Could not generate image. Please try a different prompt.";
+        setError(errorMsg);
+        showToast(errorMsg, 'error');
       }
-    } catch (e) {
-      setError("An error occurred during generation.");
+    } catch (e: any) {
+      // Extract meaningful error message
+      let errorMsg = "An error occurred during generation.";
+      if (e?.message) {
+        // Check for common error patterns
+        if (e.message.includes('API_KEY_INVALID')) {
+          errorMsg = "API configuration issue. Please contact support.";
+        } else if (e.message.includes('PERMISSION_DENIED')) {
+          errorMsg = "Image generation unavailable. Please try again later.";
+        } else if (e.message.includes('RESOURCE_EXHAUSTED')) {
+          errorMsg = "Service busy. Please wait a moment and try again.";
+        } else if (e.message.includes('network') || e.message.includes('fetch')) {
+          errorMsg = "Network error. Please check your connection.";
+        } else {
+          errorMsg = `Generation failed: ${e.message.substring(0, 100)}`;
+        }
+      }
+      setError(errorMsg);
+      showToast(errorMsg, 'error');
+      console.error('Vision generation error:', e);
     } finally {
       setLoading(false);
     }
@@ -859,6 +883,16 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                     onChange={(e) => setNewRefTag(e.target.value)}
                   />
                 </div>
+                {/* Identity Description for Likeness Preservation */}
+                <div className="mb-2">
+                  <textarea
+                    placeholder="Identity (e.g. 'tall Black male, 50s, athletic, glasses')"
+                    className="w-full bg-white border border-gray-200 rounded-lg p-2 text-[10px] outline-none resize-none h-12 focus:border-gold-400"
+                    value={newRefIdentityDesc}
+                    onChange={(e) => setNewRefIdentityDesc(e.target.value)}
+                  />
+                  <p className="text-[9px] text-gray-400 mt-1">Describe physical features for better likeness</p>
+                </div>
                 <label className="block w-full text-center bg-white border border-gray-200 hover:border-gold-500 rounded-lg py-2 cursor-pointer transition-colors">
                   <span className="text-xs font-medium text-navy-900 flex items-center justify-center gap-1">
                     {isRefUploading ? <div className="w-3 h-3 border-2 border-gray-300 border-t-navy-900 rounded-full animate-spin" /> : <PlusIcon className="w-3 h-3" />}
@@ -875,27 +909,42 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                 )}
                 {references.map(ref => {
                   const isSelected = selectedRefIds.includes(ref.id);
+                  const hasIdentity = !!ref.identityDescription;
                   return (
                     <div
                       key={ref.id}
                       onClick={() => toggleReferenceSelection(ref.id)}
                       className={`relative group rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${isSelected ? 'border-gold-500 ring-1 ring-gold-200' : 'border-transparent hover:border-gray-300'}`}
+                      title={hasIdentity ? ref.identityDescription : 'No identity description'}
                     >
                       <img src={ref.url} className="w-full h-24 object-cover" alt="ref" />
-                      {/* Tags */}
+                      {/* Tags & Identity Indicator */}
                       <div className="absolute bottom-0 inset-x-0 bg-black/60 p-1">
-                        <p className="text-[10px] text-white truncate">{ref.tags.join(', ')}</p>
+                        <div className="flex items-center gap-1">
+                          {hasIdentity && (
+                            <span className="text-[9px] bg-green-500 text-white px-1 rounded" title={ref.identityDescription}>
+                              ID
+                            </span>
+                          )}
+                          <p className="text-[10px] text-white truncate flex-1">{ref.tags.join(', ')}</p>
+                        </div>
                       </div>
+                      {/* Identity tooltip on hover */}
+                      {hasIdentity && (
+                        <div className="absolute inset-x-0 top-0 bg-green-600/90 text-white text-[9px] p-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                          <p className="truncate">{ref.identityDescription}</p>
+                        </div>
+                      )}
                       {/* Delete */}
                       <button
                         onClick={(e) => handleDeleteReference(ref.id, e)}
-                        className="absolute top-1 right-1 p-1 bg-white/80 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white"
+                        className="absolute top-1 right-1 p-1 bg-white/80 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
                       >
                         <TrashIcon className="w-3 h-3" />
                       </button>
                       {/* Selected Indicator */}
                       {isSelected && (
-                        <div className="absolute top-1 left-1 bg-gold-500 text-navy-900 rounded-full p-0.5">
+                        <div className="absolute top-1 left-1 bg-gold-500 text-navy-900 rounded-full p-0.5 z-10">
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4.5 12.75l6 6 9-13.5" /></svg>
                         </div>
                       )}

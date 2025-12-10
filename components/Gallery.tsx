@@ -5,6 +5,7 @@ import { VisionImage } from '../types';
 import { TrashIcon, DownloadIcon, SparklesIcon, SaveIcon, ShareIcon, CopyIcon, MailIcon, TwitterIcon, FacebookIcon, GoogleIcon, PrinterIcon } from './Icons';
 import PrintOrderModal from './PrintOrderModal';
 import OptimizedImage from './OptimizedImage';
+import { useToast } from './ToastContext';
 
 interface Props {
   onSelect: (image: VisionImage) => void;
@@ -13,11 +14,13 @@ interface Props {
 const Gallery: React.FC<Props> = ({ onSelect }) => {
   const [images, setImages] = useState<VisionImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // Track which image has the share menu open
   const [activeShareId, setActiveShareId] = useState<string | null>(null);
   const [printImage, setPrintImage] = useState<VisionImage | null>(null);
   // Lightbox state
   const [lightboxImage, setLightboxImage] = useState<VisionImage | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     loadGallery();
@@ -25,27 +28,62 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
 
   const loadGallery = async () => {
     setLoading(true);
-    const data = await getVisionGallery();
-    setImages(data);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const data = await getVisionGallery();
+      setImages(data);
+    } catch (error: any) {
+      console.error('Failed to load gallery:', error);
+      setLoadError('Failed to load gallery. Please try again.');
+      showToast('Failed to load gallery. Please try again.', 'error');
+      setImages([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (confirm("Are you sure you want to delete this vision?")) {
-      await deleteVisionImage(id);
-      loadGallery();
+      // Optimistic update: remove from UI immediately
+      const previousImages = [...images];
+      setImages(images.filter(img => img.id !== id));
+
+      // Also close lightbox if this image was being viewed
+      if (lightboxImage?.id === id) {
+        setLightboxImage(null);
+      }
+
+      try {
+        await deleteVisionImage(id);
+        showToast('Vision deleted successfully', 'success');
+      } catch (error: any) {
+        // Rollback on failure
+        console.error('Failed to delete image:', error);
+        setImages(previousImages);
+        showToast('Failed to delete. Please try again.', 'error');
+      }
     }
   };
 
   const downloadImage = async (e: React.MouseEvent, url: string) => {
     e.stopPropagation();
     e.preventDefault();
+
+    // Guard against missing or invalid URL
+    if (!url || typeof url !== 'string') {
+      showToast('Image URL is missing or invalid', 'error');
+      return;
+    }
+
     console.log('🔍 Download button clicked!', { url, timestamp: new Date().toISOString() });
 
     try {
       // Fetch blob to force download and avoid cross-origin issues
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
 
@@ -59,9 +97,16 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
       // Clean up
       setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
       console.log('✅ Download completed successfully');
+      showToast('Download started', 'success');
     } catch (error) {
       console.error("❌ Download failed, falling back to direct link", error);
-      window.open(url, '_blank');
+      // Try fallback
+      try {
+        window.open(url, '_blank');
+        showToast('Opening image in new tab', 'info');
+      } catch {
+        showToast('Failed to download image', 'error');
+      }
     }
   };
 
@@ -100,6 +145,13 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
   const handlePrint = (e: React.MouseEvent, img: VisionImage) => {
     e.stopPropagation();
     e.preventDefault();
+
+    // Guard against missing or invalid image URL
+    if (!img?.url || typeof img.url !== 'string') {
+      showToast('Image URL is missing or invalid', 'error');
+      return;
+    }
+
     console.log('🔍 Print button clicked!', { imgId: img.id, timestamp: new Date().toISOString() });
     setPrintImage(img);
     console.log('✅ Print modal opened');
@@ -209,6 +261,20 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="w-10 h-10 border-4 border-gray-200 border-t-gold-500 rounded-full animate-spin"></div>
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-24 bg-red-50 rounded-2xl border-2 border-dashed border-red-200">
+          <svg className="w-12 h-12 text-red-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="text-lg font-medium text-red-900">{loadError}</h3>
+          <p className="text-red-600 mb-4">Please check your connection and try again.</p>
+          <button
+            onClick={loadGallery}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       ) : images.length === 0 ? (
         <div className="text-center py-24 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">

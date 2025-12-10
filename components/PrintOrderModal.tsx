@@ -2,8 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { VisionImage, ShippingAddress } from '../types';
 import { PrinterIcon, CheckBadgeIcon, TruckIcon, LockIcon, RobotIcon, ReceiptIcon } from './Icons';
-import { checkFirstTimeDiscount, calculatePrice, createPosterOrder } from '../services/printService';
+import { checkFirstTimeDiscount, calculatePrice, createPosterOrder, ProductType, PRODUCT_CONFIG } from '../services/printService';
 import { createStripeCheckoutSession, getLastShippingAddress } from '../services/storageService';
+import PrintPreview from './PrintPreview';
 
 interface Props {
   image: VisionImage | null;
@@ -13,10 +14,16 @@ interface Props {
 
 type WizardStep = 'CONFIG' | 'SHIPPING' | 'PAYMENT' | 'SUCCESS';
 
-const SIZES = [
+const POSTER_SIZES = [
   { id: '12x18', label: '12" x 18" Poster' },
   { id: '18x24', label: '18" x 24" Poster' },
   { id: '24x36', label: '24" x 36" Poster' },
+];
+
+const CANVAS_SIZES = [
+  { id: '12x18', label: '12" x 18" Canvas' },
+  { id: '18x24', label: '18" x 24" Canvas' },
+  { id: '24x36', label: '24" x 36" Canvas' },
 ];
 
 const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => {
@@ -24,10 +31,14 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEligibleForDiscount, setIsEligibleForDiscount] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
+
   // Config State
+  const [productType, setProductType] = useState<ProductType>('poster');
   const [selectedSize, setSelectedSize] = useState('18x24');
   const [finish, setFinish] = useState<'matte' | 'gloss'>('matte');
+
+  // Dynamic sizes based on product type
+  const SIZES = productType === 'canvas' ? CANVAS_SIZES : POSTER_SIZES;
   
   // Shipping State
   const [shipping, setShipping] = useState<ShippingAddress>({
@@ -57,11 +68,15 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
 
   if (!image) return null;
 
-  // Pricing Calc
-  const { subtotal, sku } = calculatePrice(selectedSize, finish);
+  // Pricing Calc - now includes product type
+  const { subtotal, sku } = calculatePrice(selectedSize, finish, productType);
   const discountAmount = isEligibleForDiscount ? subtotal * 0.30 : 0;
   const shippingCost = 0; // Free for now
   const total = subtotal - discountAmount + shippingCost;
+
+  // Product display helpers
+  const productConfig = PRODUCT_CONFIG[productType];
+  const productLabel = productType === 'canvas' ? 'Canvas' : (finish === 'gloss' ? 'Gloss Poster' : 'Matte Poster');
 
   const handleSubmitOrder = async () => {
     setIsProcessing(true);
@@ -119,15 +134,46 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
        </div>
 
-       <div className="space-y-4 mb-8 flex-1">
+       <div className="space-y-4 mb-8 flex-1 overflow-y-auto">
+         {/* Product Type Selector */}
+         <div>
+            <p className="text-sm font-bold text-navy-900 uppercase tracking-wide mb-2">Product Type</p>
+            <div className="flex gap-3">
+                <button
+                  onClick={() => setProductType('poster')}
+                  className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                    productType === 'poster'
+                      ? 'border-navy-900 bg-navy-900 text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="text-sm font-bold">Poster</div>
+                  <div className="text-xs opacity-80">From $24</div>
+                </button>
+                <button
+                  onClick={() => setProductType('canvas')}
+                  className={`flex-1 py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                    productType === 'canvas'
+                      ? 'border-navy-900 bg-navy-900 text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="text-sm font-bold">Canvas</div>
+                  <div className="text-xs opacity-80">From $49</div>
+                </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">{productConfig.description}</p>
+         </div>
+
+         {/* Size Selector */}
          <div>
             <p className="text-sm font-bold text-navy-900 uppercase tracking-wide mb-2">Select Size</p>
             <div className="space-y-2">
                 {SIZES.map((s) => {
-                    const price = calculatePrice(s.id, finish).subtotal;
+                    const price = calculatePrice(s.id, finish, productType).subtotal;
                     return (
-                       <div 
-                         key={s.id} 
+                       <div
+                         key={s.id}
                          onClick={() => setSelectedSize(s.id)}
                          className={`flex justify-between items-center p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedSize === s.id ? 'border-navy-900 bg-navy-50' : 'border-gray-200 hover:border-gray-300'}`}
                        >
@@ -139,26 +185,38 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
             </div>
          </div>
 
-         <div>
-            <p className="text-sm font-bold text-navy-900 uppercase tracking-wide mb-2">Paper Finish</p>
-            <div className="flex gap-4">
-                <button 
-                  onClick={() => setFinish('matte')}
-                  className={`flex-1 py-3 rounded-lg border-2 font-medium ${finish === 'matte' ? 'border-navy-900 bg-navy-900 text-white' : 'border-gray-200 text-gray-600'}`}
-                >
-                  Matte (Classic)
-                </button>
-                <button 
-                  onClick={() => setFinish('gloss')}
-                  className={`flex-1 py-3 rounded-lg border-2 font-medium ${finish === 'gloss' ? 'border-navy-900 bg-navy-900 text-white' : 'border-gray-200 text-gray-600'}`}
-                >
-                  Gloss (+$5.00)
-                </button>
-            </div>
-         </div>
+         {/* Finish Selector - Only for Posters */}
+         {productType === 'poster' && (
+           <div>
+              <p className="text-sm font-bold text-navy-900 uppercase tracking-wide mb-2">Paper Finish</p>
+              <div className="flex gap-4">
+                  <button
+                    onClick={() => setFinish('matte')}
+                    className={`flex-1 py-3 rounded-lg border-2 font-medium ${finish === 'matte' ? 'border-navy-900 bg-navy-900 text-white' : 'border-gray-200 text-gray-600'}`}
+                  >
+                    Matte (Classic)
+                  </button>
+                  <button
+                    onClick={() => setFinish('gloss')}
+                    className={`flex-1 py-3 rounded-lg border-2 font-medium ${finish === 'gloss' ? 'border-navy-900 bg-navy-900 text-white' : 'border-gray-200 text-gray-600'}`}
+                  >
+                    Gloss (+$5.00)
+                  </button>
+              </div>
+           </div>
+         )}
+
+         {/* Canvas info */}
+         {productType === 'canvas' && (
+           <div className="bg-gold-50 border border-gold-200 rounded-lg p-3">
+             <p className="text-xs text-gold-800">
+               <strong>Gallery Canvas</strong> - Premium museum-quality canvas with 1.5" gallery wrap. Ready to hang, no frame needed.
+             </p>
+           </div>
+         )}
        </div>
 
-       <button 
+       <button
          onClick={() => setStep('SHIPPING')}
          className="w-full bg-navy-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-navy-800 transition-all"
        >
@@ -249,7 +307,7 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
           {/* Pricing Breakdown */}
           <div className="bg-gold-50 border border-gold-200 rounded-lg p-4">
               <div className="flex justify-between text-sm mb-2 text-gray-600">
-                <span>{SIZES.find(s => s.id === selectedSize)?.label} ({finish})</span>
+                <span>{selectedSize}" {productLabel}</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
               {isEligibleForDiscount && (
@@ -345,21 +403,22 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full overflow-hidden flex flex-col md:flex-row min-h-[600px]">
         
-        {/* Left: Visual Mockup (Always Visible) */}
-        <div className="w-full md:w-1/2 bg-gray-100 p-8 flex flex-col items-center justify-center relative">
-           <h3 className="absolute top-6 left-6 text-xs font-bold text-gray-400 uppercase tracking-widest">
+        {/* Left: Visual Mockup (Always Visible) - Using PrintPreview component */}
+        <div className="w-full md:w-1/2 bg-gray-100 flex flex-col relative">
+           <h3 className="absolute top-6 left-6 text-xs font-bold text-gray-400 uppercase tracking-widest z-10">
               {step === 'CONFIG' ? 'Live Preview' : `Shipping to ${shipping.city || '...'}`}
            </h3>
-           
-           {/* Room Mockup Effect */}
-           <div className={`relative bg-white shadow-2xl border-8 border-black rounded-sm transform transition-all duration-700 ${step === 'PAYMENT' ? 'scale-90 rotate-0' : 'rotate-1 hover:rotate-0'}`} style={{ maxWidth: '80%' }}>
-              <img src={image.url} alt="Preview" className="w-full h-auto block" />
-              {finish === 'gloss' && (
-                 <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent pointer-events-none"></div>
-              )}
-           </div>
-           
-           <div className="mt-8 flex gap-4 text-xs text-gray-400">
+
+           {/* PrintPreview Component - Product-specific mockup */}
+           <PrintPreview
+             imageUrl={image.url}
+             productType={productType}
+             finish={finish}
+             size={selectedSize}
+             className="flex-1 min-h-[400px]"
+           />
+
+           <div className="p-4 flex justify-center gap-4 text-xs text-gray-400 bg-white/50">
              <span className="flex items-center gap-1"><TruckIcon className="w-4 h-4" /> Global Shipping</span>
              <span className="flex items-center gap-1"><RobotIcon className="w-4 h-4" /> AI Enhanced 300DPI</span>
            </div>
