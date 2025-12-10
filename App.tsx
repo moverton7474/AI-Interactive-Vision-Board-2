@@ -28,6 +28,7 @@ import ManagerDashboard from './components/ManagerDashboard';
 import MdalsTestPanel from './components/mdals/MdalsTestPanel';
 import { GuidedOnboarding } from './components/onboarding';
 import { Dashboard, DashboardV2 } from './components/dashboard';
+import { LandingPage } from './components/landing';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
@@ -38,6 +39,7 @@ import NotificationSettings from './components/settings/NotificationSettings';
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showLoginForm, setShowLoginForm] = useState(false);
 
   const [view, setView] = useState<AppView>(AppView.LANDING);
   const [chatInput, setChatInput] = useState('');
@@ -1398,7 +1400,34 @@ const App = () => {
   }
 
   if (!session) {
-    return <Login />;
+    // Show either the marketing landing page or login form
+    if (showLoginForm) {
+      return (
+        <div className="min-h-screen bg-slate-50">
+          {/* Back to Landing button */}
+          <div className="absolute top-4 left-4 z-50">
+            <button
+              onClick={() => setShowLoginForm(false)}
+              className="flex items-center gap-2 text-gray-500 hover:text-navy-900 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span className="text-sm font-medium">Back</span>
+            </button>
+          </div>
+          <Login />
+        </div>
+      );
+    }
+
+    // Show the marketing landing page
+    return (
+      <LandingPage
+        onGetStarted={() => setShowLoginForm(true)}
+        onLogin={() => setShowLoginForm(true)}
+      />
+    );
   }
 
   // Show loading while profile is being loaded for logged-in users
