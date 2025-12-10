@@ -90,14 +90,15 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
     }, 15000);
 
     try {
-      // 1. Create Order Record
+      // 1. Create Order Record (now includes productType)
       const order = await createPosterOrder(
         image.id,
         image.url,
         shipping,
-        { sku, size: selectedSize, finish, quantity: 1 },
+        { sku, size: selectedSize, finish, quantity: 1, productType },
         total,
-        isEligibleForDiscount
+        isEligibleForDiscount,
+        productType // Pass product type to save in database
       );
 
       clearTimeout(safetyTimeout);
