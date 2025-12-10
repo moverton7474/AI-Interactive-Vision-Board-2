@@ -3,9 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { AppView, ActionTask } from '../../types';
 import VisionHero from './VisionHero';
 import ExecutionPanel from './ExecutionPanel';
-import SupportRow from './SupportRow';
-import ToolsGrid from './ToolsGrid';
-import PrintPanel from './PrintPanel';
+import QuickActions from './QuickActions';
 
 // Data types
 interface VisionData {
@@ -34,25 +32,6 @@ interface HabitData {
   completedCount?: number;
 }
 
-interface CoachData {
-  lastInteraction?: string;
-  themeName?: string;
-}
-
-interface FinancialData {
-  goalTitle?: string;
-  targetAmount?: number;
-  currentProgress?: number;
-}
-
-interface PrintOrder {
-  id: string;
-  productType: string;
-  status: 'pending' | 'submitted' | 'shipped' | 'delivered';
-  createdAt: string;
-  trackingUrl?: string;
-}
-
 interface Props {
   userId: string;
   userEmail?: string;
@@ -65,14 +44,12 @@ const DashboardV2: React.FC<Props> = ({
   userId,
   userEmail,
   userName,
-  userRole,
   onNavigate
 }) => {
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [isLoadingHabits, setIsLoadingHabits] = useState(true);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
 
   // Data states
   const [vision, setVision] = useState<VisionData | null>(null);
@@ -81,9 +58,6 @@ const DashboardV2: React.FC<Props> = ({
   const [upcomingTasks, setUpcomingTasks] = useState<ActionTask[]>([]);
   const [habits, setHabits] = useState<HabitData[]>([]);
   const [todayFocus, setTodayFocus] = useState<string | undefined>();
-  const [coach, setCoach] = useState<CoachData>({});
-  const [financial, setFinancial] = useState<FinancialData>({});
-  const [recentOrders, setRecentOrders] = useState<PrintOrder[]>([]);
   const [themeName, setThemeName] = useState<string | undefined>();
 
   // Fetch active vision
@@ -183,7 +157,7 @@ const DashboardV2: React.FC<Props> = ({
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Fetch habits (is_active filter removed - column may not exist in all environments)
+      // Fetch habits
       const { data: habitsData, error: habitsError } = await supabase
         .from('habits')
         .select('id, title, description, frequency, current_streak')
@@ -191,7 +165,6 @@ const DashboardV2: React.FC<Props> = ({
 
       if (habitsError) {
         console.warn('Habits query error:', habitsError.message);
-        // Don't throw - allow graceful fallback to empty habits
       }
 
       // Fetch today's completions
@@ -205,7 +178,7 @@ const DashboardV2: React.FC<Props> = ({
 
       const completedHabitIds = new Set(completionsData?.map(c => c.habit_id) || []);
 
-      // Map icons based on habit title (with null safety)
+      // Map icons based on habit title
       const getHabitIcon = (title: string | undefined | null): string => {
         if (!title) return '⭐';
         const lowerTitle = title.toLowerCase();
@@ -238,10 +211,9 @@ const DashboardV2: React.FC<Props> = ({
     }
   }, [userId]);
 
-  // Fetch coach and theme data
-  const fetchCoachData = useCallback(async () => {
+  // Fetch theme data
+  const fetchThemeData = useCallback(async () => {
     try {
-      // Fetch user identity for theme
       const { data: identity, error: identityError } = await supabase
         .from('user_identity_profiles')
         .select(`
@@ -258,66 +230,9 @@ const DashboardV2: React.FC<Props> = ({
         // @ts-ignore - theme is joined
         const themeDisplayName = identity.theme.display_name || identity.theme.name;
         setThemeName(themeDisplayName);
-        setCoach(prev => ({ ...prev, themeName: themeDisplayName }));
       }
-
-      // TODO: Fetch last coach interaction from coach_sessions if table exists
-      // For now, we'll leave lastInteraction undefined
     } catch (error) {
-      console.error('Error fetching coach data:', error);
-    }
-  }, [userId]);
-
-  // Fetch financial data
-  const fetchFinancialData = useCallback(async () => {
-    try {
-      // Fetch from profile for now
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('financial_target')
-        .eq('id', userId)
-        .single();
-
-      if (!error && profile?.financial_target) {
-        setFinancial({
-          goalTitle: '3-Year Financial Goal',
-          targetAmount: profile.financial_target,
-          currentProgress: 0 // TODO: Calculate from linked accounts
-        });
-      }
-
-      // TODO: If financial_goals table exists, fetch from there instead
-    } catch (error) {
-      console.error('Error fetching financial data:', error);
-    }
-  }, [userId]);
-
-  // Fetch recent print orders
-  const fetchRecentOrders = useCallback(async () => {
-    setIsLoadingOrders(true);
-    try {
-      const { data, error } = await supabase
-        .from('poster_orders')
-        .select('id, status, created_at, print_config')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(3);
-
-      if (error) throw error;
-
-      const mappedOrders: PrintOrder[] = (data || []).map(order => ({
-        id: order.id,
-        productType: order.print_config?.productType || 'poster',
-        status: order.status as PrintOrder['status'],
-        createdAt: order.created_at,
-        trackingUrl: undefined // TODO: Add tracking_url column if needed
-      }));
-
-      setRecentOrders(mappedOrders);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    } finally {
-      setIsLoadingOrders(false);
+      console.error('Error fetching theme data:', error);
     }
   }, [userId]);
 
@@ -349,15 +264,13 @@ const DashboardV2: React.FC<Props> = ({
         fetchActiveVision(),
         fetchTodayTasks(),
         fetchHabits(),
-        fetchCoachData(),
-        fetchFinancialData(),
-        fetchRecentOrders()
+        fetchThemeData()
       ]);
       setIsLoading(false);
     };
 
     loadDashboard();
-  }, [fetchActiveVision, fetchTodayTasks, fetchHabits, fetchCoachData, fetchFinancialData, fetchRecentOrders]);
+  }, [fetchActiveVision, fetchTodayTasks, fetchHabits, fetchThemeData]);
 
   // Toggle task completion
   const handleToggleTask = useCallback(async (taskId: string) => {
@@ -449,7 +362,6 @@ const DashboardV2: React.FC<Props> = ({
   // Handle focus update
   const handleSetFocus = useCallback(async (focus: string) => {
     setTodayFocus(focus);
-    // TODO: Persist to day_intention table if it exists
   }, []);
 
   // Derived display name
@@ -469,7 +381,7 @@ const DashboardV2: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         {/* Band 1: Vision Hero */}
         <VisionHero
           vision={vision}
@@ -498,31 +410,11 @@ const DashboardV2: React.FC<Props> = ({
           onSetFocus={handleSetFocus}
         />
 
-        {/* Band 3: Support Row */}
-        <SupportRow
-          coach={coach}
-          mdals={{}}
-          financial={financial}
+        {/* Band 3: Quick Actions */}
+        <QuickActions
           onCoachClick={() => onNavigate(AppView.VOICE_COACH)}
-          onMdalsClick={() => onNavigate(AppView.MDALS_LAB)}
-          onFinancialClick={() => onNavigate(AppView.FINANCIAL)}
-        />
-
-        {/* Band 4: Tools Grid */}
-        <ToolsGrid
-          userRole={userRole}
-          onNavigate={onNavigate}
-        />
-
-        {/* Band 5: Print Panel */}
-        <PrintPanel
-          vision={vision}
-          recentOrders={recentOrders}
-          isLoading={isLoadingOrders}
-          onPrintPoster={() => onNavigate(AppView.PRINT_PRODUCTS)}
-          onPrintCanvas={() => onNavigate(AppView.PRINT_PRODUCTS)}
-          onPrintWorkbook={() => onNavigate(AppView.PRINT_PRODUCTS)}
-          onViewOrders={() => onNavigate(AppView.ORDER_HISTORY)}
+          onReviewClick={() => onNavigate(AppView.WEEKLY_REVIEWS)}
+          onSettingsClick={() => onNavigate(AppView.SETTINGS)}
         />
       </div>
     </div>

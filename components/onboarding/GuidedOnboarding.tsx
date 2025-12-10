@@ -9,7 +9,7 @@ import FinancialTargetStep from './FinancialTargetStep';
 import VisionGenerationStep from './VisionGenerationStep';
 import ActionPlanPreviewStep from './ActionPlanPreviewStep';
 import HabitsSetupStep from './HabitsSetupStep';
-import PrintOfferStep from './PrintOfferStep';
+// PrintOfferStep removed - users can access print from Dashboard
 import CompletionStep from './CompletionStep';
 
 interface Props {
@@ -34,7 +34,7 @@ const STEPS: OnboardingStep[] = [
   'VISION_GENERATION',
   'ACTION_PLAN_PREVIEW',
   'HABITS_SETUP',
-  'PRINT_OFFER',
+  // 'PRINT_OFFER', // Removed - users can access print from Dashboard
   'COMPLETION'
 ];
 
@@ -170,8 +170,6 @@ const GuidedOnboarding: React.FC<Props> = ({
         return (state.generatedTasks?.length ?? 0) > 0;
       case 'HABITS_SETUP':
         return (state.selectedHabits?.length ?? 0) > 0;
-      case 'PRINT_OFFER':
-        return true;
       case 'COMPLETION':
         return true;
       default:
@@ -189,13 +187,6 @@ const GuidedOnboarding: React.FC<Props> = ({
     await saveOnboardingState(state);
     onComplete(state);
   }, [state, saveOnboardingState, onComplete, userId]);
-
-  const handleViewPrintOptions = useCallback(() => {
-    // Save state first
-    saveOnboardingState(state);
-    // Navigate to print shop
-    onNavigate(AppView.PRINT_PRODUCTS);
-  }, [state, saveOnboardingState, onNavigate]);
 
   // Auto-advance from VISION_GENERATION when primaryVisionUrl is available
   useEffect(() => {
@@ -292,15 +283,6 @@ const GuidedOnboarding: React.FC<Props> = ({
           />
         );
 
-      case 'PRINT_OFFER':
-        return (
-          <PrintOfferStep
-            visionImageUrl={state.primaryVisionUrl}
-            onViewPrintOptions={handleViewPrintOptions}
-            onSkip={goNext}
-          />
-        );
-
       case 'COMPLETION':
         return (
           <CompletionStep
@@ -320,7 +302,6 @@ const GuidedOnboarding: React.FC<Props> = ({
   // Determine if we should show navigation buttons
   const showBackButton = currentStepIndex > 0 && state.currentStep !== 'COMPLETION';
   const showNextButton = state.currentStep !== 'VISION_GENERATION' &&
-    state.currentStep !== 'PRINT_OFFER' &&
     state.currentStep !== 'COMPLETION';
 
   return (
