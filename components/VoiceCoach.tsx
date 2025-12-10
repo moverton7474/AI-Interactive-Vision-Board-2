@@ -40,6 +40,52 @@ const SESSION_TYPES: { type: SessionType; label: string; description: string; ic
  * with AMIE personality integration. Uses text input as primary
  * interface with voice support where available.
  */
+// Demo responses for when Edge Function is unavailable
+const DEMO_RESPONSES: Record<SessionType, string[]> = {
+  morning_routine: [
+    "Good morning! I'm here to help you start your day with intention. What's one thing you're grateful for today?",
+    "That's wonderful to hear. Gratitude sets a positive tone for the day. What's your main focus or priority today?",
+    "Great goal! Remember, progress over perfection. What's one small step you can take in the next hour toward that?",
+    "I love that approach. You've got a clear vision. Go make it happen - I believe in you!"
+  ],
+  check_in: [
+    "Hey there! I'm glad you're taking a moment to check in. How are you feeling right now, honestly?",
+    "Thank you for sharing that with me. It's important to acknowledge our feelings. What's been on your mind the most today?",
+    "I hear you. Sometimes just talking through things helps clarify our thoughts. What would make today feel successful for you?",
+    "That's a great perspective. Remember, you have the power to shape your day. What's one action you can take right now?"
+  ],
+  reflection: [
+    "Welcome to our reflection session. Taking time to reflect shows real self-awareness. What's been the highlight of your week so far?",
+    "That sounds meaningful. What did you learn from that experience?",
+    "Insights like that are valuable. Is there anything you'd do differently next time?",
+    "Great reflection. These learnings will help you grow. What's one thing you want to carry forward?"
+  ],
+  goal_setting: [
+    "Let's set some powerful goals together! What area of your life are you most excited to improve right now?",
+    "That's an important area to focus on. What does success look like to you in 3 months?",
+    "I can see that vision clearly. What's the first milestone you need to hit to get there?",
+    "Excellent! Now let's make it actionable. What's one thing you'll commit to doing this week?"
+  ],
+  celebration: [
+    "Time to celebrate! 🎉 What's a recent win you're proud of, big or small?",
+    "That's absolutely worth celebrating! How did it feel when you accomplished that?",
+    "You should be proud of yourself. What strength or quality helped you achieve this?",
+    "Acknowledging our wins builds confidence. Carry this positive energy forward!"
+  ],
+  accountability: [
+    "Let's review your commitments. What goals or tasks did you set for yourself recently?",
+    "Thanks for sharing. How much progress have you made on those?",
+    "Progress is progress, no matter the pace. What's been your biggest obstacle?",
+    "I understand. What support or changes would help you stay on track going forward?"
+  ],
+  crisis_support: [
+    "I'm here for you. It takes courage to reach out. What's weighing on you right now?",
+    "Thank you for trusting me with this. Your feelings are valid. Have you been able to talk to anyone else about this?",
+    "You're not alone in this. What's one small thing that usually helps you feel a bit better?",
+    "Remember, difficult moments are temporary. You've overcome challenges before, and you will again. What's one thing you can do right now to take care of yourself?"
+  ]
+};
+
 const VoiceCoach: React.FC<Props> = ({ onBack }) => {
   const [view, setView] = useState<'select' | 'session' | 'history'>('select');
   const [selectedType, setSelectedType] = useState<SessionType | null>(null);
@@ -54,6 +100,8 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
   const [error, setError] = useState<string | null>(null);
   const [sessionSummary, setSessionSummary] = useState<any>(null);
   const [themeName, setThemeName] = useState<string>('AMIE');
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoResponseIndex, setDemoResponseIndex] = useState(0);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -117,35 +165,62 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
     try {
       setLoading(true);
       setError(null);
+      setDemoMode(false);
+      setDemoResponseIndex(0);
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('Please sign in to start a session');
       }
 
-      const response = await supabase.functions.invoke('voice-coach-session', {
-        body: { sessionType: type },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      try {
+        const response = await supabase.functions.invoke('voice-coach-session', {
+          body: { sessionType: type },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to start session');
+        if (response.error) {
+          throw new Error(response.error.message || 'Failed to start session');
+        }
+
+        const { session: newSession, openingMessage: greeting, theme } = response.data;
+
+        setActiveSession(newSession);
+        setSelectedType(type);
+        setOpeningMessage(greeting);
+        setTranscript([{
+          role: 'assistant',
+          content: greeting,
+          timestamp: new Date().toISOString()
+        }]);
+        setThemeName(theme?.name || 'AMIE');
+        setView('session');
+      } catch (apiErr: any) {
+        // Fall back to demo mode if Edge Function fails
+        console.warn('Edge Function unavailable, starting demo mode:', apiErr);
+        setDemoMode(true);
+
+        const demoGreeting = DEMO_RESPONSES[type][0];
+        const demoSession: Session = {
+          id: `demo-${Date.now()}`,
+          session_type: type,
+          started_at: new Date().toISOString()
+        };
+
+        setActiveSession(demoSession);
+        setSelectedType(type);
+        setOpeningMessage(demoGreeting);
+        setTranscript([{
+          role: 'assistant',
+          content: demoGreeting,
+          timestamp: new Date().toISOString()
+        }]);
+        setDemoResponseIndex(1);
+        setThemeName('AMIE Coach');
+        setView('session');
       }
-
-      const { session: newSession, openingMessage: greeting, theme } = response.data;
-
-      setActiveSession(newSession);
-      setSelectedType(type);
-      setOpeningMessage(greeting);
-      setTranscript([{
-        role: 'assistant',
-        content: greeting,
-        timestamp: new Date().toISOString()
-      }]);
-      setThemeName(theme?.name || 'AMIE');
-      setView('session');
     } catch (err: any) {
       console.error('Error starting session:', err);
       setError(err.message || 'Failed to start session');
@@ -169,24 +244,35 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
     }]);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Session expired');
+      let aiResponse: string;
 
-      const response = await supabase.functions.invoke('voice-coach-session', {
-        body: {
-          sessionId: activeSession.id,
-          transcript: userMessage
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      if (demoMode && selectedType) {
+        // Use demo responses
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate thinking
+        const responses = DEMO_RESPONSES[selectedType];
+        aiResponse = responses[Math.min(demoResponseIndex, responses.length - 1)];
+        setDemoResponseIndex(prev => prev + 1);
+      } else {
+        // Use Edge Function
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Session expired');
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to process message');
+        const response = await supabase.functions.invoke('voice-coach-session', {
+          body: {
+            sessionId: activeSession.id,
+            transcript: userMessage
+          },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message || 'Failed to process message');
+        }
+
+        aiResponse = response.data.response;
       }
-
-      const { response: aiResponse } = response.data;
 
       // Add AI response to transcript
       setTranscript(prev => [...prev, {
@@ -215,24 +301,42 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
 
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Session expired');
 
-      const response = await supabase.functions.invoke('voice-coach-session', {
-        body: { sessionId: activeSession.id },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      if (demoMode) {
+        // Create demo summary
+        const demoSummary = {
+          duration: Math.round((Date.now() - new Date(activeSession.started_at).getTime()) / 60000) || 1,
+          keyTopics: ['Personal growth', 'Goal setting', 'Self-reflection'],
+          actionItems: ['Review your goals daily', 'Practice gratitude', 'Take one small action today'],
+          sentiment: 0.75
+        };
+        setSessionSummary(demoSummary);
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Session expired');
 
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to end session');
+        const response = await supabase.functions.invoke('voice-coach-session', {
+          body: { sessionId: activeSession.id },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message || 'Failed to end session');
+        }
+
+        setSessionSummary(response.data.summary);
       }
-
-      setSessionSummary(response.data.summary);
     } catch (err: any) {
       console.error('Error ending session:', err);
-      setError(err.message || 'Failed to end session');
+      // Even on error, show a basic summary
+      setSessionSummary({
+        duration: Math.round((Date.now() - new Date(activeSession.started_at).getTime()) / 60000) || 1,
+        keyTopics: [],
+        actionItems: [],
+        sentiment: 0.5
+      });
     } finally {
       setLoading(false);
     }
@@ -259,6 +363,9 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
     setOpeningMessage('');
     setSessionSummary(null);
     setSelectedType(null);
+    setDemoMode(false);
+    setDemoResponseIndex(0);
+    setError(null);
     setView('select');
   };
 
@@ -440,7 +547,14 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
               <h2 className="font-semibold text-navy-900">
                 {SESSION_TYPES.find(t => t.type === selectedType)?.label || 'Session'}
               </h2>
-              <p className="text-xs text-gray-500">{themeName}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-gray-500">{themeName}</p>
+                {demoMode && (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    Demo Mode
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button
