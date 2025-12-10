@@ -13,7 +13,10 @@ export { default as PrintCenterCard } from './PrintCenterCard';
 export { default as DashboardV2 } from './DashboardV2';
 export { default as VisionHero } from './VisionHero';
 export { default as ExecutionPanel } from './ExecutionPanel';
+export { default as QuickActions } from './QuickActions';
+export { default as EmptyState } from './EmptyState';
+
+// Legacy V2 Components (still available via navbar)
 export { default as SupportRow } from './SupportRow';
 export { default as ToolsGrid } from './ToolsGrid';
 export { default as PrintPanel } from './PrintPanel';
-export { default as EmptyState } from './EmptyState';

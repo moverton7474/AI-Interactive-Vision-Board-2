@@ -271,14 +271,15 @@ const App = () => {
         // Check if user has ANY vision boards (not just primary)
         let hasAnyVisions = false;
         try {
-          const { data: visionCount, error: countError } = await supabase
+          const { data: visionData, error: countError } = await supabase
             .from('vision_boards')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', session.user.id);
+            .select('id')
+            .eq('user_id', session.user.id)
+            .limit(1);
 
-          if (!countError && visionCount && visionCount.length > 0) {
+          if (!countError && visionData && visionData.length > 0) {
             hasAnyVisions = true;
-            console.log('✅ User has vision boards');
+            console.log('✅ User has vision boards:', visionData.length);
           }
         } catch (e) {
           console.warn('Could not check vision boards:', e);
