@@ -82,6 +82,7 @@ const App = () => {
   const [userName, setUserName] = useState<string>('');
   const [primaryVisionUrl, setPrimaryVisionUrl] = useState<string | undefined>();
   const [primaryVisionTitle, setPrimaryVisionTitle] = useState<string | undefined>();
+  const [primaryVisionId, setPrimaryVisionId] = useState<string | undefined>();
   const [dashboardTasks, setDashboardTasks] = useState<ActionTask[]>([]);
   const [dashboardHabits, setDashboardHabits] = useState<{ id: string; name: string; icon: string; completedToday: boolean; streak: number }[]>([]);
   const [financialTarget, setFinancialTarget] = useState<number | undefined>();
@@ -197,6 +198,7 @@ const App = () => {
           // Load primary vision if exists
           if (profile.primary_vision_id) {
             console.log('🔍 Loading primary vision...', { visionId: profile.primary_vision_id });
+            setPrimaryVisionId(profile.primary_vision_id);
 
             const { data: vision, error: visionError } = await supabase
               .from('vision_boards')
@@ -564,6 +566,34 @@ const App = () => {
     setDashboardHabits(prev =>
       prev.map(h => h.id === habitId ? { ...h, completedToday: !h.completedToday } : h)
     );
+  }, []);
+
+  // Set a vision as the primary (displayed on dashboard)
+  const handleSetPrimaryVision = useCallback(async (image: { id: string; url: string; prompt: string }) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    try {
+      // Update profile with new primary vision ID
+      const { error } = await supabase
+        .from('profiles')
+        .update({ primary_vision_id: image.id })
+        .eq('id', session.user.id);
+
+      if (error) {
+        console.error('Failed to set primary vision:', error);
+        return;
+      }
+
+      // Update local state
+      setPrimaryVisionId(image.id);
+      setPrimaryVisionUrl(image.url);
+      setPrimaryVisionTitle(image.prompt?.slice(0, 50));
+
+      console.log('✅ Primary vision updated successfully:', image.id);
+    } catch (err) {
+      console.error('Error setting primary vision:', err);
+    }
   }, []);
 
   // Generate vision image using Gemini API
@@ -934,6 +964,15 @@ const App = () => {
             userEmail={session.user.email}
             userName={userName}
             onNavigate={setView}
+            onRefineVision={(vision) => {
+              // Set the vision as the selected image for the VisionBoard editor
+              setSelectedGalleryImage({
+                id: vision.id,
+                url: vision.imageUrl || '',
+                prompt: vision.title || ''
+              });
+              setView(AppView.VISION_BOARD);
+            }}
           />
         ) : null;
 
@@ -1132,10 +1171,14 @@ const App = () => {
         );
       case AppView.GALLERY:
         return (
-          <Gallery onSelect={(img) => {
-            setSelectedGalleryImage(img);
-            setView(AppView.VISION_BOARD);
-          }} />
+          <Gallery
+            onSelect={(img) => {
+              setSelectedGalleryImage(img);
+              setView(AppView.VISION_BOARD);
+            }}
+            onSetPrimary={handleSetPrimaryVision}
+            primaryVisionId={primaryVisionId}
+          />
         );
       case AppView.ACTION_PLAN:
         return (
