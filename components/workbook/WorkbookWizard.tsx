@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { WorkbookTemplate, VisionImage, Habit, ShippingAddress } from '../../types';
 import {
     BookOpenIcon,
@@ -19,11 +19,14 @@ import {
     createStripeCheckoutSession
 } from '../../services/storageService';
 import { generateWorkbookContent } from '../../services/geminiService';
-import { buildInitialWorkbookPages } from '../../services/workbook/workbookService';
+import { buildInitialWorkbookPages, CoverThemeId } from '../../services/workbook/workbookService';
 import { WorkbookPage } from '../../types/workbookTypes';
 import WorkbookPreview from './WorkbookPreview';
 import WorkbookCoverDesigner from './WorkbookCoverDesigner';
 import './workbook.css';
+
+// Maximum number of vision boards allowed in a workbook
+const MAX_VISION_BOARDS = 4;
 
 type WizardStep = 'TYPE_SELECTION' | 'PERSONALIZE' | 'CONTENT' | 'PREVIEW' | 'PRINT';
 
@@ -102,8 +105,8 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
             setHabits(habitsData);
             if (lastAddress) setShipping(lastAddress);
 
-            // Auto-select recent visions
-            setSelectedVisionBoards(visionData.slice(0, 5).map(v => v.id));
+            // Auto-select recent visions (respecting MAX_VISION_BOARDS limit)
+            setSelectedVisionBoards(visionData.slice(0, MAX_VISION_BOARDS).map(v => v.id));
             setSelectedHabits(habitsData.map(h => h.id));
 
         } catch (error) {
@@ -303,27 +306,46 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-2 space-y-8">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-navy-900 mb-4">Select Vision Boards</h2>
+                                    <h2 className="text-2xl font-bold text-navy-900 mb-2">Select Vision Boards</h2>
+                                    <p className="text-sm text-gray-500 mb-4">
+                                        Choose up to {MAX_VISION_BOARDS} vision boards to include in your workbook.
+                                        ({selectedVisionBoards.length}/{MAX_VISION_BOARDS} selected)
+                                    </p>
                                     <div className="grid grid-cols-3 gap-4">
-                                        {visionBoards.map(vision => (
-                                            <div
-                                                key={vision.id}
-                                                onClick={() => {
-                                                    setSelectedVisionBoards(prev =>
-                                                        prev.includes(vision.id) ? prev.filter(id => id !== vision.id) : [...prev, vision.id]
-                                                    );
-                                                }}
-                                                className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-4 transition-all ${selectedVisionBoards.includes(vision.id) ? 'border-navy-900' : 'border-transparent'
-                                                    }`}
-                                            >
-                                                <img src={vision.url} className="w-full h-full object-cover" />
-                                                {selectedVisionBoards.includes(vision.id) && (
-                                                    <div className="absolute top-2 right-2 bg-navy-900 text-white rounded-full p-1">
-                                                        <CheckBadgeIcon className="w-4 h-4" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
+                                        {visionBoards.map(vision => {
+                                            const isSelected = selectedVisionBoards.includes(vision.id);
+                                            const isDisabled = !isSelected && selectedVisionBoards.length >= MAX_VISION_BOARDS;
+
+                                            return (
+                                                <div
+                                                    key={vision.id}
+                                                    onClick={() => {
+                                                        if (isDisabled) return;
+                                                        setSelectedVisionBoards(prev =>
+                                                            prev.includes(vision.id)
+                                                                ? prev.filter(id => id !== vision.id)
+                                                                : [...prev, vision.id]
+                                                        );
+                                                    }}
+                                                    className={`relative aspect-square rounded-lg overflow-hidden border-4 transition-all
+                                                        ${isSelected ? 'border-navy-900 cursor-pointer' : ''}
+                                                        ${isDisabled ? 'border-transparent opacity-40 cursor-not-allowed' : 'border-transparent cursor-pointer hover:border-gray-300'}
+                                                    `}
+                                                >
+                                                    <img src={vision.url} alt={vision.prompt} className="w-full h-full object-cover" />
+                                                    {isSelected && (
+                                                        <div className="absolute top-2 right-2 bg-navy-900 text-white rounded-full p-1">
+                                                            <CheckBadgeIcon className="w-4 h-4" />
+                                                        </div>
+                                                    )}
+                                                    {isSelected && (
+                                                        <div className="absolute bottom-2 left-2 bg-navy-900 text-white text-xs px-2 py-1 rounded">
+                                                            #{selectedVisionBoards.indexOf(vision.id) + 1}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -371,27 +393,42 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                     onClick={async () => {
                                         setIsGenerating(true);
                                         try {
+                                            // Get full VisionImage objects for selected boards (in order of selection)
+                                            const selectedVisionImages: VisionImage[] = selectedVisionBoards
+                                                .map(id => visionBoards.find(v => v.id === id))
+                                                .filter((v): v is VisionImage => v !== undefined);
+
+                                            // Get full Habit objects for selected habits
+                                            const selectedHabitObjects: Habit[] = selectedHabits
+                                                .map(id => habits.find(h => h.id === id))
+                                                .filter((h): h is Habit => h !== undefined);
+
+                                            console.log(`[WorkbookWizard] Building pages with ${selectedVisionImages.length} vision boards and ${selectedHabitObjects.length} habits`);
+
                                             const pages = await buildInitialWorkbookPages({
                                                 edition: 'EXECUTIVE_VISION_BOOK',
                                                 trimSize: 'TRADE_6x9',
-                                                goals: [], // TODO: Pass real goals
-                                                habits: selectedHabits,
-                                                visionBoardImages: selectedVisionBoards,
-                                                includeForeword
+                                                goals: [], // TODO: Pass real goals from knowledge base
+                                                habits: selectedHabitObjects,
+                                                visionBoardImages: selectedVisionImages,
+                                                includeForeword,
+                                                title,
+                                                subtitle
                                             });
-                                            console.log(`WorkbookWizard: Generated ${pages.length} pages`);
+
+                                            console.log(`[WorkbookWizard] Generated ${pages.length} pages`);
                                             setGeneratedPages(pages);
                                             setStep('PREVIEW');
                                         } catch (e) {
-                                            console.error("WorkbookWizard: Generation failed", e);
+                                            console.error("[WorkbookWizard] Generation failed:", e);
                                         } finally {
                                             setIsGenerating(false);
                                         }
                                     }}
                                     className="w-full bg-navy-900 text-white font-bold py-3 rounded-lg hover:bg-navy-800"
-                                    disabled={isGenerating}
+                                    disabled={isGenerating || selectedVisionBoards.length === 0}
                                 >
-                                    {isGenerating ? 'Generating Blueprint...' : 'Generate Preview'}
+                                    {isGenerating ? 'Generating Blueprint...' : 'Preview Workbook'}
                                 </button>
                             </div>
                         </div>
@@ -448,6 +485,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                     if (!selectedTemplate) return;
                                     setIsLoading(true);
                                     try {
+                                        // Create order with the generated pages data for PDF consistency
                                         const order = await createWorkbookOrder({
                                             template_id: selectedTemplate.id,
                                             title,
@@ -466,15 +504,18 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                                 ...(includeJournal ? ['weekly_journal'] : []),
                                                 ...(includeFinancial ? ['financial_snapshot', 'goal_overview'] : []),
                                                 ...(includeForeword ? ['coach_letter'] : [])
-                                            ]
+                                            ],
+                                            // Include the exact pages used in preview for PDF generation
+                                            workbook_pages: generatedPages
                                         });
 
                                         if (order) {
+                                            console.log(`[WorkbookWizard] Order created: ${order.id}, redirecting to checkout...`);
                                             const url = await createStripeCheckoutSession('payment', order.id);
                                             if (url) window.location.href = url;
                                         }
                                     } catch (error) {
-                                        console.error("Checkout failed", error);
+                                        console.error("[WorkbookWizard] Checkout failed:", error);
                                     } finally {
                                         setIsLoading(false);
                                     }
