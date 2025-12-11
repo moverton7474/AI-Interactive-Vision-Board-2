@@ -969,7 +969,8 @@ const App = () => {
               setSelectedGalleryImage({
                 id: vision.id,
                 url: vision.imageUrl || '',
-                prompt: vision.title || ''
+                prompt: vision.title || '',
+                createdAt: Date.now()
               });
               setView(AppView.VISION_BOARD);
             }}
