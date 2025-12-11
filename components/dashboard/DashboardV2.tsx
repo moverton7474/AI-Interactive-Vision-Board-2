@@ -39,6 +39,11 @@ interface Props {
   userRole?: string;
   onNavigate: (view: AppView) => void;
   onRefineVision?: (vision: VisionData) => void;
+  primaryVision?: {
+    id: string;
+    url: string;
+    title: string;
+  };
 }
 
 const DashboardV2: React.FC<Props> = ({
@@ -46,7 +51,8 @@ const DashboardV2: React.FC<Props> = ({
   userEmail,
   userName,
   onNavigate,
-  onRefineVision
+  onRefineVision,
+  primaryVision
 }) => {
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -263,7 +269,8 @@ const DashboardV2: React.FC<Props> = ({
     const loadDashboard = async () => {
       setIsLoading(true);
       await Promise.all([
-        fetchActiveVision(),
+        // Only fetch vision from DB if no primaryVision prop provided
+        primaryVision ? Promise.resolve() : fetchActiveVision(),
         fetchTodayTasks(),
         fetchHabits(),
         fetchThemeData()
@@ -272,7 +279,19 @@ const DashboardV2: React.FC<Props> = ({
     };
 
     loadDashboard();
-  }, [fetchActiveVision, fetchTodayTasks, fetchHabits, fetchThemeData]);
+  }, [fetchActiveVision, fetchTodayTasks, fetchHabits, fetchThemeData, primaryVision]);
+
+  // Use primaryVision prop if provided (from App.tsx state)
+  useEffect(() => {
+    if (primaryVision) {
+      setVision({
+        id: primaryVision.id,
+        title: primaryVision.title,
+        imageUrl: primaryVision.url,
+        isPrimary: true
+      });
+    }
+  }, [primaryVision]);
 
   // Toggle task completion
   const handleToggleTask = useCallback(async (taskId: string) => {
