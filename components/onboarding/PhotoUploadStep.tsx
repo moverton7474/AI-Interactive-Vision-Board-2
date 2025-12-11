@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 
 interface Props {
   photoRefId?: string;
-  onPhotoUploaded: (refId: string, url: string) => void;
+  onPhotoUploaded: (refId: string, url: string, identityDescription?: string) => void;
   onSkip: () => void;
 }
 
@@ -13,7 +13,11 @@ const JPEG_QUALITY = 0.85;
 
 const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip }) => {
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
+  const [identityDescription, setIdentityDescription] = useState<string>('');
+  const [showDescriptionStep, setShowDescriptionStep] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -70,8 +74,8 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
     });
   }, []);
 
-  // Upload processed image
-  const uploadImage = useCallback(async (imageBlob: Blob) => {
+  // Prepare image for preview (don't upload to DB yet)
+  const prepareImage = useCallback(async (imageBlob: Blob) => {
     setError(null);
     setUploading(true);
 
@@ -83,6 +87,29 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
       };
       previewReader.readAsDataURL(imageBlob);
 
+      // Store blob for later upload
+      setPendingBlob(imageBlob);
+      setShowDescriptionStep(true);
+    } catch (err: any) {
+      console.error('Preview error:', err);
+      setError(err.message || 'Failed to process image. Please try again.');
+      setPreviewUrl(null);
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  // Save photo with identity description to database
+  const savePhotoWithDescription = useCallback(async () => {
+    if (!pendingBlob || !identityDescription.trim()) {
+      setError('Please describe your appearance to continue');
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+
+    try {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -91,7 +118,7 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
       const fileName = `references/${user.id}-${Date.now()}.jpg`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('visions')
-        .upload(fileName, imageBlob, {
+        .upload(fileName, pendingBlob, {
           contentType: 'image/jpeg',
           upsert: true
         });
@@ -106,12 +133,13 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
         .from('visions')
         .getPublicUrl(fileName);
 
-      // Save reference to database
+      // Save reference to database WITH identity_description
       const { data: refData, error: refError } = await supabase
         .from('reference_images')
         .insert({
           user_id: user.id,
           image_url: urlData.publicUrl,
+          identity_description: identityDescription.trim(),
           tags: ['onboarding', 'self-reference']
         })
         .select()
@@ -122,15 +150,14 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
         // Still continue - image is uploaded even if DB save fails
       }
 
-      onPhotoUploaded(refData?.id || fileName, urlData.publicUrl);
+      onPhotoUploaded(refData?.id || fileName, urlData.publicUrl, identityDescription.trim());
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Failed to upload image. Please try again.');
-      setPreviewUrl(null);
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
-  }, [onPhotoUploaded]);
+  }, [pendingBlob, identityDescription, onPhotoUploaded]);
 
   // Handle file selection
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,7 +173,7 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
     try {
       // Process (resize/compress) the image
       const processedBlob = await processImage(file);
-      await uploadImage(processedBlob);
+      await prepareImage(processedBlob);
     } catch (err: any) {
       setError(err.message || 'Failed to process image');
     }
@@ -227,12 +254,12 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
     // Stop camera
     stopCamera();
 
-    // Convert canvas to blob and upload
+    // Convert canvas to blob and prepare for description step
     canvas.toBlob(async (blob) => {
       if (blob) {
         try {
           const processedBlob = await processImage(blob);
-          await uploadImage(processedBlob);
+          await prepareImage(processedBlob);
         } catch (err: any) {
           setError(err.message || 'Failed to process captured photo');
         }
@@ -323,28 +350,28 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
             />
 
             {previewUrl ? (
-              <div className="relative aspect-square max-h-80 mx-auto">
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="w-full h-full object-cover"
-                />
+              <div className="relative">
+                <div className="aspect-square max-h-64 mx-auto overflow-hidden rounded-xl">
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setPreviewUrl(null);
+                    setPendingBlob(null);
+                    setShowDescriptionStep(false);
+                    setIdentityDescription('');
                   }}
-                  className="absolute top-4 left-4 w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                  className="absolute top-2 left-2 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-                <div className="absolute top-4 right-4 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
               </div>
             ) : (
               <div className="p-12 text-center">
@@ -370,7 +397,7 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
             )}
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons - show only when no preview */}
           {!previewUrl && !uploading && (
             <div className="flex gap-3">
               <button
@@ -391,6 +418,46 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 Take Photo
+              </button>
+            </div>
+          )}
+
+          {/* Identity Description Form - show after photo is taken */}
+          {showDescriptionStep && previewUrl && (
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Describe your appearance
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  This helps the AI preserve your likeness in generated vision boards. Be specific about features like hair color, skin tone, distinguishing features.
+                </p>
+                <textarea
+                  value={identityDescription}
+                  onChange={(e) => setIdentityDescription(e.target.value)}
+                  placeholder="e.g., African American woman with short natural hair, warm brown skin, wearing glasses..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-navy-500 focus:border-transparent resize-none"
+                  rows={3}
+                />
+              </div>
+              <button
+                onClick={savePhotoWithDescription}
+                disabled={saving || !identityDescription.trim()}
+                className="w-full py-3 px-4 bg-navy-900 rounded-xl font-medium text-white hover:bg-navy-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Photo & Continue
+                  </>
+                )}
               </button>
             </div>
           )}

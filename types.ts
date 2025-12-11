@@ -46,6 +46,7 @@ export interface OnboardingState {
   themeName?: string;
   visionText?: string;
   photoRefId?: string;
+  identityDescription?: string; // Description of user's appearance for AI image generation
   financialTarget?: number;
   financialTargetLabel?: string;
   primaryVisionId?: string;

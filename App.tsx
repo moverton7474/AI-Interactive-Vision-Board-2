@@ -593,13 +593,13 @@ const App = () => {
         images: []
       };
 
-      // If photo reference provided, fetch it and include
+      // If photo reference provided, fetch it and include with identity description
       if (photoRef) {
         try {
           if (onStatusChange) onStatusChange('Processing reference photo...');
           const { data: refData } = await supabase
             .from('reference_images')
-            .select('image_url')
+            .select('image_url, identity_description')
             .eq('id', photoRef)
             .single();
 
@@ -612,6 +612,13 @@ const App = () => {
               reader.readAsDataURL(blob);
             });
             requestBody.images.push(base64);
+
+            // Include identity description in prompt if available
+            if (refData.identity_description) {
+              requestBody.identityDescription = refData.identity_description;
+              // Append identity preservation instruction to prompt
+              requestBody.prompt = `${prompt}\n\nIMPORTANT: The reference photo shows the person who should appear in this vision. Their appearance: ${refData.identity_description}. Preserve their exact likeness, facial features, skin tone, and distinguishing characteristics in the generated image. The person in the output MUST look like the same person in the reference photo.`;
+            }
           }
         } catch (refError) {
           console.warn('Could not load reference image:', refError);
