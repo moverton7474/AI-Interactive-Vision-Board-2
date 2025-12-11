@@ -38,13 +38,15 @@ interface Props {
   userName?: string;
   userRole?: string;
   onNavigate: (view: AppView) => void;
+  onRefineVision?: (vision: VisionData) => void;
 }
 
 const DashboardV2: React.FC<Props> = ({
   userId,
   userEmail,
   userName,
-  onNavigate
+  onNavigate,
+  onRefineVision
 }) => {
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -389,6 +391,7 @@ const DashboardV2: React.FC<Props> = ({
           userName={displayName}
           themeName={themeName}
           onUpdateVision={() => onNavigate(AppView.GALLERY)}
+          onRefineVision={vision && onRefineVision ? () => onRefineVision(vision) : undefined}
           onPrintVision={() => onNavigate(AppView.PRINT_PRODUCTS)}
           onCreateVision={() => onNavigate(AppView.VISION_BOARD)}
         />

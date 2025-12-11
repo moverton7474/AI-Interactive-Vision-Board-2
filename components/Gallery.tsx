@@ -9,9 +9,11 @@ import { useToast } from './ToastContext';
 
 interface Props {
   onSelect: (image: VisionImage) => void;
+  onSetPrimary?: (image: VisionImage) => void;
+  primaryVisionId?: string;
 }
 
-const Gallery: React.FC<Props> = ({ onSelect }) => {
+const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId }) => {
   const [images, setImages] = useState<VisionImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -200,7 +202,27 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
             </p>
 
             {/* Action buttons */}
-            <div className="flex gap-3 mt-2">
+            <div className="flex flex-wrap gap-3 mt-2 justify-center">
+              {onSetPrimary && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetPrimary(lightboxImage);
+                    setLightboxImage(null);
+                  }}
+                  disabled={primaryVisionId === lightboxImage.id}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                    primaryVisionId === lightboxImage.id
+                      ? 'bg-green-500 text-white cursor-default'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  {primaryVisionId === lightboxImage.id ? 'Current Primary' : 'Set as Primary'}
+                </button>
+              )}
               <button
                 onClick={handleRefineFromLightbox}
                 className="flex items-center gap-2 bg-gradient-to-r from-navy-900 to-navy-800 text-white px-4 py-2 rounded-lg transition-colors"
@@ -395,6 +417,16 @@ const Gallery: React.FC<Props> = ({ onSelect }) => {
                   </button>
                 </div>
               </div>
+
+              {/* Primary Badge - always visible if this is the primary */}
+              {primaryVisionId === img.id && (
+                <div className="absolute top-3 left-3 bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg z-20 pointer-events-none flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  Primary
+                </div>
+              )}
 
               {/* View Badge */}
               <div className="absolute top-3 right-3 bg-white/90 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-full opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 shadow-lg z-20 pointer-events-none flex items-center gap-1">

@@ -22,6 +22,7 @@ interface Props {
   userName?: string;
   themeName?: string;
   onUpdateVision: () => void;
+  onRefineVision?: () => void;
   onPrintVision: () => void;
   onCreateVision: () => void;
 }
@@ -85,6 +86,7 @@ const VisionHero: React.FC<Props> = ({
   userName,
   themeName,
   onUpdateVision,
+  onRefineVision,
   onPrintVision,
   onCreateVision
 }) => {
@@ -209,6 +211,17 @@ const VisionHero: React.FC<Props> = ({
                 >
                   Update Vision
                 </button>
+                {onRefineVision && (
+                  <button
+                    onClick={onRefineVision}
+                    className="bg-white border border-navy-200 hover:bg-navy-50 text-navy-900 px-5 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit
+                  </button>
+                )}
                 <button
                   onClick={onPrintVision}
                   className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-5 py-2 rounded-lg font-medium text-sm transition-colors"
