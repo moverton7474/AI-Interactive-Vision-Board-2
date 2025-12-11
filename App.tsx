@@ -974,6 +974,11 @@ const App = () => {
               });
               setView(AppView.VISION_BOARD);
             }}
+            primaryVision={primaryVisionId && primaryVisionUrl ? {
+              id: primaryVisionId,
+              url: primaryVisionUrl,
+              title: primaryVisionTitle || ''
+            } : undefined}
           />
         ) : null;
 
