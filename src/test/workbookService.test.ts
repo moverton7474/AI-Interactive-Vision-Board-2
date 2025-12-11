@@ -9,31 +9,59 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock the dependencies
+// Mock the dependencies - return a fresh page object for each call
 vi.mock('../../services/workbook/workbookLayoutService', () => ({
-    generatePage: vi.fn().mockResolvedValue({
-        id: 'mock-page-id',
-        type: 'MONTHLY_PLANNER',
-        pageNumber: 1,
-        layout: {
-            trimSize: 'TRADE_6x9',
-            widthPx: 1800,
-            heightPx: 2700,
-            bleedPx: 37.5,
-            safeMarginPx: 150,
-            dpi: 300
-        },
-        textBlocks: [],
-        imageBlocks: [],
-        isVisible: true
+    generatePage: vi.fn().mockImplementation((context) => {
+        return Promise.resolve({
+            id: `mock-page-${Math.random().toString(36).substr(2, 9)}`,
+            type: context?.type || 'GENERIC',
+            edition: context?.edition || 'EXECUTIVE_VISION_BOOK',
+            pageNumber: 1,
+            layout: {
+                trimSize: context?.trimSize || 'TRADE_6x9',
+                widthPx: 1800,
+                heightPx: 2700,
+                bleedPx: 37.5,
+                safeMarginPx: 150,
+                dpi: 300
+            },
+            textBlocks: [],
+            imageBlocks: [],
+            isVisible: true
+        });
     })
 }));
 
 // Import after mocking
 import { buildInitialWorkbookPages, BuildOptions, CoverThemeId } from '../../services/workbook/workbookService';
 import { VisionImage, Habit } from '../../types';
+import { generatePage } from '../../services/workbook/workbookLayoutService';
 
 describe('workbookService', () => {
+    // Reset mocks before each test
+    beforeEach(() => {
+        vi.clearAllMocks();
+        // Re-setup the mock implementation
+        (generatePage as any).mockImplementation((context: any) => {
+            return Promise.resolve({
+                id: `mock-page-${Math.random().toString(36).substr(2, 9)}`,
+                type: context?.type || 'GENERIC',
+                edition: context?.edition || 'EXECUTIVE_VISION_BOOK',
+                pageNumber: 1,
+                layout: {
+                    trimSize: context?.trimSize || 'TRADE_6x9',
+                    widthPx: 1800,
+                    heightPx: 2700,
+                    bleedPx: 37.5,
+                    safeMarginPx: 150,
+                    dpi: 300
+                },
+                textBlocks: [],
+                imageBlocks: [],
+                isVisible: true
+            });
+        });
+    });
     // Mock data
     const mockVisionImages: VisionImage[] = [
         {
