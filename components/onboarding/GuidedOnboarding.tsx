@@ -306,13 +306,22 @@ const GuidedOnboarding: React.FC<Props> = ({
   const showNextButton = state.currentStep !== 'VISION_GENERATION' &&
     state.currentStep !== 'COMPLETION';
 
+  // Handler for skip - navigate to VisionBoard WITHOUT marking onboarding complete
+  const handleSkip = () => {
+    onNavigate(AppView.VISION_BOARD);
+  };
+
+  // Only show skip option on the first 5 steps (before AI generation)
+  const showSkipOption = currentStepIndex < 5 && state.currentStep !== 'COMPLETION';
+
   return (
     <OnboardingLayout
-      currentStep={currentStepIndex + 1}
+      step={currentStepIndex + 1}
       totalSteps={STEPS.length}
       title={stepConfig.title}
       subtitle={stepConfig.subtitle}
       onBack={showBackButton ? goBack : undefined}
+      onSkip={showSkipOption ? handleSkip : undefined}
     >
       {renderStep()}
 

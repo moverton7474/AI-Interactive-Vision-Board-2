@@ -25,6 +25,7 @@ interface Props {
   onRefineVision?: () => void;
   onPrintVision: () => void;
   onCreateVision: () => void;
+  onWorkbook?: () => void;
 }
 
 // Time-based greeting
@@ -88,7 +89,8 @@ const VisionHero: React.FC<Props> = ({
   onUpdateVision,
   onRefineVision,
   onPrintVision,
-  onCreateVision
+  onCreateVision,
+  onWorkbook
 }) => {
   const displayName = userName || 'Friend';
 
@@ -203,30 +205,65 @@ const VisionHero: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* Action Buttons - Always Visible */}
               <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={onUpdateVision}
-                  className="bg-navy-900 hover:bg-navy-800 text-white px-5 py-2 rounded-lg font-medium text-sm transition-colors"
-                >
-                  Update Vision
-                </button>
+                {/* Edit This Vision */}
                 {onRefineVision && (
                   <button
                     onClick={onRefineVision}
-                    className="bg-white border border-navy-200 hover:bg-navy-50 text-navy-900 px-5 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium transition-colors shadow-md hover:shadow-lg"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
-                    Edit
+                    Edit This Vision
                   </button>
                 )}
+
+                {/* Create New Vision */}
+                <button
+                  onClick={onCreateVision}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-medium transition-colors shadow-md hover:shadow-lg"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create New
+                </button>
+
+                {/* Print This Vision */}
                 <button
                   onClick={onPrintVision}
-                  className="bg-gold-500 hover:bg-gold-600 text-navy-900 px-5 py-2 rounded-lg font-medium text-sm transition-colors"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-pink-600 hover:bg-pink-500 text-white rounded-xl font-medium transition-colors shadow-md hover:shadow-lg"
                 >
-                  🖨️ Print
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print This Vision
+                </button>
+
+                {/* Create Workbook */}
+                {onWorkbook && (
+                  <button
+                    onClick={onWorkbook}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-medium transition-colors shadow-md hover:shadow-lg"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Create Workbook
+                  </button>
+                )}
+
+                {/* View Gallery */}
+                <button
+                  onClick={onUpdateVision}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-medium transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Gallery
                 </button>
               </div>
             </div>

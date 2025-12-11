@@ -964,6 +964,7 @@ const App = () => {
               url: primaryVisionUrl,
               title: primaryVisionTitle || ''
             } : undefined}
+            onboardingCompleted={onboardingCompleted ?? undefined}
           />
         ) : null;
 
@@ -1169,6 +1170,10 @@ const App = () => {
             }}
             onSetPrimary={handleSetPrimaryVision}
             primaryVisionId={primaryVisionId}
+            onNavigateToVisionBoard={() => {
+              setSelectedGalleryImage(null);
+              setView(AppView.VISION_BOARD);
+            }}
           />
         );
       case AppView.ACTION_PLAN:
@@ -1424,7 +1429,7 @@ const App = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view]);
 
-  // Safety check: Redirect logged-in users to Dashboard if they're on an unexpected view
+  // Safety check: Redirect logged-in users appropriately if they're on an unexpected view
   useEffect(() => {
     // Only run this check if user is logged in and we've finished loading profile
     if (session && onboardingCompleted !== null) {
@@ -1432,6 +1437,12 @@ const App = () => {
       if (onboardingCompleted === true && view === AppView.LANDING) {
         console.log('🔄 Safety redirect: Moving logged-in user from LANDING to DASHBOARD');
         setView(AppView.DASHBOARD);
+      }
+      // If user has NOT completed onboarding and is on LANDING, redirect to onboarding
+      // This bypasses the internal landing page for new users after signup
+      if (onboardingCompleted === false && view === AppView.LANDING) {
+        console.log('🔄 Safety redirect: Moving new user from LANDING to GUIDED_ONBOARDING');
+        setView(AppView.GUIDED_ONBOARDING);
       }
     }
   }, [session, onboardingCompleted, view]);
@@ -1515,6 +1526,9 @@ const App = () => {
                 <button onClick={() => setView(AppView.PRINT_PRODUCTS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PRINT_PRODUCTS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                   <PrinterIcon className="w-4 h-4" /> Print
                 </button>
+                <button onClick={() => setShowWorkbookModal(true)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${showWorkbookModal ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                  <BookOpenIcon className="w-4 h-4" /> Workbook
+                </button>
 
                 {/* More Dropdown */}
                 <div className="relative">
@@ -1552,9 +1566,6 @@ const App = () => {
                         <MusicNoteIcon className="w-4 h-4" /> MDALS Lab
                       </button>
                       <div className="border-t border-gray-100 my-1" />
-                      <button onClick={() => { setShowWorkbookModal(true); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <BookOpenIcon className="w-4 h-4" /> Workbook
-                      </button>
                       <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                         <ReceiptIcon className="w-4 h-4" /> Orders
                       </button>
