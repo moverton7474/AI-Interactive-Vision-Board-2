@@ -166,7 +166,22 @@ export const getLastShippingAddress = async (): Promise<ShippingAddress | null> 
 
 /* --- VISION BOARDS --- */
 
-export const saveVisionImage = async (image: VisionImage): Promise<void> => {
+/**
+ * Extended VisionImage interface for saving with likeness metadata
+ */
+export interface VisionImageWithMetadata extends VisionImage {
+  modelUsed?: string;
+  referenceImageIds?: string[];
+  likenessOptimized?: boolean;
+  likenessMetadata?: {
+    likeness_score?: number;
+    face_match?: boolean;
+    body_type_match?: boolean;
+    explanation?: string;
+  };
+}
+
+export const saveVisionImage = async (image: VisionImageWithMetadata): Promise<void> => {
   try {
     const blob = base64ToBlob(image.url);
     const fileName = `${image.id}.png`;
@@ -194,7 +209,12 @@ export const saveVisionImage = async (image: VisionImage): Promise<void> => {
           prompt: image.prompt,
           image_url: publicUrl,
           created_at: new Date(image.createdAt).toISOString(),
-          is_favorite: image.isFavorite || false
+          is_favorite: image.isFavorite || false,
+          // New likeness tracking columns
+          model_used: image.modelUsed || null,
+          reference_image_ids: image.referenceImageIds || null,
+          likeness_optimized: image.likenessOptimized || false,
+          likeness_metadata: image.likenessMetadata || {}
         }
       ]);
 

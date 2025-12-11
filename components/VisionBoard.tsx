@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { editVisionImage, enhanceVisionPrompt, getVisionSuggestions, fetchUserGoalsAndVision } from '../services/geminiService';
+import { editVisionImage, enhanceVisionPrompt, getVisionSuggestions, fetchUserGoalsAndVision, validateLikeness, VisionGenerationResult, LikenessValidationResult } from '../services/geminiService';
 import { useToast } from '../components/ToastContext';
 import {
   saveVisionImage,
@@ -89,6 +89,12 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     tasks: Array<{ id: string; title: string; description?: string; type: string; isCompleted: boolean }>;
   } | null>(null);
   const [showGoalsPanel, setShowGoalsPanel] = useState(true);
+
+  // Likeness & Model Tracking State
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
+  const [likenessOptimized, setLikenessOptimized] = useState<boolean>(false);
+  const [likenessValidation, setLikenessValidation] = useState<LikenessValidationResult | null>(null);
+  const [isValidatingLikeness, setIsValidatingLikeness] = useState(false);
 
   const handleGetSuggestions = async () => {
     setIsSuggesting(true);
@@ -291,11 +297,15 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
     setLoading(true);
     setError(null);
+    setLikenessValidation(null); // Reset previous validation
+    setModelUsed(null);
+    setLikenessOptimized(false);
+
     try {
-      // Collect selected reference URLs
+      // Collect selected reference data
       const selectedRefs = references.filter(r => selectedRefIds.includes(r.id));
       const refUrls = selectedRefs.map(r => r.url);
-      const refTags = selectedRefs.flatMap(r => r.tags).join(', ');
+      const refTags = selectedRefs.flatMap(r => r.tags); // Keep as array for proper tagging
 
       // Build identity prompt from selected references with identity descriptions
       const identityPrompt = selectedRefs
@@ -305,30 +315,48 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
       const imagesToProcess = [baseImage, ...refUrls];
 
+      // Build the scene prompt (don't append ref info - the backend handles this now)
       let fullPrompt = promptInput;
-      if (selectedRefs.length > 0) {
-        fullPrompt += `. Use the subsequent images as visual references for: ${refTags}.`;
-      }
 
-      const editedImage = await editVisionImage(
+      // Call the upgraded editVisionImage with reference tags
+      const result = await editVisionImage(
         imagesToProcess,
         fullPrompt,
         goalText,
         headerText,
-        selectedStyle, // Pass selected style
+        selectedStyle,
         undefined, // aspectRatio
-        identityPrompt || undefined // Pass identity prompt for likeness preservation
+        identityPrompt || undefined,
+        refTags.length > 0 ? refTags : undefined // Pass reference image tags
       );
 
-      if (editedImage) {
-        setResultImage(editedImage);
+      if (result && result.image) {
+        setResultImage(result.image);
         setCurrentPrompt(fullPrompt + (goalText ? ` (Goal: ${goalText})` : '') + (headerText ? ` (Title: ${headerText})` : ''));
-        showToast("Vision board generated successfully!", 'success');
+
+        // Store model metadata
+        setModelUsed(result.model_used || null);
+        setLikenessOptimized(result.likeness_optimized || false);
+
+        // Show appropriate success message
+        if (result.warning) {
+          showToast(`Vision generated with warning: ${result.warning}`, 'info');
+        } else if (result.likeness_optimized && selectedRefs.length > 0) {
+          showToast("Vision generated with likeness optimization!", 'success');
+        } else {
+          showToast("Vision board generated successfully!", 'success');
+        }
 
         // Deduct Credit
         const success = await decrementCredits();
         if (success) {
           setCredits(prev => (prev !== null ? prev - 1 : 0));
+        }
+
+        // Optional: Run likeness validation if references were used
+        if (selectedRefs.length > 0 && result.likeness_optimized) {
+          // Don't block on validation - run it in background
+          runLikenessValidation(refUrls, result.image, selectedRefs.map(r => r.identityDescription || r.tags.join(', ')));
         }
       } else {
         const errorMsg = "Could not generate image. Please try a different prompt.";
@@ -360,6 +388,32 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     }
   };
 
+  // Background likeness validation (non-blocking)
+  const runLikenessValidation = async (refUrls: string[], generatedImage: string, descriptions: string[]) => {
+    setIsValidatingLikeness(true);
+    try {
+      const validation = await validateLikeness(refUrls, generatedImage, descriptions);
+      if (validation) {
+        setLikenessValidation(validation);
+
+        // Show feedback based on likeness score
+        if (validation.likeness_score !== null) {
+          if (validation.likeness_score >= 0.7) {
+            console.log('Likeness validation passed:', validation.likeness_score);
+          } else if (validation.likeness_score >= 0.5) {
+            showToast("Likeness could be improved. Try regenerating.", 'info');
+          } else {
+            showToast("Low likeness score. Consider regenerating with 'stronger likeness emphasis'.", 'warning');
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Likeness validation error:', e);
+    } finally {
+      setIsValidatingLikeness(false);
+    }
+  };
+
   const handleRefine = () => {
     if (resultImage) {
       setBaseImage(resultImage);
@@ -375,12 +429,25 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     if (resultImage && !isSaving) {
       setIsSaving(true);
       try {
-        const newImage: VisionImage = {
+        // Get selected reference IDs for tracking
+        const selectedRefs = references.filter(r => selectedRefIds.includes(r.id));
+
+        const newImage = {
           id: crypto.randomUUID(),
           url: resultImage,
           prompt: currentPrompt || "Vision Board Image",
           createdAt: Date.now(),
-          isFavorite: true
+          isFavorite: true,
+          // Include likeness metadata for tracking
+          modelUsed: modelUsed || undefined,
+          referenceImageIds: selectedRefs.length > 0 ? selectedRefs.map(r => r.id) : undefined,
+          likenessOptimized: likenessOptimized,
+          likenessMetadata: likenessValidation ? {
+            likeness_score: likenessValidation.likeness_score ?? undefined,
+            face_match: likenessValidation.face_match,
+            body_type_match: likenessValidation.body_type_match,
+            explanation: likenessValidation.explanation
+          } : undefined
         };
         await saveVisionImage(newImage);
 
@@ -761,12 +828,49 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                       title="Click to enlarge"
                     />
 
-                    {/* Enlarge hint */}
-                    <div className="absolute top-4 left-4 bg-black/60 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                      </svg>
-                      Click to enlarge
+                    {/* Model & Likeness Info Badge */}
+                    <div className="absolute top-4 left-4 flex flex-col gap-1">
+                      {/* Enlarge hint */}
+                      <div className="bg-black/60 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                        </svg>
+                        Click to enlarge
+                      </div>
+
+                      {/* Likeness optimization badge */}
+                      {likenessOptimized && (
+                        <div className="bg-green-500/90 text-white text-[10px] px-2 py-1 rounded flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Likeness Optimized
+                        </div>
+                      )}
+
+                      {/* Likeness validation score */}
+                      {likenessValidation && likenessValidation.likeness_score !== null && (
+                        <div
+                          className={`text-white text-[10px] px-2 py-1 rounded flex items-center gap-1 ${
+                            likenessValidation.likeness_score >= 0.7
+                              ? 'bg-green-500/90'
+                              : likenessValidation.likeness_score >= 0.5
+                                ? 'bg-yellow-500/90'
+                                : 'bg-red-500/90'
+                          }`}
+                          title={likenessValidation.explanation || 'Likeness score'}
+                        >
+                          Score: {Math.round(likenessValidation.likeness_score * 100)}%
+                        </div>
+                      )}
+
+                      {/* Validating indicator */}
+                      {isValidatingLikeness && (
+                        <div className="bg-blue-500/90 text-white text-[10px] px-2 py-1 rounded flex items-center gap-1">
+                          <div className="w-2 h-2 border border-white/50 border-t-white rounded-full animate-spin" />
+                          Checking likeness...
+                        </div>
+                      )}
                     </div>
 
                     <button
