@@ -320,21 +320,22 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId }) =
                 priority={true}
               />
 
-              {/* Background gradient overlay - non-interactive */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10" />
+              {/* Background gradient overlay - always visible at bottom for button visibility */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10" />
 
-              {/* Content overlay - appears on hover */}
+              {/* Content overlay - prompt appears on hover, buttons always accessible */}
               <div className="absolute inset-0 flex flex-col justify-end p-4 z-20 pointer-events-none">
-                {/* Vision prompt text */}
-                <p className="text-white text-sm line-clamp-2 font-medium mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0 pointer-events-none">
+                {/* Vision prompt text - appears on hover */}
+                <p className="text-white text-sm line-clamp-2 font-medium mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0 pointer-events-none drop-shadow-lg">
                   {img.prompt}
                 </p>
 
-                {/* Action buttons - ALWAYS CLICKABLE */}
+                {/* Action buttons - ALWAYS VISIBLE AND CLICKABLE */}
                 <div
-                  className="flex justify-end gap-2 relative z-30 pointer-events-auto"
+                  className="flex justify-end gap-2 relative z-50 pointer-events-auto opacity-70 group-hover:opacity-100 transition-opacity duration-200"
                   onClick={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
                 >
 
                   {/* Share Button & Menu */}
@@ -342,9 +343,11 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId }) =
                     <button
                       onClick={(e) => toggleShare(e, img.id)}
                       onMouseDown={(e) => e.stopPropagation()}
-                      className="p-2.5 bg-white/20 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-sm transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto"
+                      onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); toggleShare(e as any, img.id); }}
+                      className="p-2.5 bg-white/30 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-md transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto active:scale-95 touch-manipulation"
                       title="Share"
                       type="button"
+                      aria-label="Share vision"
                     >
                       <ShareIcon className="w-4 h-4" />
                     </button>
@@ -389,9 +392,11 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId }) =
                   <button
                     onClick={(e) => handlePrint(e, img)}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className="p-2.5 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-full transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto"
+                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handlePrint(e as any, img); }}
+                    className="p-2.5 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-full transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto active:scale-95 touch-manipulation"
                     title="Order Poster Print"
                     type="button"
+                    aria-label="Order print"
                   >
                     <PrinterIcon className="w-4 h-4" />
                   </button>
@@ -399,9 +404,11 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId }) =
                   <button
                     onClick={(e) => downloadImage(e, img.url)}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className="p-2.5 bg-white/20 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-sm transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto"
+                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); downloadImage(e as any, img.url); }}
+                    className="p-2.5 bg-white/30 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-md transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto active:scale-95 touch-manipulation"
                     title="Download"
                     type="button"
+                    aria-label="Download vision"
                   >
                     <DownloadIcon className="w-4 h-4" />
                   </button>
@@ -409,9 +416,11 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId }) =
                   <button
                     onClick={(e) => handleDelete(e, img.id)}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className="p-2.5 bg-red-500/20 hover:bg-red-500 text-white rounded-full backdrop-blur-sm transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto"
+                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleDelete(e as any, img.id); }}
+                    className="p-2.5 bg-red-500/30 hover:bg-red-500 text-white rounded-full backdrop-blur-md transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto active:scale-95 touch-manipulation"
                     title="Delete"
                     type="button"
+                    aria-label="Delete vision"
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>

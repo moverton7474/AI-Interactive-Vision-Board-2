@@ -220,51 +220,36 @@ const App = () => {
           setOnboardingCompleted(false);
         }
 
-        // Get user identity for theme name
-        const { data: identity, error: identityError } = await supabase
-          .from('user_identity_profiles')
-          .select(`
-            theme_id,
-            theme:motivational_themes (
-              name,
-              display_name,
-              motivation_style
-            )
-          `)
-          .eq('user_id', session.user.id)
-          .single();
+        // Get user identity for theme - using simpler query to avoid JOIN issues
+        try {
+          const { data: identity, error: identityError } = await supabase
+            .from('user_identity_profiles')
+            .select('theme_id')
+            .eq('user_id', session.user.id)
+            .maybeSingle(); // Use maybeSingle to avoid error when not found
 
-        if (identityError) {
-          // Only log if it's not a "not found" error
-          if (identityError.code !== 'PGRST116') {
-            console.error('❌ Identity profile fetch error:', {
-              code: identityError.code,
-              message: identityError.message,
-              timestamp: new Date().toISOString()
-            });
-          } else {
-            console.log('ℹ️ No identity profile found (user has not selected theme yet)');
-          }
-
-          // Create identity profile if it doesn't exist
-          if (identityError.code === 'PGRST116' && retryCount < MAX_RETRIES) {
-            console.log('📝 Creating identity profile...');
-            await supabase
-              .from('user_identity_profiles')
-              .insert({
-                user_id: session.user.id,
-                created_at: new Date().toISOString()
-              })
-              .select()
+          if (identityError) {
+            console.warn('⚠️ Identity profile query warning:', identityError.message);
+          } else if (identity?.theme_id) {
+            // Fetch theme details separately to avoid JOIN issues
+            const { data: theme, error: themeError } = await supabase
+              .from('motivational_themes')
+              .select('name, display_name, motivation_style')
+              .eq('id', identity.theme_id)
               .single();
+
+            if (!themeError && theme) {
+              console.log('✅ Theme loaded:', { theme: theme.display_name });
+              setSelectedThemeId(identity.theme_id);
+              setSelectedThemeName(theme.display_name);
+              setMotivationStyle(theme.motivation_style as any);
+            }
+          } else {
+            console.log('ℹ️ No theme selected yet (user will choose during onboarding)');
           }
-        } else if (identity?.theme) {
-          console.log('✅ Theme loaded:', { theme: identity.theme });
-          setSelectedThemeId(identity.theme_id);
-          // @ts-ignore
-          setSelectedThemeName(identity.theme.display_name);
-          // @ts-ignore
-          setMotivationStyle(identity.theme.motivation_style);
+        } catch (identityErr) {
+          // Non-blocking error - identity profile is optional until onboarding
+          console.warn('⚠️ Could not load identity profile:', identityErr);
         }
 
         // Set user name from email
