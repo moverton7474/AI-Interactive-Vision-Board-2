@@ -4,6 +4,8 @@ import { AppView, ActionTask } from '../../types';
 import VisionHero from './VisionHero';
 import ExecutionPanel from './ExecutionPanel';
 import QuickActions from './QuickActions';
+import WorkbookOrderModal from '../WorkbookOrderModal';
+import PrintOrderModal from '../PrintOrderModal';
 
 // Data types
 interface VisionData {
@@ -44,6 +46,7 @@ interface Props {
     url: string;
     title: string;
   };
+  onboardingCompleted?: boolean;
 }
 
 const DashboardV2: React.FC<Props> = ({
@@ -52,10 +55,18 @@ const DashboardV2: React.FC<Props> = ({
   userName,
   onNavigate,
   onRefineVision,
-  primaryVision
+  primaryVision,
+  onboardingCompleted
 }) => {
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
+
+  // Modal states
+  const [showWorkbookModal, setShowWorkbookModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
+  // Re-engagement banner state (only dismiss for current session)
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(true);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [isLoadingHabits, setIsLoadingHabits] = useState(true);
 
@@ -403,6 +414,46 @@ const DashboardV2: React.FC<Props> = ({
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        {/* Re-engagement Banner - show for users who skipped onboarding */}
+        {onboardingCompleted === false && showOnboardingBanner && (
+          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">
+                    Complete your profile for personalized AI coaching
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Get custom habits, action plans, and a dedicated coach based on your goals
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => onNavigate(AppView.GUIDED_ONBOARDING)}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-lg font-medium transition-colors"
+                >
+                  Complete Setup
+                </button>
+                <button
+                  onClick={() => setShowOnboardingBanner(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Dismiss"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Band 1: Vision Hero */}
         <VisionHero
           vision={vision}
@@ -411,8 +462,9 @@ const DashboardV2: React.FC<Props> = ({
           themeName={themeName}
           onUpdateVision={() => onNavigate(AppView.GALLERY)}
           onRefineVision={vision && onRefineVision ? () => onRefineVision(vision) : undefined}
-          onPrintVision={() => onNavigate(AppView.PRINT_PRODUCTS)}
+          onPrintVision={() => setShowPrintModal(true)}
           onCreateVision={() => onNavigate(AppView.VISION_BOARD)}
+          onWorkbook={() => setShowWorkbookModal(true)}
         />
 
         {/* Band 2: Execution Panel */}
@@ -439,6 +491,30 @@ const DashboardV2: React.FC<Props> = ({
           onSettingsClick={() => onNavigate(AppView.SETTINGS)}
         />
       </div>
+
+      {/* Workbook Order Modal */}
+      {showWorkbookModal && (
+        <WorkbookOrderModal
+          onClose={() => setShowWorkbookModal(false)}
+          primaryVision={primaryVision ? {
+            id: primaryVision.id,
+            url: primaryVision.url,
+            prompt: primaryVision.title
+          } : undefined}
+        />
+      )}
+
+      {/* Print Order Modal */}
+      {showPrintModal && vision?.imageUrl && (
+        <PrintOrderModal
+          image={{
+            id: vision.id,
+            url: vision.imageUrl,
+            prompt: vision.title || ''
+          }}
+          onClose={() => setShowPrintModal(false)}
+        />
+      )}
     </div>
   );
 };
