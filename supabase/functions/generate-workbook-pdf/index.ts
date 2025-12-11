@@ -100,6 +100,9 @@ async function getTemplates(supabase: any) {
 
 /**
  * Create a new workbook order
+ *
+ * WORKBOOK V2: Now accepts workbook_pages from the wizard to ensure
+ * the PDF matches exactly what the user previewed.
  */
 async function createOrder(supabase: any, userId: string, body: any) {
   const {
@@ -112,18 +115,32 @@ async function createOrder(supabase: any, userId: string, body: any) {
     include_habit_tracker,
     vision_board_ids,
     included_habits,
-    shipping_address
+    shipping_address,
+    workbook_pages // NEW: Pre-generated pages from the wizard preview
   } = body
 
-  // Get template for pricing
-  const { data: template, error: templateError } = await supabase
-    .from('workbook_templates')
-    .select('*')
-    .eq('id', template_id)
-    .single()
+  // Get template for pricing (allow mock templates)
+  let template = null;
+  if (template_id && !template_id.startsWith('executive-')) {
+    const { data, error: templateError } = await supabase
+      .from('workbook_templates')
+      .select('*')
+      .eq('id', template_id)
+      .single();
 
-  if (templateError || !template) {
-    throw new Error('Invalid template selected')
+    if (!templateError) {
+      template = data;
+    }
+  }
+
+  // Fallback to mock template pricing if not found
+  if (!template) {
+    template = {
+      id: template_id || 'executive-leather',
+      base_price: 89.00,
+      shipping_estimate: 12.99,
+      sku: 'EXEC-LEATHER-7x9'
+    };
   }
 
   // Calculate pricing
@@ -131,7 +148,7 @@ async function createOrder(supabase: any, userId: string, body: any) {
   const shippingCost = template.shipping_estimate || 9.99
   const totalPrice = subtotal + shippingCost
 
-  // Create the order
+  // Create the order with stored pages
   const { data: order, error: orderError } = await supabase
     .from('workbook_orders')
     .insert([{
@@ -153,6 +170,8 @@ async function createOrder(supabase: any, userId: string, body: any) {
       customization_data: {
         include_foreword: body.include_foreword ?? true,
         included_sections: body.included_sections || [],
+        // Store the exact pages used in preview for PDF generation
+        workbook_pages: workbook_pages || null,
         ...body.customization_data
       },
       created_at: new Date().toISOString(),
@@ -162,6 +181,8 @@ async function createOrder(supabase: any, userId: string, body: any) {
     .single()
 
   if (orderError) throw orderError
+
+  console.log(`[CreateOrder] Created order ${order.id} with ${workbook_pages?.length || 0} pre-generated pages`);
 
   return new Response(
     JSON.stringify({
@@ -174,6 +195,9 @@ async function createOrder(supabase: any, userId: string, body: any) {
 
 /**
  * Generate workbook sections and PDF
+ *
+ * WORKBOOK V2: Uses stored WorkbookPage[] from order if available,
+ * ensuring the PDF matches exactly what the user previewed.
  */
 async function generateWorkbook(supabase: any, userId: string, orderId: string) {
   if (!orderId) throw new Error('Order ID is required')
@@ -196,85 +220,99 @@ async function generateWorkbook(supabase: any, userId: string, orderId: string) 
     .update({ status: 'generating', generation_started_at: new Date().toISOString() })
     .eq('id', orderId)
 
-  // Get user's knowledge base
-  const { data: knowledgeBase } = await supabase
-    .from('user_knowledge_base')
-    .select('*')
-    .eq('user_id', userId)
-    .single()
+  // WORKBOOK V2: Check if we have pre-generated pages from the wizard
+  const storedPages = order.customization_data?.workbook_pages;
 
-  // Get vision boards if selected
-  let visionBoards: any[] = []
-  if (order.vision_board_ids?.length > 0) {
-    const { data } = await supabase
-      .from('vision_boards')
+  let pagesToRender: any[];
+
+  if (storedPages && Array.isArray(storedPages) && storedPages.length > 0) {
+    // USE STORED PAGES (Single Source of Truth)
+    console.log(`[GenerateWorkbook] Using ${storedPages.length} pre-generated pages from wizard preview`);
+    pagesToRender = storedPages;
+  } else {
+    // FALLBACK: Generate sections from scratch (legacy behavior)
+    console.log(`[GenerateWorkbook] No stored pages found, generating from scratch...`);
+
+    // Get user's knowledge base
+    const { data: knowledgeBase } = await supabase
+      .from('user_knowledge_base')
       .select('*')
-      .in('id', order.vision_board_ids)
-    visionBoards = data || []
-  }
+      .eq('user_id', userId)
+      .single()
 
-  // Get habits if selected
-  let habits: any[] = []
-  if (order.included_habits?.length > 0) {
-    const { data } = await supabase
-      .from('habits')
+    // Get vision boards if selected
+    let visionBoards: any[] = []
+    if (order.vision_board_ids?.length > 0) {
+      const { data } = await supabase
+        .from('vision_boards')
+        .select('*')
+        .in('id', order.vision_board_ids)
+      visionBoards = data || []
+    }
+
+    // Get habits if selected
+    let habits: any[] = []
+    if (order.included_habits?.length > 0) {
+      const { data } = await supabase
+        .from('habits')
+        .select('*')
+        .in('id', order.included_habits)
+      habits = data || []
+    }
+
+    // Get action tasks
+    const { data: actionTasks } = await supabase
+      .from('action_tasks')
       .select('*')
-      .in('id', order.included_habits)
-    habits = data || []
+      .eq('user_id', userId)
+      .order('due_date', { ascending: true })
+
+    // Generate sections
+    const sections = await generateSections(supabase, orderId, {
+      order,
+      knowledgeBase,
+      visionBoards,
+      habits,
+      actionTasks: actionTasks || []
+    })
+
+    // Map legacy sections to page format
+    pagesToRender = sections.map(s => ({
+      type: s.section_type === 'monthly_planner' ? 'MONTHLY_PLANNER' :
+        s.section_type === 'habit_tracker' ? 'HABIT_TRACKER' :
+        s.section_type === 'vision_gallery' ? 'VISION_BOARD_SPREAD' :
+          'GENERIC',
+      ...s.content,
+      monthlyData: s.content.monthlyData,
+      habitTracker: s.section_type === 'habit_tracker' ? {
+        habits: s.content.habits || [],
+        period: 'MONTH'
+      } : undefined,
+      imageBlocks: s.section_type === 'vision_gallery' && s.content.visionBoards ?
+        s.content.visionBoards.map((vb: any) => ({
+          id: vb.id,
+          sourceType: 'VISION_IMAGE',
+          url: vb.imageUrl,
+          alt: vb.prompt,
+          layout: 'FULL_BLEED',
+          position: { x: 0, y: 5, w: 100, h: 70 }
+        })) : [],
+      textBlocks: [
+        { role: 'TITLE', content: s.title, position: { x: 10, y: 10 } },
+        ...(s.content.text ? [{ role: 'BODY', content: s.content.text, position: { x: 10, y: 20 } }] : [])
+      ]
+    }));
   }
-
-  // Get action tasks
-  const { data: actionTasks } = await supabase
-    .from('action_tasks')
-    .select('*')
-    .eq('user_id', userId)
-    .order('due_date', { ascending: true })
-
-  // Generate sections
-  const sections = await generateSections(supabase, orderId, {
-    order,
-    knowledgeBase,
-    visionBoards,
-    habits,
-    actionTasks: actionTasks || []
-  })
-
-
-  // ... (sections generation)
-
-  // ... (sections generation)
 
   // REAL PDF GENERATION
-  console.log(`Generating PDF for ${sections.length} sections...`);
-
-  // Import dynamically if needed, or assume it's imported at top
-  // For this replacement block, we'll assume generatePdf is available
-  // We need to map our sections to the format expected by generatePdf
-  // The sections array contains { content: ... }, we need to flatten or map it
-
-  const pagesToRender = sections.map(s => ({
-    type: s.section_type === 'monthly_planner' ? 'MONTHLY_PLANNER' :
-      s.section_type === 'habit_tracker' ? 'HABIT_TRACKER' :
-        'GENERIC',
-    ...s.content,
-    // Pass through structured data if present
-    monthlyData: s.content.monthlyData,
-    habitTracker: s.section_type === 'habit_tracker' ? {
-      habits: s.content.habits || [],
-      period: 'MONTH'
-    } : undefined,
-    textBlocks: [
-      { role: 'TITLE', content: s.title, position: { x: 10, y: 10 } },
-      ...(s.content.text ? [{ role: 'BODY', content: s.content.text, position: { x: 10, y: 20 } }] : [])
-    ]
-  }));
+  console.log(`[GenerateWorkbook] Generating PDF for ${pagesToRender.length} pages...`);
 
   let pdfBytes: Uint8Array;
   try {
     const { generatePdf } = await import('./pdfGenerator.ts');
     pdfBytes = await generatePdf(pagesToRender);
   } catch (e: any) {
-    console.error("PDF Generation failed:", e);
+    console.error("[GenerateWorkbook] PDF Generation failed:", e);
     throw new Error(`PDF Generation failed: ${e.message}`);
   }
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import WorkbookWizard from './workbook/WorkbookWizard';
+import { WorkbookMockupSimple } from './workbook/WorkbookMockup';
 
 interface Props {
   onBack?: () => void;
@@ -280,6 +281,66 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
           </button>
         </div>
       )}
+
+      {/* Marketing Hero - Executive Vision Workbook */}
+      <div className="mb-10 bg-gradient-to-r from-slate-900 via-slate-800 to-navy-900 rounded-2xl overflow-hidden shadow-xl">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-8 lg:p-12">
+          {/* Content */}
+          <div className="flex flex-col justify-center">
+            <span className="text-amber-500 text-sm font-bold tracking-wider mb-2">
+              PREMIUM COLLECTION
+            </span>
+            <h2 className="text-3xl lg:text-4xl font-serif font-bold text-white mb-4">
+              Executive Vision Workbook
+            </h2>
+            <p className="text-gray-300 mb-6 leading-relaxed">
+              Transform your vision boards into a stunning, printed workbook.
+              Features your AI-generated visions, personalized goal planning pages,
+              habit trackers, and monthly reflections.
+            </p>
+            <ul className="space-y-2 mb-8">
+              <li className="flex items-center gap-2 text-gray-200">
+                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Premium hardcover with gold foil accents
+              </li>
+              <li className="flex items-center gap-2 text-gray-200">
+                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Your vision boards printed in vivid color
+              </li>
+              <li className="flex items-center gap-2 text-gray-200">
+                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                AI-written foreword from your "future self"
+              </li>
+            </ul>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowWorkbookWizard(true)}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-8 py-3 rounded-lg transition-colors shadow-lg"
+              >
+                Create Your Workbook
+              </button>
+              <span className="text-white font-bold text-xl">$89</span>
+            </div>
+          </div>
+
+          {/* 3D Mockup */}
+          <div className="flex items-center justify-center">
+            <div className="transform hover:scale-105 transition-transform duration-300">
+              <WorkbookMockupSimple
+                title="My Vision"
+                subtitle="2025"
+                coverTheme="executive_dark"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Category Filters */}
       <div className="flex flex-wrap gap-2 mb-8">

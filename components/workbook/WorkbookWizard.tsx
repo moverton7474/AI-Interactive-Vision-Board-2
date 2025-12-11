@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { WorkbookTemplate, VisionImage, Habit, ShippingAddress } from '../../types';
 import {
     BookOpenIcon,
@@ -19,11 +19,16 @@ import {
     createStripeCheckoutSession
 } from '../../services/storageService';
 import { generateWorkbookContent } from '../../services/geminiService';
-import { buildInitialWorkbookPages } from '../../services/workbook/workbookService';
+import { buildInitialWorkbookPages, CoverThemeId } from '../../services/workbook/workbookService';
 import { WorkbookPage } from '../../types/workbookTypes';
 import WorkbookPreview from './WorkbookPreview';
 import WorkbookCoverDesigner from './WorkbookCoverDesigner';
+import CoverThemeSelector from './CoverThemeSelector';
+import WorkbookMockup from './WorkbookMockup';
 import './workbook.css';
+
+// Maximum number of vision boards allowed in a workbook
+const MAX_VISION_BOARDS = 4;
 
 type WizardStep = 'TYPE_SELECTION' | 'PERSONALIZE' | 'CONTENT' | 'PREVIEW' | 'PRINT';
 
@@ -53,6 +58,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
     const [dedication, setDedication] = useState('');
     const [leatherColor, setLeatherColor] = useState<'black' | 'brown' | 'navy'>('black');
     const [embossStyle, setEmbossStyle] = useState<'gold' | 'silver' | 'blind'>('gold');
+    const [coverTheme, setCoverTheme] = useState<CoverThemeId>('executive_dark');
 
     // Content Config
     const [includeCalendar, setIncludeCalendar] = useState(true);
@@ -102,8 +108,8 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
             setHabits(habitsData);
             if (lastAddress) setShipping(lastAddress);
 
-            // Auto-select recent visions
-            setSelectedVisionBoards(visionData.slice(0, 5).map(v => v.id));
+            // Auto-select recent visions (respecting MAX_VISION_BOARDS limit)
+            setSelectedVisionBoards(visionData.slice(0, MAX_VISION_BOARDS).map(v => v.id));
             setSelectedHabits(habitsData.map(h => h.id));
 
         } catch (error) {
@@ -277,24 +283,35 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                             placeholder="To my future self..."
                                         />
                                     </div>
+
+                                    {/* Cover Theme Selector */}
+                                    <CoverThemeSelector
+                                        selectedTheme={coverTheme}
+                                        onSelect={setCoverTheme}
+                                        visionBoardPreview={visionBoards[0]?.url}
+                                    />
                                 </div>
 
                                 <button
                                     onClick={() => setStep('CONTENT')}
                                     className="mt-8 w-full bg-navy-900 text-white font-bold py-4 rounded-xl hover:bg-navy-800 transition-colors"
                                 >
-                                    Next: Select Content
+                                    Continue to Content
                                 </button>
                             </div>
 
-                            <div className="bg-gray-50 rounded-2xl p-8 flex items-center justify-center">
-                                <WorkbookCoverDesigner
-                                    template={selectedTemplate}
+                            <div className="bg-gray-50 rounded-2xl p-8 flex flex-col items-center justify-center">
+                                {/* 3D Mockup Preview */}
+                                <WorkbookMockup
                                     title={title}
                                     subtitle={subtitle}
-                                    leatherColor={leatherColor}
-                                    embossStyle={embossStyle}
+                                    coverTheme={coverTheme}
+                                    coverImageUrl={coverTheme === 'use_vision_board_cover' ? visionBoards[0]?.url : undefined}
+                                    pageCount={selectedTemplate?.page_count || 240}
                                 />
+                                <p className="text-sm text-gray-500 mt-6 text-center">
+                                    Live preview of your workbook cover
+                                </p>
                             </div>
                         </div>
                     )}
@@ -303,27 +320,46 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             <div className="lg:col-span-2 space-y-8">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-navy-900 mb-4">Select Vision Boards</h2>
+                                    <h2 className="text-2xl font-bold text-navy-900 mb-2">Select Vision Boards</h2>
+                                    <p className="text-sm text-gray-500 mb-4">
+                                        Choose up to {MAX_VISION_BOARDS} vision boards to include in your workbook.
+                                        ({selectedVisionBoards.length}/{MAX_VISION_BOARDS} selected)
+                                    </p>
                                     <div className="grid grid-cols-3 gap-4">
-                                        {visionBoards.map(vision => (
-                                            <div
-                                                key={vision.id}
-                                                onClick={() => {
-                                                    setSelectedVisionBoards(prev =>
-                                                        prev.includes(vision.id) ? prev.filter(id => id !== vision.id) : [...prev, vision.id]
-                                                    );
-                                                }}
-                                                className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-4 transition-all ${selectedVisionBoards.includes(vision.id) ? 'border-navy-900' : 'border-transparent'
-                                                    }`}
-                                            >
-                                                <img src={vision.url} className="w-full h-full object-cover" />
-                                                {selectedVisionBoards.includes(vision.id) && (
-                                                    <div className="absolute top-2 right-2 bg-navy-900 text-white rounded-full p-1">
-                                                        <CheckBadgeIcon className="w-4 h-4" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
+                                        {visionBoards.map(vision => {
+                                            const isSelected = selectedVisionBoards.includes(vision.id);
+                                            const isDisabled = !isSelected && selectedVisionBoards.length >= MAX_VISION_BOARDS;
+
+                                            return (
+                                                <div
+                                                    key={vision.id}
+                                                    onClick={() => {
+                                                        if (isDisabled) return;
+                                                        setSelectedVisionBoards(prev =>
+                                                            prev.includes(vision.id)
+                                                                ? prev.filter(id => id !== vision.id)
+                                                                : [...prev, vision.id]
+                                                        );
+                                                    }}
+                                                    className={`relative aspect-square rounded-lg overflow-hidden border-4 transition-all
+                                                        ${isSelected ? 'border-navy-900 cursor-pointer' : ''}
+                                                        ${isDisabled ? 'border-transparent opacity-40 cursor-not-allowed' : 'border-transparent cursor-pointer hover:border-gray-300'}
+                                                    `}
+                                                >
+                                                    <img src={vision.url} alt={vision.prompt} className="w-full h-full object-cover" />
+                                                    {isSelected && (
+                                                        <div className="absolute top-2 right-2 bg-navy-900 text-white rounded-full p-1">
+                                                            <CheckBadgeIcon className="w-4 h-4" />
+                                                        </div>
+                                                    )}
+                                                    {isSelected && (
+                                                        <div className="absolute bottom-2 left-2 bg-navy-900 text-white text-xs px-2 py-1 rounded">
+                                                            #{selectedVisionBoards.indexOf(vision.id) + 1}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -371,27 +407,43 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                     onClick={async () => {
                                         setIsGenerating(true);
                                         try {
+                                            // Get full VisionImage objects for selected boards (in order of selection)
+                                            const selectedVisionImages: VisionImage[] = selectedVisionBoards
+                                                .map(id => visionBoards.find(v => v.id === id))
+                                                .filter((v): v is VisionImage => v !== undefined);
+
+                                            // Get full Habit objects for selected habits
+                                            const selectedHabitObjects: Habit[] = selectedHabits
+                                                .map(id => habits.find(h => h.id === id))
+                                                .filter((h): h is Habit => h !== undefined);
+
+                                            console.log(`[WorkbookWizard] Building pages with ${selectedVisionImages.length} vision boards and ${selectedHabitObjects.length} habits`);
+
                                             const pages = await buildInitialWorkbookPages({
                                                 edition: 'EXECUTIVE_VISION_BOOK',
                                                 trimSize: 'TRADE_6x9',
-                                                goals: [], // TODO: Pass real goals
-                                                habits: selectedHabits,
-                                                visionBoardImages: selectedVisionBoards,
-                                                includeForeword
+                                                goals: [], // TODO: Pass real goals from knowledge base
+                                                habits: selectedHabitObjects,
+                                                visionBoardImages: selectedVisionImages,
+                                                includeForeword,
+                                                title,
+                                                subtitle,
+                                                coverTheme
                                             });
-                                            console.log(`WorkbookWizard: Generated ${pages.length} pages`);
+
+                                            console.log(`[WorkbookWizard] Generated ${pages.length} pages`);
                                             setGeneratedPages(pages);
                                             setStep('PREVIEW');
                                         } catch (e) {
-                                            console.error("WorkbookWizard: Generation failed", e);
+                                            console.error("[WorkbookWizard] Generation failed:", e);
                                         } finally {
                                             setIsGenerating(false);
                                         }
                                     }}
                                     className="w-full bg-navy-900 text-white font-bold py-3 rounded-lg hover:bg-navy-800"
-                                    disabled={isGenerating}
+                                    disabled={isGenerating || selectedVisionBoards.length === 0}
                                 >
-                                    {isGenerating ? 'Generating Blueprint...' : 'Generate Preview'}
+                                    {isGenerating ? 'Generating Blueprint...' : 'Preview Workbook'}
                                 </button>
                             </div>
                         </div>
@@ -419,71 +471,106 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                     )}
 
                     {step === 'PRINT' && (
-                        <div className="max-w-2xl mx-auto text-center py-12">
-                            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <CheckBadgeIcon className="w-10 h-10 text-green-600" />
-                            </div>
-                            <h2 className="text-3xl font-bold text-navy-900 mb-4">Ready to Print</h2>
-                            <p className="text-gray-500 mb-8">
-                                Your workbook is ready. We will generate a high-resolution PDF and send it to our premium print partner, Prodigi.
-                            </p>
-
-                            <div className="bg-gray-50 rounded-xl p-6 mb-8 text-left max-w-md mx-auto">
-                                <div className="flex justify-between mb-2">
-                                    <span className="text-gray-600">Product</span>
-                                    <span className="font-bold text-navy-900">{selectedTemplate?.name}</span>
-                                </div>
-                                <div className="flex justify-between mb-2">
-                                    <span className="text-gray-600">Total</span>
-                                    <span className="font-bold text-navy-900">${selectedTemplate?.base_price}</span>
-                                </div>
-                                <div className="flex justify-between text-sm text-gray-500">
-                                    <span>Estimated Delivery</span>
-                                    <span>7-10 Business Days</span>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={async () => {
-                                    if (!selectedTemplate) return;
-                                    setIsLoading(true);
-                                    try {
-                                        const order = await createWorkbookOrder({
-                                            template_id: selectedTemplate.id,
-                                            title,
-                                            subtitle,
-                                            dedication_text: dedication,
-                                            cover_style: JSON.stringify({ leatherColor, embossStyle }),
-                                            include_weekly_journal: includeJournal,
-                                            include_habit_tracker: includeHabits,
-                                            vision_board_ids: selectedVisionBoards,
-                                            included_habits: selectedHabits,
-                                            shipping_address: shipping,
-                                            include_foreword: includeForeword,
-                                            included_sections: [
-                                                ...(includeCalendar ? ['monthly_planner'] : []),
-                                                ...(includeHabits ? ['habit_tracker'] : []),
-                                                ...(includeJournal ? ['weekly_journal'] : []),
-                                                ...(includeFinancial ? ['financial_snapshot', 'goal_overview'] : []),
-                                                ...(includeForeword ? ['coach_letter'] : [])
-                                            ]
-                                        });
-
-                                        if (order) {
-                                            const url = await createStripeCheckoutSession('payment', order.id);
-                                            if (url) window.location.href = url;
+                        <div className="max-w-4xl mx-auto py-8">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                                {/* 3D Mockup */}
+                                <div className="flex flex-col items-center">
+                                    <WorkbookMockup
+                                        title={title}
+                                        subtitle={subtitle}
+                                        coverTheme={coverTheme}
+                                        coverImageUrl={coverTheme === 'use_vision_board_cover'
+                                            ? visionBoards.find(v => v.id === selectedVisionBoards[0])?.url
+                                            : undefined
                                         }
-                                    } catch (error) {
-                                        console.error("Checkout failed", error);
-                                    } finally {
-                                        setIsLoading(false);
-                                    }
-                                }}
-                                disabled={isLoading}
-                                className="bg-navy-900 text-white font-bold py-4 px-12 rounded-xl hover:bg-navy-800 shadow-lg transition-all disabled:opacity-50"
-                            >
-                                {isLoading ? 'Processing...' : 'Proceed to Checkout'}
-                            </button>
+                                        pageCount={selectedTemplate?.page_count || 240}
+                                        className="scale-110 mb-4"
+                                    />
+                                    <p className="text-sm text-gray-500 text-center">
+                                        Your finished workbook
+                                    </p>
+                                </div>
+
+                                {/* Order Details */}
+                                <div className="text-center lg:text-left">
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto lg:mx-0 mb-4">
+                                        <CheckBadgeIcon className="w-8 h-8 text-green-600" />
+                                    </div>
+                                    <h2 className="text-3xl font-bold text-navy-900 mb-4">Ready to Print</h2>
+                                    <p className="text-gray-500 mb-6">
+                                        Your personalized {generatedPages.length}-page workbook is ready. We'll generate a high-resolution PDF and send it to our premium print partner.
+                                    </p>
+
+                                    <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left">
+                                        <div className="flex justify-between mb-2">
+                                            <span className="text-gray-600">Product</span>
+                                            <span className="font-bold text-navy-900">{selectedTemplate?.name}</span>
+                                        </div>
+                                        <div className="flex justify-between mb-2">
+                                            <span className="text-gray-600">Pages</span>
+                                            <span className="font-bold text-navy-900">{generatedPages.length}</span>
+                                        </div>
+                                        <div className="flex justify-between mb-2">
+                                            <span className="text-gray-600">Vision Boards</span>
+                                            <span className="font-bold text-navy-900">{selectedVisionBoards.length}</span>
+                                        </div>
+                                        <div className="flex justify-between mb-2 pt-2 border-t">
+                                            <span className="text-gray-600">Total</span>
+                                            <span className="font-bold text-navy-900">${selectedTemplate?.base_price}</span>
+                                        </div>
+                                        <div className="flex justify-between text-sm text-gray-500">
+                                            <span>Estimated Delivery</span>
+                                            <span>7-10 Business Days</span>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={async () => {
+                                            if (!selectedTemplate) return;
+                                            setIsLoading(true);
+                                            try {
+                                                // Create order with the generated pages data for PDF consistency
+                                                const order = await createWorkbookOrder({
+                                                    template_id: selectedTemplate.id,
+                                                    title,
+                                                    subtitle,
+                                                    dedication_text: dedication,
+                                                    cover_style: JSON.stringify({ leatherColor, embossStyle, coverTheme }),
+                                                    include_weekly_journal: includeJournal,
+                                                    include_habit_tracker: includeHabits,
+                                                    vision_board_ids: selectedVisionBoards,
+                                                    included_habits: selectedHabits,
+                                                    shipping_address: shipping,
+                                                    include_foreword: includeForeword,
+                                                    included_sections: [
+                                                        ...(includeCalendar ? ['monthly_planner'] : []),
+                                                        ...(includeHabits ? ['habit_tracker'] : []),
+                                                        ...(includeJournal ? ['weekly_journal'] : []),
+                                                        ...(includeFinancial ? ['financial_snapshot', 'goal_overview'] : []),
+                                                        ...(includeForeword ? ['coach_letter'] : [])
+                                                    ],
+                                                    // Include the exact pages used in preview for PDF generation
+                                                    workbook_pages: generatedPages
+                                                });
+
+                                                if (order) {
+                                                    console.log(`[WorkbookWizard] Order created: ${order.id}, redirecting to checkout...`);
+                                                    const url = await createStripeCheckoutSession('payment', order.id);
+                                                    if (url) window.location.href = url;
+                                                }
+                                            } catch (error) {
+                                                console.error("[WorkbookWizard] Checkout failed:", error);
+                                            } finally {
+                                                setIsLoading(false);
+                                            }
+                                        }}
+                                        disabled={isLoading}
+                                        className="w-full bg-navy-900 text-white font-bold py-4 rounded-xl hover:bg-navy-800 shadow-lg transition-all disabled:opacity-50"
+                                    >
+                                        {isLoading ? 'Processing...' : 'Proceed to Checkout'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
 
