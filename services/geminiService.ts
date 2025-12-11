@@ -91,8 +91,29 @@ export const generateVisionSummary = async (history: { role: string, text: strin
 };
 
 /**
- * Edit User Image(s) - Upgraded to Gemini 2.5 Pro with Retry
+ * Edit User Image(s) - Nano Banana Pro with Likeness Preservation
+ *
+ * Uses multi-turn conversation structure for better character consistency.
+ * Supports reference images with tags for improved facial/body matching.
+ *
+ * @param images - Base image + optional reference images
+ * @param prompt - Scene description
+ * @param embeddedText - Optional text to embed in the image
+ * @param titleText - Optional title text for the vision board
+ * @param style - Artistic style (photorealistic, cinematic, etc.)
+ * @param aspectRatio - Image aspect ratio
+ * @param identityPrompt - Identity descriptions for likeness preservation
+ * @param referenceImageTags - Tags for each reference image (e.g., ["Milton", "Lisa"])
+ *
+ * @returns Object with image data and metadata, or null on failure
  */
+export interface VisionGenerationResult {
+  image: string;
+  model_used?: string;
+  likeness_optimized?: boolean;
+  warning?: string;
+}
+
 export const editVisionImage = async (
   images: string | string[],
   prompt: string,
@@ -100,8 +121,9 @@ export const editVisionImage = async (
   titleText?: string,
   style?: string,
   aspectRatio?: string,
-  identityPrompt?: string  // NEW: Identity preservation prompt from reference images
-): Promise<string | null> => {
+  identityPrompt?: string,
+  referenceImageTags?: string[]
+): Promise<VisionGenerationResult | null> => {
   const rawImageList = Array.isArray(images) ? images : [images];
   const processedImages: string[] = [];
 
@@ -134,7 +156,8 @@ export const editVisionImage = async (
         titleText,
         style,
         aspectRatio,
-        identityPrompt  // NEW: Pass identity prompt to proxy
+        identityPrompt,
+        referenceImageTags: referenceImageTags || []
       }
     });
 
@@ -148,8 +171,69 @@ export const editVisionImage = async (
       throw new Error(data?.error || "Generation failed");
     }
 
-    return data.image;
+    // Return full result with metadata
+    return {
+      image: data.image,
+      model_used: data.model_used,
+      likeness_optimized: data.likeness_optimized,
+      warning: data.warning
+    };
   });
+};
+
+/**
+ * Validate likeness between reference images and generated image
+ *
+ * @param referenceImages - Array of reference image base64 data
+ * @param generatedImage - The generated vision board image
+ * @param referenceDescriptions - Optional descriptions for each reference
+ *
+ * @returns Validation result with likeness score and feedback
+ */
+export interface LikenessValidationResult {
+  likeness_score: number | null;
+  face_match?: boolean;
+  skin_tone_match?: boolean;
+  age_match?: boolean;
+  body_type_match?: boolean;
+  overall_recognizable?: boolean;
+  explanation?: string;
+  issues?: string[];
+  suggestions?: string[];
+  skipped?: boolean;
+  reason?: string;
+}
+
+export const validateLikeness = async (
+  referenceImages: string[],
+  generatedImage: string,
+  referenceDescriptions?: string[]
+): Promise<LikenessValidationResult | null> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+      body: {
+        action: 'validate_likeness',
+        referenceImages,
+        generatedImage,
+        referenceDescriptions: referenceDescriptions || []
+      }
+    });
+
+    if (error) {
+      console.error("Likeness validation error:", error);
+      return null;
+    }
+
+    if (!data?.success) {
+      console.error("Likeness validation failed:", data?.error);
+      return null;
+    }
+
+    return data.validation || { likeness_score: null, skipped: true, reason: data.reason };
+  } catch (e) {
+    console.error("Error validating likeness:", e);
+    return null;
+  }
 };
 
 /**
