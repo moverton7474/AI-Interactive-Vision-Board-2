@@ -232,7 +232,9 @@ const GuidedOnboarding: React.FC<Props> = ({
         return (
           <PhotoUploadStep
             photoRefId={state.photoRefId}
-            onPhotoUploaded={(photoId, url) => updateState({ photoRefId: photoId })}
+            onPhotoUploaded={(photoId, url, identityDescription) => {
+              updateState({ photoRefId: photoId, identityDescription });
+            }}
             onSkip={goNext}
           />
         );
