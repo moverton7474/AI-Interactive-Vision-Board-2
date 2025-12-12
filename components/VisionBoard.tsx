@@ -941,10 +941,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
                   <button
                     onClick={() => setShowPrintModal(true)}
-                    className="p-2 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg shadow transition-colors"
+                    className="flex items-center gap-2 bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-navy-900 font-bold px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
                     title="Order Poster Print"
                   >
                     <PrinterIcon className="w-4 h-4" />
+                    <span className="hidden sm:inline">Print</span>
                   </button>
 
                   <button
