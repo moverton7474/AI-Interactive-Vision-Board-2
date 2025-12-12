@@ -344,108 +344,109 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId, onN
               {/* Background gradient overlay - always visible at bottom for button visibility */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10" />
 
-              {/* Content overlay - prompt appears on hover, buttons always accessible */}
-              <div className="absolute inset-0 flex flex-col justify-end p-4 z-20">
+              {/* Content overlay - prompt appears on hover */}
+              <div className="absolute inset-0 flex flex-col justify-end p-4 z-20 pointer-events-none">
                 {/* Vision prompt text - appears on hover */}
-                <p className="text-white text-sm line-clamp-2 font-medium mb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0 pointer-events-none drop-shadow-lg">
+                <p className="text-white text-sm line-clamp-2 font-medium mb-12 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0 drop-shadow-lg">
                   {img.prompt}
                 </p>
+              </div>
 
-                {/* Action buttons - ALWAYS VISIBLE AND CLICKABLE */}
-                <div
-                  className="flex justify-end gap-2 relative z-50 pointer-events-auto opacity-70 group-hover:opacity-100 transition-opacity duration-200"
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                  onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              {/* Action buttons - POSITIONED ABSOLUTELY TO AVOID OVERLAY INTERFERENCE */}
+              <div className="absolute bottom-3 right-3 flex gap-2 z-[60]">
+                {/* Print Button - Gold for emphasis */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('🖨️ Print button clicked for image:', img.id);
+                    handlePrint(e, img);
+                  }}
+                  className="p-2.5 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95"
+                  title="Order Poster Print"
+                  type="button"
                 >
+                  <PrinterIcon className="w-4 h-4" />
+                </button>
 
-                  {/* Share Button & Menu */}
-                  <div className="relative">
-                    <button
-                      onClick={(e) => toggleShare(e, img.id)}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); toggleShare(e as any, img.id); }}
-                      className="p-2.5 bg-white/30 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-md transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto active:scale-95 touch-manipulation"
-                      title="Share"
-                      type="button"
-                      aria-label="Share vision"
+                {/* Download Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('⬇️ Download button clicked for image:', img.id);
+                    downloadImage(e, img.url);
+                  }}
+                  className="p-2.5 bg-white hover:bg-gray-100 text-navy-900 rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95"
+                  title="Download"
+                  type="button"
+                >
+                  <DownloadIcon className="w-4 h-4" />
+                </button>
+
+                {/* Share Button */}
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log('🔗 Share button clicked for image:', img.id);
+                      toggleShare(e, img.id);
+                    }}
+                    className="p-2.5 bg-white hover:bg-gray-100 text-navy-900 rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95"
+                    title="Share"
+                    type="button"
+                  >
+                    <ShareIcon className="w-4 h-4" />
+                  </button>
+
+                  {activeShareId === img.id && (
+                    <div
+                      className="absolute bottom-14 right-0 bg-white rounded-lg shadow-2xl p-2 flex flex-col gap-1 w-40 z-[70] animate-fade-in border border-gray-100"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <ShareIcon className="w-4 h-4" />
-                    </button>
-
-                    {activeShareId === img.id && (
-                      <div
-                        className="absolute bottom-14 right-0 bg-white rounded-lg shadow-2xl p-2 flex flex-col gap-1 w-40 z-50 animate-fade-in border border-gray-100"
-                        onClick={(e) => e.stopPropagation()}
+                      <button
+                        onClick={(e) => handleShareAction(e, 'email', img.url)}
+                        className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
+                        type="button"
                       >
-                        <button
-                          onClick={(e) => handleShareAction(e, 'email', img.url)}
-                          className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
-                          type="button"
-                        >
-                          <MailIcon className="w-3 h-3 text-gray-400" /> Email App
-                        </button>
-                        <button
-                          onClick={(e) => handleShareAction(e, 'gmail', img.url)}
-                          className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
-                          type="button"
-                        >
-                          <GoogleIcon className="w-3 h-3" /> Gmail Web
-                        </button>
-                        <button
-                          onClick={(e) => handleShareAction(e, 'twitter', img.url)}
-                          className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
-                          type="button"
-                        >
-                          <TwitterIcon className="w-3 h-3 text-blue-400" /> Twitter
-                        </button>
-                        <button
-                          onClick={(e) => handleShareAction(e, 'copy', img.url)}
-                          className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
-                          type="button"
-                        >
-                          <CopyIcon className="w-3 h-3 text-gray-400" /> Copy Link
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={(e) => handlePrint(e, img)}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handlePrint(e as any, img); }}
-                    className="p-2.5 bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-full transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto active:scale-95 touch-manipulation"
-                    title="Order Poster Print"
-                    type="button"
-                    aria-label="Order print"
-                  >
-                    <PrinterIcon className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={(e) => downloadImage(e, img.url)}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); downloadImage(e as any, img.url); }}
-                    className="p-2.5 bg-white/30 hover:bg-white text-white hover:text-navy-900 rounded-full backdrop-blur-md transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto active:scale-95 touch-manipulation"
-                    title="Download"
-                    type="button"
-                    aria-label="Download vision"
-                  >
-                    <DownloadIcon className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={(e) => handleDelete(e, img.id)}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleDelete(e as any, img.id); }}
-                    className="p-2.5 bg-red-500/30 hover:bg-red-500 text-white rounded-full backdrop-blur-md transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-110 pointer-events-auto active:scale-95 touch-manipulation"
-                    title="Delete"
-                    type="button"
-                    aria-label="Delete vision"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
+                        <MailIcon className="w-3 h-3 text-gray-400" /> Email App
+                      </button>
+                      <button
+                        onClick={(e) => handleShareAction(e, 'gmail', img.url)}
+                        className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
+                        type="button"
+                      >
+                        <GoogleIcon className="w-3 h-3" /> Gmail Web
+                      </button>
+                      <button
+                        onClick={(e) => handleShareAction(e, 'twitter', img.url)}
+                        className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
+                        type="button"
+                      >
+                        <TwitterIcon className="w-3 h-3 text-blue-400" /> Twitter
+                      </button>
+                      <button
+                        onClick={(e) => handleShareAction(e, 'copy', img.url)}
+                        className="flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded text-left w-full font-medium transition-colors"
+                        type="button"
+                      >
+                        <CopyIcon className="w-3 h-3 text-gray-400" /> Copy Link
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {/* Delete Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    console.log('🗑️ Delete button clicked for image:', img.id);
+                    handleDelete(e, img.id);
+                  }}
+                  className="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 active:scale-95"
+                  title="Delete"
+                  type="button"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Primary Badge - always visible if this is the primary */}
@@ -468,6 +469,24 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId, onN
             </div>
           ))}
         </div>
+      )}
+
+      {/* Floating Action Button (FAB) - Always visible at bottom right */}
+      {onNavigateToVisionBoard && (
+        <button
+          onClick={onNavigateToVisionBoard}
+          className="fixed bottom-8 right-8 z-50 flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold px-6 py-4 rounded-full shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 hover:scale-105 group"
+        >
+          <svg
+            className="w-5 h-5 transform group-hover:rotate-90 transition-transform duration-300"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          <span>New Vision Board</span>
+        </button>
       )}
     </div>
   );

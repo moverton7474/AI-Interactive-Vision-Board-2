@@ -169,6 +169,15 @@ const WorkbookOrderModal: React.FC<Props> = ({
           ...prev,
           includedSections: metadata.recommendedSections
         }));
+      } else {
+        // Fallback: If no metadata match, provide default sections
+        console.log('No metadata found for template:', selectedTemplate.name, '- using default sections');
+        setWizardState(prev => ({
+          ...prev,
+          includedSections: prev.includedSections.length > 0
+            ? prev.includedSections
+            : ['vision_gallery', 'habit_tracker', 'weekly_journal'] // Default sections
+        }));
       }
     }
   }, [selectedTemplate]);
