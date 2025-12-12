@@ -91,10 +91,17 @@ export const generateVisionSummary = async (history: { role: string, text: strin
 };
 
 /**
- * Edit User Image(s) - Nano Banana Pro with Likeness Preservation
+ * Edit User Image(s) - Gemini 3 Pro Image (Nano Banana Pro) with Likeness Preservation
  *
- * Uses multi-turn conversation structure for better character consistency.
- * Supports reference images with tags for improved facial/body matching.
+ * UPDATED: December 2025 - Optimized for Gemini 3 Pro Image
+ *
+ * Uses 3-turn conversation structure for better character consistency:
+ * 1. Identity establishment with all reference images
+ * 2. Simulated model acknowledgment
+ * 3. Scene generation with identity reminders
+ *
+ * Supports up to 14 reference images with up to 5 human subjects.
+ * Lower temperature (0.4) for more consistent likeness.
  *
  * @param images - Base image + optional reference images
  * @param prompt - Scene description
