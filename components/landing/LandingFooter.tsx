@@ -29,15 +29,15 @@ export const LandingFooter: React.FC<LandingFooterProps> = ({ onLoginClick, onGe
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={onGetStartedClick}
-                className="bg-gold-500 text-navy-900 font-bold px-8 py-4 rounded-full hover:bg-gold-400 transition-all shadow-lg hover:shadow-xl"
+                className="bg-gold-500 text-navy-900 font-bold px-8 py-4 rounded-full hover:bg-gold-400 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
               >
-                Start Your Vision Journey
+                Start My Vision Board - Free
               </button>
               <button
                 onClick={onLoginClick}
                 className="border-2 border-white/30 text-white font-semibold px-8 py-4 rounded-full hover:border-white hover:bg-white/5 transition-all"
               >
-                Already have an account? Log In
+                I have an account
               </button>
             </div>
           </div>
