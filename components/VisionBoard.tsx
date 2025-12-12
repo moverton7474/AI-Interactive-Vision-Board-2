@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { editVisionImage, enhanceVisionPrompt, getVisionSuggestions, fetchUserGoalsAndVision, validateLikeness, VisionGenerationResult, LikenessValidationResult } from '../services/geminiService';
 import { useToast } from '../components/ToastContext';
 import {
@@ -14,6 +14,28 @@ import {
 } from '../services/storageService';
 import { VisionImage, ReferenceImage } from '../types';
 import { SparklesIcon, UploadIcon, SaveIcon, TrashIcon, DownloadIcon, RobotIcon, MicIcon, LibraryIcon, TagIcon, PlusIcon, PrinterIcon } from './Icons';
+
+// Camera Icon Component
+const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+
+// Screenshot Icon Component
+const ScreenshotIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+);
+
+// Image Library Icon Component
+const ImageLibraryIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+);
 import PrintOrderModal from './PrintOrderModal';
 import SubscriptionModal from './SubscriptionModal'; // Import subscription modal
 
@@ -95,6 +117,15 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [likenessOptimized, setLikenessOptimized] = useState<boolean>(false);
   const [likenessValidation, setLikenessValidation] = useState<LikenessValidationResult | null>(null);
   const [isValidatingLikeness, setIsValidatingLikeness] = useState(false);
+
+  // Camera & Screenshot State
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [showImageSourcePicker, setShowImageSourcePicker] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleGetSuggestions = async () => {
     setIsSuggesting(true);
@@ -242,6 +273,123 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
+
+  // Use reference image as base image
+  const useReferenceAsBase = (ref: ReferenceImage) => {
+    setBaseImage(ref.url);
+    setResultImage(null);
+    showToast(`Using "${ref.tags.join(', ')}" as base image`, 'success');
+  };
+
+  // Start camera for photo capture
+  const startCamera = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      setCameraStream(stream);
+      setShowCameraModal(true);
+      setCapturedImage(null);
+
+      // Wait for modal to render, then attach stream
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (err) {
+      console.error('Camera access error:', err);
+      showToast('Could not access camera. Please check permissions.', 'error');
+    }
+  }, [showToast]);
+
+  // Capture photo from camera
+  const capturePhoto = useCallback(() => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const imageData = canvas.toDataURL('image/png');
+        setCapturedImage(imageData);
+      }
+    }
+  }, []);
+
+  // Stop camera stream
+  const stopCamera = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCameraModal(false);
+    setCapturedImage(null);
+  }, [cameraStream]);
+
+  // Use captured image as base
+  const useCapturedAsBase = useCallback(() => {
+    if (capturedImage) {
+      setBaseImage(capturedImage);
+      setResultImage(null);
+      stopCamera();
+      showToast('Photo set as base image!', 'success');
+    }
+  }, [capturedImage, stopCamera, showToast]);
+
+  // Screenshot capture using Screen Capture API
+  const captureScreenshot = useCallback(async () => {
+    try {
+      // @ts-ignore - getDisplayMedia is available in modern browsers
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { mediaSource: 'screen' }
+      });
+
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      await video.play();
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const imageData = canvas.toDataURL('image/png');
+        setBaseImage(imageData);
+        setResultImage(null);
+        showToast('Screenshot captured as base image!', 'success');
+      }
+
+      // Stop screen capture
+      stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      console.error('Screenshot error:', err);
+      showToast('Screenshot cancelled or not supported.', 'info');
+    }
+  }, [showToast]);
+
+  // Save current base image to Reference Library
+  const saveBaseToLibrary = useCallback(async () => {
+    if (!baseImage) return;
+
+    setIsSavingToLibrary(true);
+    try {
+      const tag = prompt('Enter a tag for this reference (e.g., "Milton", "Lisa"):') || 'reference';
+      const identityDesc = prompt('Describe physical features for better likeness (optional):') || '';
+
+      await saveReferenceImage(baseImage, [tag], identityDesc || undefined);
+      await loadReferences();
+      showToast('Image saved to Reference Library!', 'success');
+    } catch (err) {
+      console.error('Save to library error:', err);
+      showToast('Failed to save to library.', 'error');
+    } finally {
+      setIsSavingToLibrary(false);
+    }
+  }, [baseImage, showToast]);
 
   const startListening = () => {
     if ('webkitSpeechRecognition' in window) {
@@ -497,6 +645,83 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         <SubscriptionModal tier="PRO" onClose={onSubClose} />
       )}
 
+      {/* Camera Capture Modal */}
+      {showCameraModal && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-navy-900 flex items-center gap-2">
+                <CameraIcon className="w-5 h-5 text-gold-500" />
+                Take Photo
+              </h3>
+              <button
+                onClick={stopCamera}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4">
+              {/* Video/Preview Area */}
+              <div className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video mb-4">
+                {!capturedImage ? (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <img
+                    src={capturedImage}
+                    alt="Captured"
+                    className="w-full h-full object-cover"
+                  />
+                )}
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                {!capturedImage ? (
+                  <button
+                    onClick={capturePhoto}
+                    className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-navy-900 to-navy-800 hover:from-navy-800 hover:to-navy-700 text-white font-bold py-3 rounded-xl transition-all"
+                  >
+                    <CameraIcon className="w-5 h-5" />
+                    Capture Photo
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setCapturedImage(null)}
+                      className="flex-1 flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-3 rounded-xl transition-colors"
+                    >
+                      Retake
+                    </button>
+                    <button
+                      onClick={useCapturedAsBase}
+                      className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-3 rounded-xl transition-all"
+                    >
+                      <SparklesIcon className="w-5 h-5" />
+                      Use as Base
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-400 text-center mt-3">
+                Position yourself in the frame, then click capture
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Image Lightbox Modal */}
       {showLightbox && resultImage && (
         <div
@@ -626,14 +851,72 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
               <h3 className="text-xl font-serif font-bold text-navy-900 mb-4">Create Your Vision</h3>
 
-              {/* Upload Section */}
+              {/* Upload Section - Enhanced with multiple options */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">1. Base Image (Scene)</label>
-                <div className="relative group cursor-pointer border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition-colors text-center">
-                  <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                  <UploadIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <span className="text-sm text-gray-500">{baseImage ? "Change Base Image" : "Upload Photo of You"}</span>
+
+                {/* Image Source Options */}
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {/* Upload from Computer */}
+                  <label className="relative cursor-pointer border-2 border-dashed border-gray-300 rounded-lg p-3 hover:bg-gray-50 hover:border-gold-400 transition-all text-center group">
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                    <UploadIcon className="w-5 h-5 text-gray-400 mx-auto mb-1 group-hover:text-gold-500" />
+                    <span className="text-xs text-gray-500 group-hover:text-navy-900">Upload File</span>
+                  </label>
+
+                  {/* Take Photo with Camera */}
+                  <button
+                    onClick={startCamera}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-3 hover:bg-gray-50 hover:border-gold-400 transition-all text-center group"
+                  >
+                    <CameraIcon className="w-5 h-5 text-gray-400 mx-auto mb-1 group-hover:text-gold-500" />
+                    <span className="text-xs text-gray-500 group-hover:text-navy-900">Take Photo</span>
+                  </button>
+
+                  {/* Capture Screenshot */}
+                  <button
+                    onClick={captureScreenshot}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-3 hover:bg-gray-50 hover:border-gold-400 transition-all text-center group"
+                  >
+                    <ScreenshotIcon className="w-5 h-5 text-gray-400 mx-auto mb-1 group-hover:text-gold-500" />
+                    <span className="text-xs text-gray-500 group-hover:text-navy-900">Screenshot</span>
+                  </button>
+
+                  {/* Select from Reference Library */}
+                  <button
+                    onClick={() => {
+                      setShowLibrary(true);
+                      showToast('Click "Use as Base" on any reference photo', 'info');
+                    }}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-3 hover:bg-gray-50 hover:border-gold-400 transition-all text-center group"
+                  >
+                    <LibraryIcon className="w-5 h-5 text-gray-400 mx-auto mb-1 group-hover:text-gold-500" />
+                    <span className="text-xs text-gray-500 group-hover:text-navy-900">From Library</span>
+                  </button>
                 </div>
+
+                {/* Base Image Preview with Save to Library option */}
+                {baseImage && (
+                  <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                    <img src={baseImage} alt="Base" className="w-full h-32 object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-between p-2">
+                      <span className="text-white text-xs font-medium">Base Image Loaded</span>
+                      <button
+                        onClick={saveBaseToLibrary}
+                        disabled={isSavingToLibrary}
+                        className="flex items-center gap-1 text-xs bg-white/90 hover:bg-white text-navy-900 px-2 py-1 rounded transition-colors"
+                        title="Save to Reference Library"
+                      >
+                        {isSavingToLibrary ? (
+                          <div className="w-3 h-3 border border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
+                        ) : (
+                          <SaveIcon className="w-3 h-3" />
+                        )}
+                        Save to Library
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Style Selector */}
@@ -1018,11 +1301,15 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                   return (
                     <div
                       key={ref.id}
-                      onClick={() => toggleReferenceSelection(ref.id)}
-                      className={`relative group rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${isSelected ? 'border-gold-500 ring-1 ring-gold-200' : 'border-transparent hover:border-gray-300'}`}
-                      title={hasIdentity ? ref.identityDescription : 'No identity description'}
+                      className={`relative group rounded-lg overflow-hidden border-2 transition-all ${isSelected ? 'border-gold-500 ring-1 ring-gold-200' : 'border-transparent hover:border-gray-300'}`}
+                      title={hasIdentity ? ref.identityDescription : 'Click to select as reference'}
                     >
-                      <img src={ref.url} className="w-full h-24 object-cover" alt="ref" />
+                      <img
+                        src={ref.url}
+                        className="w-full h-24 object-cover cursor-pointer"
+                        alt="ref"
+                        onClick={() => toggleReferenceSelection(ref.id)}
+                      />
                       {/* Tags & Identity Indicator */}
                       <div className="absolute bottom-0 inset-x-0 bg-black/60 p-1">
                         <div className="flex items-center gap-1">
@@ -1040,13 +1327,32 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                           <p className="truncate">{ref.identityDescription}</p>
                         </div>
                       )}
-                      {/* Delete */}
-                      <button
-                        onClick={(e) => handleDeleteReference(ref.id, e)}
-                        className="absolute top-1 right-1 p-1 bg-white/80 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white z-10"
-                      >
-                        <TrashIcon className="w-3 h-3" />
-                      </button>
+
+                      {/* Action Buttons - Visible on hover */}
+                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        {/* Use as Base Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            useReferenceAsBase(ref);
+                          }}
+                          className="p-1 bg-gold-500 hover:bg-gold-600 rounded-full text-navy-900 shadow-sm"
+                          title="Use as Base Image"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                        {/* Delete Button */}
+                        <button
+                          onClick={(e) => handleDeleteReference(ref.id, e)}
+                          className="p-1 bg-white/80 rounded-full text-red-500 hover:bg-white"
+                          title="Delete"
+                        >
+                          <TrashIcon className="w-3 h-3" />
+                        </button>
+                      </div>
+
                       {/* Selected Indicator */}
                       {isSelected && (
                         <div className="absolute top-1 left-1 bg-gold-500 text-navy-900 rounded-full p-0.5 z-10">
