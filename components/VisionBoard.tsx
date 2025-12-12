@@ -87,8 +87,8 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [showSubModal, setShowSubModal] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
 
-  // Reference Library State
-  const [showLibrary, setShowLibrary] = useState(true);
+  // Reference Library State - collapsed by default on mobile
+  const [showLibrary, setShowLibrary] = useState(false);
   const [references, setReferences] = useState<ReferenceImage[]>([]);
   const [selectedRefIds, setSelectedRefIds] = useState<string[]>([]);
   const [newRefTag, setNewRefTag] = useState('');
@@ -651,7 +651,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   };
 
   return (
-    <div className="max-w-7xl mx-auto h-full animate-fade-in pb-12 relative flex gap-6">
+    <div className="max-w-7xl mx-auto h-full animate-fade-in pb-12 relative flex flex-col lg:flex-row gap-4 lg:gap-6 px-4 lg:px-0">
 
 
 
@@ -796,9 +796,9 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         </div>
       )}
 
-      {/* Floating Goals Panel - Compact sidebar version */}
+      {/* Floating Goals Panel - Hidden on mobile, compact sidebar on desktop */}
       {userGoals && (userGoals.visionText || userGoals.tasks.length > 0 || userGoals.financialTarget) && (
-        <div className={`fixed left-0 top-24 z-40 transition-all duration-300 ${showGoalsPanel ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className={`hidden lg:block fixed left-0 top-24 z-40 transition-all duration-300 ${showGoalsPanel ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="bg-white/95 backdrop-blur-sm rounded-r-xl shadow-lg border border-l-0 border-purple-200 p-3 max-w-[220px]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-bold text-navy-900 flex items-center gap-1">
@@ -849,11 +849,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         </div>
       )}
 
-      {/* Collapsed Goals Toggle - Fixed button */}
+      {/* Collapsed Goals Toggle - Hidden on mobile, fixed button on desktop */}
       {userGoals && (userGoals.visionText || userGoals.tasks.length > 0) && !showGoalsPanel && (
         <button
           onClick={() => setShowGoalsPanel(true)}
-          className="fixed left-0 top-24 z-40 bg-purple-600 text-white text-xs font-bold px-2 py-3 rounded-r-lg shadow-lg hover:bg-purple-700 transition-colors"
+          className="hidden lg:block fixed left-0 top-24 z-40 bg-purple-600 text-white text-xs font-bold px-2 py-3 rounded-r-lg shadow-lg hover:bg-purple-700 transition-colors"
           style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
         >
           🎯 Goals
@@ -864,24 +864,25 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       <div className="flex-1 flex flex-col gap-8">
         <div className="flex flex-col md:flex-row gap-8">
           {/* Controls */}
-          <div className="w-full md:w-5/12 space-y-6">
-            <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 relative overflow-hidden">
+          <div className="w-full md:w-5/12 space-y-4 md:space-y-6">
+            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-lg border border-gray-100 relative overflow-hidden">
               {/* Credits Badge */}
-              <div className="absolute top-4 right-4 flex items-center gap-2">
-                <span className={`text-xs font-bold px-3 py-1 rounded-full ${userTier === 'FREE' ? 'bg-gray-100 text-gray-600' : 'bg-gold-100 text-gold-700'}`}>
-                  {userTier}
-                </span>
-                <div className="bg-navy-900 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow">
-                  <SparklesIcon className="w-3 h-3 text-gold-400" />
-                  {credits !== null ? credits : '...'} Credits
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg md:text-xl font-serif font-bold text-navy-900">Create Your Vision</h3>
+                <div className="flex items-center gap-1 md:gap-2">
+                  <span className={`text-[10px] md:text-xs font-bold px-2 md:px-3 py-1 rounded-full ${userTier === 'FREE' ? 'bg-gray-100 text-gray-600' : 'bg-gold-100 text-gold-700'}`}>
+                    {userTier}
+                  </span>
+                  <div className="bg-navy-900 text-white text-[10px] md:text-xs font-bold px-2 md:px-3 py-1 rounded-full flex items-center gap-1 shadow">
+                    <SparklesIcon className="w-3 h-3 text-gold-400" />
+                    {credits !== null ? credits : '..'}
+                  </div>
                 </div>
               </div>
 
-              <h3 className="text-xl font-serif font-bold text-navy-900 mb-4">Create Your Vision</h3>
-
               {/* Upload Section - Enhanced with multiple options */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">1. Base Image (Scene)</label>
+              <div className="mb-4 md:mb-6">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-2">1. Base Image (Scene)</label>
 
                 {/* Image Source Options */}
                 <div className="grid grid-cols-2 gap-2 mb-3">
@@ -948,16 +949,16 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
               </div>
 
               {/* Style Selector */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">2. Artistic Style</label>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="mb-4 md:mb-6">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-2">2. Artistic Style</label>
+                <div className="grid grid-cols-3 md:grid-cols-2 gap-1 md:gap-2">
                   {STYLE_PRESETS.map(style => {
                     const locked = isStyleLocked(style.tier);
                     return (
                       <button
                         key={style.id}
                         onClick={() => !locked && setSelectedStyle(style.id)}
-                        className={`relative px-3 py-2 rounded-lg text-xs font-medium border transition-all text-left flex justify-between items-center
+                        className={`relative px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-[10px] md:text-xs font-medium border transition-all text-left flex justify-between items-center
                             ${selectedStyle === style.id
                             ? 'bg-navy-900 text-white border-navy-900'
                             : locked
@@ -965,8 +966,8 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                               : 'bg-white text-gray-700 border-gray-200 hover:border-gold-400'
                           }`}
                       >
-                        {style.name}
-                        {locked && <span className="text-[10px] bg-gray-200 text-gray-500 px-1 rounded">PRO</span>}
+                        <span className="truncate">{style.name}</span>
+                        {locked && <span className="text-[8px] md:text-[10px] bg-gray-200 text-gray-500 px-1 rounded ml-1">PRO</span>}
                       </button>
                     );
                   })}
@@ -974,11 +975,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
               </div>
 
               {/* Prompt Section */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">3. Design Your Scene</label>
+              <div className="mb-4 md:mb-6">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-2">3. Design Your Scene</label>
 
-                {/* Preset Tags */}
-                <div className="flex flex-wrap gap-2 mb-4 items-center">
+                {/* Preset Tags - Scrollable on mobile */}
+                <div className="flex flex-wrap gap-1.5 md:gap-2 mb-3 md:mb-4 items-center max-h-24 md:max-h-none overflow-y-auto md:overflow-visible">
                   <button
                     onClick={handleGetSuggestions}
                     disabled={isSuggesting}
@@ -987,14 +988,14 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                     <SparklesIcon className={`w-3 h-3 ${isSuggesting ? 'animate-spin' : ''}`} />
                     {isSuggesting ? 'Thinking...' : 'Inspire Me'}
                   </button>
-                  <div className="w-px h-4 bg-gray-300 mx-1"></div>
+                  <div className="w-px h-4 bg-gray-300 mx-0.5 md:mx-1 hidden md:block"></div>
                   {PRESET_TAGS.map((tag, i) => {
                     const isActive = promptInput.includes(tag);
                     return (
                       <button
                         key={i}
                         onClick={() => togglePreset(tag)}
-                        className={`text-xs px-3 py-1.5 rounded-full transition-all border ${isActive
+                        className={`text-[10px] md:text-xs px-2 md:px-3 py-1 md:py-1.5 rounded-full transition-all border whitespace-nowrap ${isActive
                           ? 'bg-navy-900 text-white border-navy-900 shadow-md'
                           : 'bg-white text-gray-600 border-gray-200 hover:border-gold-400 hover:text-navy-900'
                           }`}
@@ -1025,7 +1026,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
                 <div className="relative">
                   <textarea
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-400 focus:border-transparent outline-none resize-none h-32 text-sm pr-10 pb-10"
+                    className="w-full p-2 md:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-400 focus:border-transparent outline-none resize-none h-24 md:h-32 text-xs md:text-sm pr-10 pb-10"
                     placeholder="Describe your vision..."
                     value={promptInput}
                     onChange={(e) => setPromptInput(e.target.value)}
@@ -1054,33 +1055,33 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
               </div>
 
               {/* Goal Text Overlay */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">4. Embed Goal (Optional)</label>
+              <div className="mb-4 md:mb-6">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1 md:mb-2">4. Embed Goal (Optional)</label>
                 <input
                   type="text"
                   value={goalText}
                   onChange={(e) => setGoalText(e.target.value)}
                   placeholder="e.g., Retire 2027"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-gold-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm focus:border-gold-500 outline-none"
                 />
               </div>
 
               {/* Header Title Overlay */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">5. Vision Board Title (Optional)</label>
+              <div className="mb-4 md:mb-6">
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1 md:mb-2">5. Vision Board Title (Optional)</label>
                 <input
                   type="text"
                   value={headerText}
                   onChange={(e) => setHeaderText(e.target.value)}
                   placeholder="e.g. The Overton Family Vision 2025"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-gold-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm focus:border-gold-500 outline-none"
                 />
               </div>
 
               <button
                 onClick={handleGenerate}
                 disabled={!baseImage || loading || !promptInput}
-                className={`w-full py-3 rounded-xl font-bold text-white shadow-md flex items-center justify-center gap-2 transition-all
+                className={`w-full py-2.5 md:py-3 rounded-xl font-bold text-white shadow-md flex items-center justify-center gap-2 transition-all text-sm md:text-base
                     ${!baseImage || !promptInput
                     ? 'bg-gray-300 cursor-not-allowed'
                     : 'bg-gradient-to-r from-navy-900 to-navy-800 hover:from-navy-800 hover:to-navy-700 transform active:scale-95'
@@ -1088,20 +1089,20 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
               >
                 {loading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Manifesting...
+                    <div className="w-4 h-4 md:w-5 md:h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span className="text-sm md:text-base">Manifesting...</span>
                   </>
                 ) : (
                   <>
-                    <SparklesIcon className="w-5 h-5" />
-                    {resultImage ? 'Regenerate' : 'Generate Vision'}
+                    <SparklesIcon className="w-4 h-4 md:w-5 md:h-5" />
+                    <span>{resultImage ? 'Regenerate' : 'Generate Vision'}</span>
                   </>
                 )}
               </button>
 
-              {error && <p className="text-red-500 text-xs mt-2 text-center">{error}</p>}
+              {error && <p className="text-red-500 text-[10px] md:text-xs mt-2 text-center">{error}</p>}
               {credits === 0 && (
-                <button onClick={() => setShowSubModal(true)} className="w-full mt-2 text-xs text-gold-600 font-bold underline hover:text-gold-700">
+                <button onClick={() => setShowSubModal(true)} className="w-full mt-2 text-[10px] md:text-xs text-gold-600 font-bold underline hover:text-gold-700">
                   Out of credits? Upgrade now.
                 </button>
               )}
@@ -1109,9 +1110,9 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
           </div>
 
           {/* Canvas / Preview */}
-          <div className="w-full md:w-7/12 flex flex-col gap-4">
-            <div className="bg-gray-100 rounded-2xl border-4 border-white shadow-2xl overflow-hidden flex flex-col relative min-h-[500px]">
-              <div className="flex-1 flex items-center justify-center p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative">
+          <div className="w-full md:w-7/12 flex flex-col gap-4 order-first md:order-last">
+            <div className="bg-gray-100 rounded-2xl border-4 border-white shadow-2xl overflow-hidden flex flex-col relative min-h-[300px] md:min-h-[500px]">
+              <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative">
 
                 {/* Badge for Base Image */}
                 {baseImage && !resultImage && (
@@ -1126,7 +1127,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                 )}
 
                 {baseImage && !resultImage && (
-                  <img src={baseImage} alt="Original" className="max-w-full max-h-[500px] object-contain rounded-lg shadow-lg" />
+                  <img src={baseImage} alt="Original" className="max-w-full max-h-[250px] md:max-h-[500px] object-contain rounded-lg shadow-lg" />
                 )}
 
                 {resultImage && (
@@ -1134,7 +1135,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                     <img
                       src={resultImage}
                       alt="Vision"
-                      className="max-w-full max-h-[600px] object-contain rounded-lg shadow-2xl border-4 border-gold-500 cursor-pointer transition-transform hover:scale-[1.02]"
+                      className="max-w-full max-h-[280px] md:max-h-[600px] object-contain rounded-lg shadow-2xl border-2 md:border-4 border-gold-500 cursor-pointer transition-transform hover:scale-[1.02]"
                       onClick={() => setShowLightbox(true)}
                       title="Click to enlarge"
                     />
@@ -1204,35 +1205,54 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
             {/* Actions Bar */}
             {resultImage && (
-              <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex gap-3 w-full justify-center md:justify-end flex-wrap">
+              <div className="bg-white p-3 md:p-4 rounded-xl shadow-md border border-gray-100">
+                {/* Mobile: 2 rows of buttons */}
+                <div className="grid grid-cols-3 md:flex md:flex-row md:justify-end gap-2 md:gap-3">
+                  <button
+                    onClick={handleSaveToGallery}
+                    disabled={isSaving}
+                    className="flex items-center justify-center gap-1 md:gap-2 bg-navy-100 hover:bg-navy-200 text-navy-900 px-2 md:px-4 py-2 rounded-lg transition-colors font-medium text-xs md:text-sm disabled:opacity-50"
+                  >
+                    {isSaving ? (
+                      <div className="w-3 h-3 md:w-4 md:h-4 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
+                    ) : (
+                      <SaveIcon className="w-3 h-3 md:w-4 md:h-4" />
+                    )}
+                    <span>Save</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowPrintModal(true)}
+                    className="flex items-center justify-center gap-1 md:gap-2 bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-navy-900 font-bold px-2 md:px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all text-xs md:text-sm"
+                    title="Order Poster Print"
+                  >
+                    <PrinterIcon className="w-3 h-3 md:w-4 md:h-4" />
+                    <span>Print</span>
+                  </button>
+
+                  <button
+                    onClick={() => downloadImage(resultImage!)}
+                    className="flex items-center justify-center gap-1 md:gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-navy-900 px-2 md:px-4 py-2 rounded-lg shadow-sm transition-colors text-xs md:text-sm"
+                    title="Download"
+                  >
+                    <DownloadIcon className="w-3 h-3 md:w-4 md:h-4" />
+                    <span className="hidden md:inline">Download</span>
+                  </button>
+
                   <button
                     onClick={handleRefine}
-                    className="flex items-center gap-2 bg-white border border-navy-200 hover:border-navy-900 text-navy-900 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+                    className="flex items-center justify-center gap-1 md:gap-2 bg-white border border-navy-200 hover:border-navy-900 text-navy-900 px-2 md:px-4 py-2 rounded-lg transition-colors text-xs md:text-sm font-medium"
                   >
-                    <SparklesIcon className="w-4 h-4 text-gold-500" />
-                    Refine This
+                    <SparklesIcon className="w-3 h-3 md:w-4 md:h-4 text-gold-500" />
+                    <span>Refine</span>
                   </button>
 
                   <button
                     onClick={() => onAgentStart(currentPrompt)}
-                    className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-4 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 text-sm"
+                    className="flex items-center justify-center gap-1 md:gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-2 md:px-4 py-2 rounded-lg shadow-md transition-transform text-xs md:text-sm"
                   >
-                    <RobotIcon className="w-4 h-4" />
-                    Execute
-                  </button>
-
-                  <button
-                    onClick={handleSaveToGallery}
-                    disabled={isSaving}
-                    className="flex items-center gap-2 bg-navy-100 hover:bg-navy-200 text-navy-900 px-4 py-2 rounded-lg transition-colors font-medium text-sm disabled:opacity-50"
-                  >
-                    {isSaving ? (
-                      <div className="w-4 h-4 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
-                    ) : (
-                      <SaveIcon className="w-4 h-4" />
-                    )}
-                    Save
+                    <RobotIcon className="w-3 h-3 md:w-4 md:h-4" />
+                    <span>Execute</span>
                   </button>
 
                   <button
@@ -1243,28 +1263,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                         showToast('Vision discarded', 'info');
                       }
                     }}
-                    className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg transition-colors font-medium text-sm"
+                    className="flex items-center justify-center gap-1 md:gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-2 md:px-4 py-2 rounded-lg transition-colors font-medium text-xs md:text-sm"
                     title="Discard this vision"
                   >
-                    <TrashIcon className="w-4 h-4" />
-                    Delete
-                  </button>
-
-                  <button
-                    onClick={() => setShowPrintModal(true)}
-                    className="flex items-center gap-2 bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-navy-900 font-bold px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-                    title="Order Poster Print"
-                  >
-                    <PrinterIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">Print</span>
-                  </button>
-
-                  <button
-                    onClick={() => downloadImage(resultImage!)}
-                    className="p-2 bg-white border border-gray-200 hover:bg-gray-50 text-navy-900 rounded-lg shadow-sm transition-colors"
-                    title="Download"
-                  >
-                    <DownloadIcon className="w-4 h-4" />
+                    <TrashIcon className="w-3 h-3 md:w-4 md:h-4" />
+                    <span className="hidden md:inline">Delete</span>
                   </button>
                 </div>
               </div>
@@ -1273,8 +1276,134 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         </div>
       </div>
 
-      {/* Reference Library Sidebar */}
-      <div className={`transition-all duration-300 flex flex-col gap-4 ${showLibrary ? 'w-64' : 'w-12 items-center'}`}>
+      {/* Reference Library Sidebar - Mobile: Fixed overlay, Desktop: Sidebar */}
+      {/* Mobile Library Toggle Button */}
+      <button
+        onClick={() => setShowLibrary(!showLibrary)}
+        className="lg:hidden fixed bottom-20 right-4 z-40 bg-navy-900 text-white p-3 rounded-full shadow-lg hover:bg-navy-800 transition-colors"
+        title="Reference Library"
+      >
+        <LibraryIcon className="w-5 h-5" />
+        {selectedRefIds.length > 0 && (
+          <span className="absolute -top-1 -right-1 bg-gold-500 text-navy-900 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+            {selectedRefIds.length}
+          </span>
+        )}
+      </button>
+
+      {/* Mobile Library Overlay */}
+      {showLibrary && (
+        <div className="lg:hidden fixed inset-0 bg-black/50 z-50" onClick={() => setShowLibrary(false)}>
+          <div
+            className="absolute right-0 top-0 h-full w-72 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-navy-900 text-sm flex items-center gap-2">
+                <LibraryIcon className="w-4 h-4" /> Reference Library
+              </h3>
+              <button onClick={() => setShowLibrary(false)} className="text-gray-400 hover:text-navy-900 p-1">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 flex flex-col gap-4 overflow-y-auto h-[calc(100%-60px)]">
+              {/* Upload Area */}
+              <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <TagIcon className="w-3 h-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Tag (e.g. Milton)"
+                    className="bg-transparent text-xs w-full outline-none"
+                    value={newRefTag}
+                    onChange={(e) => setNewRefTag(e.target.value)}
+                  />
+                </div>
+                <div className="mb-2">
+                  <textarea
+                    placeholder="Identity (e.g. 'tall Black male, 50s')"
+                    className="w-full bg-white border border-gray-200 rounded-lg p-2 text-[10px] outline-none resize-none h-12 focus:border-gold-400"
+                    value={newRefIdentityDesc}
+                    onChange={(e) => setNewRefIdentityDesc(e.target.value)}
+                  />
+                </div>
+                <label className="block w-full text-center bg-white border border-gray-200 hover:border-gold-500 rounded-lg py-2 cursor-pointer transition-colors">
+                  <span className="text-xs font-medium text-navy-900 flex items-center justify-center gap-1">
+                    {isRefUploading ? <div className="w-3 h-3 border-2 border-gray-300 border-t-navy-900 rounded-full animate-spin" /> : <PlusIcon className="w-3 h-3" />}
+                    Upload Ref
+                  </span>
+                  <input type="file" className="hidden" accept="image/*" onChange={handleReferenceUpload} disabled={isRefUploading} />
+                </label>
+              </div>
+
+              {/* List */}
+              <div className="space-y-3">
+                {references.length === 0 && (
+                  <p className="text-xs text-center text-gray-400 py-4">No references yet.<br />Upload headshots here.</p>
+                )}
+                {references.map(ref => {
+                  const isSelected = selectedRefIds.includes(ref.id);
+                  const hasIdentity = !!ref.identityDescription;
+                  return (
+                    <div
+                      key={ref.id}
+                      className={`relative group rounded-lg overflow-hidden border-2 transition-all ${isSelected ? 'border-gold-500 ring-1 ring-gold-200' : 'border-transparent hover:border-gray-300'}`}
+                      title={hasIdentity ? ref.identityDescription : 'Click to select as reference'}
+                    >
+                      <img
+                        src={ref.url}
+                        className="w-full h-24 object-cover cursor-pointer"
+                        alt="ref"
+                        onClick={() => toggleReferenceSelection(ref.id)}
+                      />
+                      <div className="absolute bottom-0 inset-x-0 bg-black/60 p-1">
+                        <div className="flex items-center gap-1">
+                          {hasIdentity && (
+                            <span className="text-[9px] bg-green-500 text-white px-1 rounded">ID</span>
+                          )}
+                          <p className="text-[10px] text-white truncate flex-1">{ref.tags.join(', ')}</p>
+                        </div>
+                      </div>
+                      <div className="absolute top-1 right-1 flex gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            useReferenceAsBase(ref);
+                            setShowLibrary(false);
+                          }}
+                          className="p-1 bg-gold-500 hover:bg-gold-600 rounded-full text-navy-900 shadow-sm"
+                          title="Use as Base Image"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteReference(ref.id, e)}
+                          className="p-1 bg-white/80 rounded-full text-red-500 hover:bg-white"
+                          title="Delete"
+                        >
+                          <TrashIcon className="w-3 h-3" />
+                        </button>
+                      </div>
+                      {isSelected && (
+                        <div className="absolute top-1 left-1 bg-gold-500 text-navy-900 rounded-full p-0.5">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Reference Library Sidebar */}
+      <div className={`hidden lg:flex transition-all duration-300 flex-col gap-4 ${showLibrary ? 'w-64' : 'w-12 items-center'}`}>
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden flex flex-col h-full min-h-[600px]">
 
           {/* Header */}

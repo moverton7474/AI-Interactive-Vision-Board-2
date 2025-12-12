@@ -88,6 +88,7 @@ const App = () => {
   const [financialTarget, setFinancialTarget] = useState<number | undefined>();
   const [todayFocus, setTodayFocus] = useState<string | undefined>();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   useEffect(() => {
     // 1. Check DB Connection
@@ -1492,18 +1493,34 @@ const App = () => {
   return (
     <ToastProvider>
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        {/* Navbar - Simplified v1.6 */}
+        {/* Navbar - Mobile Optimized v1.7 */}
         <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
+            <div className="flex justify-between h-14 md:h-16">
+              {/* Logo */}
               <div className="flex items-center cursor-pointer" onClick={() => setView(onboardingCompleted ? AppView.DASHBOARD : AppView.LANDING)}>
-                <div className="w-8 h-8 bg-navy-900 rounded-lg flex items-center justify-center mr-2">
-                  <span className="text-gold-500 font-serif font-bold text-xl">V</span>
+                <div className="w-7 h-7 md:w-8 md:h-8 bg-navy-900 rounded-lg flex items-center justify-center mr-2">
+                  <span className="text-gold-500 font-serif font-bold text-lg md:text-xl">V</span>
                 </div>
-                <span className="text-xl font-serif font-bold text-navy-900">Visionary</span>
+                <span className="text-lg md:text-xl font-serif font-bold text-navy-900">Visionary</span>
               </div>
 
-              <div className="flex items-center gap-4">
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="md:hidden flex items-center p-2 text-gray-500 hover:text-navy-900"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {showMobileMenu ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
+
+              {/* Desktop Navigation */}
+              <div className="hidden md:flex items-center gap-4">
                 {/* Primary Navigation - v1.6 Simplified */}
                 <button onClick={() => setView(AppView.DASHBOARD)} className={`text-sm font-medium transition-colors ${view === AppView.DASHBOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
                   Dashboard
@@ -1576,16 +1593,76 @@ const App = () => {
                 <div className="h-6 w-px bg-gray-200 mx-2"></div>
 
                 {/* User Menu */}
-                <span className="text-xs text-gray-400 hidden md:block">{session.user.email}</span>
+                <span className="text-xs text-gray-400 hidden lg:block">{session.user.email}</span>
                 <button onClick={handleSignOut} className="text-xs font-bold text-navy-900 hover:text-red-500 transition-colors">Sign Out</button>
               </div>
             </div>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          {showMobileMenu && (
+            <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
+              <div className="px-4 py-3 space-y-1">
+                {/* Primary Nav Items */}
+                <button onClick={() => { setView(AppView.DASHBOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.DASHBOARD ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <SparklesIcon className="w-4 h-4" /> Dashboard
+                </button>
+                <button onClick={() => { setView(AppView.VISION_BOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VISION_BOARD ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <SparklesIcon className="w-4 h-4" /> Visualize
+                </button>
+                <button onClick={() => { setView(AppView.GALLERY); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.GALLERY ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <SparklesIcon className="w-4 h-4" /> Gallery
+                </button>
+                <button onClick={() => { setView(AppView.ACTION_PLAN); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.ACTION_PLAN ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <SparklesIcon className="w-4 h-4" /> Execute
+                </button>
+
+                <div className="border-t border-gray-100 my-2" />
+
+                {/* Secondary Nav */}
+                <button onClick={() => { setView(AppView.HABITS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.HABITS ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <FireIcon className="w-4 h-4" /> Habits
+                </button>
+                <button onClick={() => { setView(AppView.VOICE_COACH); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VOICE_COACH ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <MicIcon className="w-4 h-4" /> Voice Coach
+                </button>
+                <button onClick={() => { setView(AppView.PRINT_PRODUCTS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.PRINT_PRODUCTS ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <PrinterIcon className="w-4 h-4" /> Print Products
+                </button>
+                <button onClick={() => { setShowWorkbookModal(true); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-600 hover:bg-gray-50">
+                  <BookOpenIcon className="w-4 h-4" /> Workbook
+                </button>
+
+                <div className="border-t border-gray-100 my-2" />
+
+                {/* More Items */}
+                <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-600 hover:bg-gray-50">
+                  <CalendarIcon className="w-4 h-4" /> Reviews
+                </button>
+                <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-600 hover:bg-gray-50">
+                  <FolderIcon className="w-4 h-4" /> Knowledge Base
+                </button>
+                <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-600 hover:bg-gray-50">
+                  <ReceiptIcon className="w-4 h-4" /> Order History
+                </button>
+
+                <div className="border-t border-gray-100 my-2" />
+
+                {/* User Section */}
+                <div className="px-3 py-2">
+                  <p className="text-xs text-gray-400 mb-2">{session.user.email}</p>
+                  <button onClick={() => { handleSignOut(); setShowMobileMenu(false); }} className="text-sm font-bold text-red-500 hover:text-red-600">
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
 
-        {/* Click outside to close dropdown */}
-        {showMoreMenu && (
-          <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+        {/* Click outside to close dropdowns */}
+        {(showMoreMenu || showMobileMenu) && (
+          <div className="fixed inset-0 z-40" onClick={() => { setShowMoreMenu(false); setShowMobileMenu(false); }} />
         )}
 
         {/* Main Content */}
