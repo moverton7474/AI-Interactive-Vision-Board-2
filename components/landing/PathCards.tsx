@@ -1,4 +1,27 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
+// Custom hook for Intersection Observer
+const useInView = (options = {}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect(); // Only animate once
+      }
+    }, { threshold: 0.1, ...options });
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, isVisible };
+};
 
 interface PathCardProps {
   icon: React.ReactNode;
@@ -6,29 +29,41 @@ interface PathCardProps {
   description: string;
   color: string;
   bgColor: string;
+  index: number;
 }
 
-const PathCard: React.FC<PathCardProps> = ({ icon, title, description, color, bgColor }) => (
-  <div className={`group relative bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden`}>
-    {/* Background Gradient on Hover */}
-    <div className={`absolute inset-0 ${bgColor} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
+const PathCard: React.FC<PathCardProps> = ({ icon, title, description, color, bgColor, index }) => {
+  const { ref, isVisible } = useInView();
 
-    <div className="relative">
-      <div className={`w-14 h-14 ${color} bg-opacity-10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-        {icon}
+  return (
+    <div
+      ref={ref}
+      className={`scroll-animate scroll-delay-${index % 6} ${isVisible ? 'is-visible' : ''} group relative bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-xl hover:-translate-y-1 overflow-hidden`}
+      style={{ transitionProperty: 'opacity, transform, box-shadow' }}
+    >
+      {/* Background Gradient on Hover */}
+      <div className={`absolute inset-0 ${bgColor} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
+
+      <div className="relative">
+        <div className={`w-14 h-14 ${color} bg-opacity-10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+          {icon}
+        </div>
+
+        <h3 className="text-xl font-bold text-navy-900 mb-2 group-hover:text-navy-900">{title}</h3>
+        <p className="text-gray-600 text-sm leading-relaxed">{description}</p>
       </div>
-
-      <h3 className="text-xl font-bold text-navy-900 mb-2 group-hover:text-navy-900">{title}</h3>
-      <p className="text-gray-600 text-sm leading-relaxed">{description}</p>
     </div>
-  </div>
-);
+  );
+};
 
 interface PathCardsProps {
   onGetStarted: () => void;
 }
 
 export const PathCards: React.FC<PathCardsProps> = ({ onGetStarted }) => {
+  const { ref: headerRef, isVisible: headerVisible } = useInView();
+  const { ref: ctaRef, isVisible: ctaVisible } = useInView();
+
   const paths = [
     {
       icon: (
@@ -101,7 +136,10 @@ export const PathCards: React.FC<PathCardsProps> = ({ onGetStarted }) => {
   return (
     <section id="features" className="py-20 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
+        <div
+          ref={headerRef}
+          className={`scroll-animate ${headerVisible ? 'is-visible' : ''} text-center mb-16`}
+        >
           <h2 className="text-3xl md:text-4xl font-serif font-bold text-navy-900 mb-4">
             Choose Your Path to Transformation
           </h2>
@@ -113,14 +151,17 @@ export const PathCards: React.FC<PathCardsProps> = ({ onGetStarted }) => {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {paths.map((path, index) => (
-            <PathCard key={index} {...path} />
+            <PathCard key={index} {...path} index={index} />
           ))}
         </div>
 
-        <div className="text-center mt-12">
+        <div
+          ref={ctaRef}
+          className={`scroll-animate ${ctaVisible ? 'is-visible' : ''} text-center mt-12`}
+        >
           <button
             onClick={onGetStarted}
-            className="inline-flex items-center gap-2 bg-navy-900 text-white font-semibold px-8 py-4 rounded-full hover:bg-navy-800 transition-all shadow-lg hover:shadow-xl"
+            className="inline-flex items-center gap-2 bg-navy-900 text-white font-semibold px-8 py-4 rounded-full hover:bg-navy-800 hover:scale-105 transition-all shadow-lg hover:shadow-xl"
           >
             Explore All Features
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
