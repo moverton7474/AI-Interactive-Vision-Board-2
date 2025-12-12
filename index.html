@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Visionary - AI Retirement Planning</title>
+    <title>Visionary AI - Transform Your Vision Into Reality</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script>
@@ -12,19 +12,46 @@
         theme: {
           extend: {
             colors: {
+              // Visionary AI Brand Colors
               gold: {
-                400: '#FACC15',
-                500: '#EAB308',
-                600: '#CA8A04',
+                50: '#FBF8F1',
+                100: '#F5EED9',
+                200: '#E9DDB8',
+                300: '#E5D4A1',
+                400: '#D4C08A',
+                500: '#C5A572',  // Primary brand gold
+                600: '#A88B5C',
+                700: '#8B7149',
+                800: '#6E5A3A',
+                900: '#52432C',
               },
               navy: {
-                800: '#1e293b',
-                900: '#0f172a',
+                700: '#2D2D44',
+                800: '#252538',
+                900: '#1A1A2E',  // Primary dark background
+                950: '#12121F',
+              },
+              charcoal: {
+                700: '#2D2D44',
+                800: '#252538',
+                900: '#1A1A2E',
+                950: '#12121F',
+              },
+              // Status colors
+              status: {
+                success: '#10B981',
+                warning: '#F59E0B',
+                error: '#EF4444',
+                info: '#3B82F6',
               }
             },
             fontFamily: {
               serif: ['"Playfair Display"', 'serif'],
               sans: ['"Inter"', 'sans-serif'],
+            },
+            backgroundImage: {
+              'gold-gradient': 'linear-gradient(135deg, #D4C08A 0%, #C5A572 50%, #A88B5C 100%)',
+              'dark-gradient': 'linear-gradient(135deg, #1A1A2E 0%, #252538 100%)',
             }
           }
         }

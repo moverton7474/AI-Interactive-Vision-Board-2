@@ -1,5 +1,5 @@
 import React from 'react';
-import { SparklesIcon } from '../Icons';
+import { SparklesIcon, VisionaryLogo, VisionaryIcon } from '../Icons';
 
 interface VisionHeroProps {
   onGetStarted: () => void;
@@ -8,45 +8,45 @@ interface VisionHeroProps {
 
 export const VisionHero: React.FC<VisionHeroProps> = ({ onGetStarted, onWatchDemo }) => {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100">
+    <section className="relative overflow-hidden bg-gradient-to-br from-navy-950 via-navy-900 to-charcoal-900">
       {/* Background Pattern */}
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-30"></div>
+      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
 
       {/* Decorative Gradient Blurs */}
-      <div className="absolute top-20 -left-40 w-96 h-96 bg-gold-400/20 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-20 -right-40 w-96 h-96 bg-navy-900/10 rounded-full blur-3xl"></div>
+      <div className="absolute top-20 -left-40 w-96 h-96 bg-gold-500/10 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-20 -right-40 w-96 h-96 bg-gold-600/10 rounded-full blur-3xl"></div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Left Column - Text Content */}
           <div className="text-center lg:text-left">
-            <div className="animate-fade-up inline-flex items-center gap-2 bg-gold-500/10 border border-gold-500/20 rounded-full px-4 py-2 mb-6">
-              <SparklesIcon className="w-4 h-4 text-gold-600" />
-              <span className="text-sm font-medium text-gold-700">AI-Powered Vision Boarding</span>
+            <div className="animate-fade-up inline-flex items-center gap-2 bg-gold-500/10 border border-gold-500/30 rounded-full px-4 py-2 mb-6">
+              <VisionaryIcon size={18} color="#C5A572" />
+              <span className="text-sm font-medium text-gold-400">AI-Powered Vision Boarding</span>
             </div>
 
-            <h1 className="animate-fade-up delay-100 text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-navy-900 leading-tight mb-6">
-              Your Vision
-              <span className="block text-gold-500">Awaits</span>
+            <h1 className="animate-fade-up delay-100 text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-white leading-tight mb-6">
+              Your Ascension
+              <span className="block text-gold-500">Starts Here</span>
             </h1>
 
-            <p className="animate-fade-up delay-200 text-xl text-gray-600 mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+            <p className="animate-fade-up delay-200 text-xl text-gray-300 mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
               Transform your dreams into stunning visual boards, build actionable roadmaps, and manifest your future with AI-powered coaching and premium print products.
             </p>
 
             <div className="animate-fade-up delay-300 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <button
                 onClick={onGetStarted}
-                className="group bg-navy-900 text-white text-lg font-semibold px-8 py-4 rounded-full shadow-xl hover:bg-navy-800 hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+                className="group bg-gradient-to-r from-gold-400 via-gold-500 to-gold-600 text-navy-900 text-lg font-semibold px-8 py-4 rounded-full shadow-xl hover:shadow-gold-500/25 hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
               >
-                <SparklesIcon className="w-5 h-5 text-gold-400 group-hover:scale-110 transition-transform" />
-                Start My Vision Board
+                <SparklesIcon className="w-5 h-5 text-navy-900 group-hover:scale-110 transition-transform" />
+                Begin My Ascension
               </button>
 
               {onWatchDemo && (
                 <button
                   onClick={onWatchDemo}
-                  className="group text-navy-900 text-lg font-semibold px-8 py-4 rounded-full border-2 border-navy-900/20 hover:border-navy-900 transition-all duration-300 flex items-center justify-center gap-3"
+                  className="group text-gold-400 text-lg font-semibold px-8 py-4 rounded-full border-2 border-gold-500/30 hover:border-gold-500 hover:bg-gold-500/10 transition-all duration-300 flex items-center justify-center gap-3"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -58,21 +58,21 @@ export const VisionHero: React.FC<VisionHeroProps> = ({ onGetStarted, onWatchDem
             </div>
 
             {/* Click Triggers - Reduce Anxiety */}
-            <div className="animate-fade-up delay-400 mt-6 flex flex-wrap items-center gap-4 justify-center lg:justify-start text-sm text-gray-500">
+            <div className="animate-fade-up delay-400 mt-6 flex flex-wrap items-center gap-4 justify-center lg:justify-start text-sm text-gray-400">
               <div className="flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-4 h-4 text-status-success" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 <span>Free to start</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-4 h-4 text-status-success" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 <span>No credit card</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-4 h-4 text-status-success" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 <span>Ready in 2 min</span>
@@ -82,14 +82,14 @@ export const VisionHero: React.FC<VisionHeroProps> = ({ onGetStarted, onWatchDem
             {/* Social Proof Strip */}
             <div className="animate-fade-up delay-500 mt-8 flex items-center gap-4 justify-center lg:justify-start">
               <div className="flex -space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 border-2 border-white flex items-center justify-center text-white text-xs font-bold">JM</div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white flex items-center justify-center text-white text-xs font-bold">SK</div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-white flex items-center justify-center text-white text-xs font-bold">AL</div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 border-2 border-white flex items-center justify-center text-white text-xs font-bold">RW</div>
-                <div className="w-10 h-10 rounded-full bg-navy-900 border-2 border-white flex items-center justify-center text-white text-xs font-bold">+</div>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 border-2 border-navy-900 flex items-center justify-center text-white text-xs font-bold">JM</div>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-navy-900 flex items-center justify-center text-white text-xs font-bold">SK</div>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-navy-900 flex items-center justify-center text-white text-xs font-bold">AL</div>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 border-2 border-navy-900 flex items-center justify-center text-navy-900 text-xs font-bold">RW</div>
+                <div className="w-10 h-10 rounded-full bg-gold-500 border-2 border-navy-900 flex items-center justify-center text-navy-900 text-xs font-bold">+</div>
               </div>
               <div className="text-left">
-                <div className="text-sm font-semibold text-navy-900">10,000+ Visionaries</div>
+                <div className="text-sm font-semibold text-white">10,000+ Visionaries</div>
                 <div className="flex items-center gap-1">
                   <div className="flex">
                     {[...Array(5)].map((_, i) => (
@@ -98,7 +98,7 @@ export const VisionHero: React.FC<VisionHeroProps> = ({ onGetStarted, onWatchDem
                       </svg>
                     ))}
                   </div>
-                  <span className="text-xs text-gray-500">4.9/5 rating</span>
+                  <span className="text-xs text-gray-400">4.9/5 rating</span>
                 </div>
               </div>
             </div>
@@ -108,45 +108,45 @@ export const VisionHero: React.FC<VisionHeroProps> = ({ onGetStarted, onWatchDem
           <div className="relative animate-slide-right delay-200">
             <div className="relative">
               {/* Main Vision Board Preview */}
-              <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-4 transform hover:scale-[1.02] transition-transform duration-500">
-                <div className="aspect-[4/3] bg-gradient-to-br from-navy-900 via-navy-800 to-slate-900 rounded-2xl overflow-hidden relative">
+              <div className="bg-charcoal-800 rounded-3xl shadow-2xl border border-gold-500/20 p-4 transform hover:scale-[1.02] transition-transform duration-500">
+                <div className="aspect-[4/3] bg-gradient-to-br from-charcoal-900 via-navy-900 to-charcoal-800 rounded-2xl overflow-hidden relative">
                   {/* Vision Board Grid Preview */}
                   <div className="absolute inset-0 grid grid-cols-3 gap-2 p-4">
-                    <div className="bg-gradient-to-br from-gold-400/30 to-gold-600/30 rounded-xl"></div>
-                    <div className="col-span-2 bg-gradient-to-br from-slate-700/50 to-slate-800/50 rounded-xl flex items-center justify-center">
+                    <div className="bg-gradient-to-br from-gold-500/20 to-gold-600/20 rounded-xl border border-gold-500/10"></div>
+                    <div className="col-span-2 bg-gradient-to-br from-charcoal-700/50 to-charcoal-800/50 rounded-xl flex items-center justify-center border border-gold-500/10">
                       <div className="text-center px-4">
-                        <span className="text-white/90 font-serif text-2xl font-bold block">Dream Life</span>
-                        <span className="text-white/60 text-sm">2025 Vision</span>
+                        <span className="text-gold-400 font-serif text-2xl font-bold block">My Ascension</span>
+                        <span className="text-gray-400 text-sm">2025 Vision</span>
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-emerald-400/30 to-emerald-600/30 rounded-xl"></div>
-                    <div className="bg-gradient-to-br from-purple-400/30 to-purple-600/30 rounded-xl"></div>
-                    <div className="bg-gradient-to-br from-blue-400/30 to-blue-600/30 rounded-xl"></div>
+                    <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 rounded-xl border border-emerald-500/10"></div>
+                    <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-xl border border-purple-500/10"></div>
+                    <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl border border-blue-500/10"></div>
                   </div>
 
                   {/* AI Generating Badge */}
-                  <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-full px-4 py-2 flex items-center gap-2 shadow-lg">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium text-navy-900">AI Generating...</span>
+                  <div className="absolute bottom-4 left-4 bg-charcoal-900/95 backdrop-blur-sm rounded-full px-4 py-2 flex items-center gap-2 shadow-lg border border-gold-500/20">
+                    <div className="w-2 h-2 bg-status-success rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium text-gold-400">AI Generating...</span>
                   </div>
                 </div>
               </div>
 
               {/* Floating Elements */}
-              <div className="absolute -top-4 -right-4 bg-gold-500 text-navy-900 px-4 py-2 rounded-full shadow-lg font-bold text-sm animate-bounce">
+              <div className="absolute -top-4 -right-4 bg-gradient-to-r from-gold-400 to-gold-600 text-navy-900 px-4 py-2 rounded-full shadow-lg font-bold text-sm animate-bounce">
                 Powered by AI
               </div>
 
-              <div className="absolute -bottom-6 -left-6 bg-white rounded-2xl shadow-xl p-4 border border-gray-100">
+              <div className="absolute -bottom-6 -left-6 bg-charcoal-800 rounded-2xl shadow-xl p-4 border border-gold-500/20">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-navy-900 rounded-xl flex items-center justify-center">
-                    <svg className="w-6 h-6 text-gold-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-12 h-12 bg-gradient-to-br from-gold-400 to-gold-600 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <span className="block text-sm font-bold text-navy-900">Action Plan Ready</span>
-                    <span className="text-xs text-gray-500">12 tasks generated</span>
+                    <span className="block text-sm font-bold text-white">Ascension Plan Ready</span>
+                    <span className="text-xs text-gray-400">12 steps generated</span>
                   </div>
                 </div>
               </div>

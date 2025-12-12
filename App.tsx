@@ -29,7 +29,7 @@ import MdalsTestPanel from './components/mdals/MdalsTestPanel';
 import { GuidedOnboarding } from './components/onboarding';
 import { Dashboard, DashboardV2 } from './components/dashboard';
 import { LandingPage } from './components/landing';
-import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon } from './components/Icons';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon, VisionaryLogo, VisionaryIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
@@ -1493,22 +1493,19 @@ const App = () => {
   return (
     <ToastProvider>
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        {/* Navbar - Mobile Optimized v1.7 */}
-        <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        {/* Navbar - Mobile Optimized v1.7 - Visionary AI Branded */}
+        <nav className="bg-navy-900 border-b border-gold-500/20 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between h-14 md:h-16">
               {/* Logo */}
               <div className="flex items-center cursor-pointer" onClick={() => setView(onboardingCompleted ? AppView.DASHBOARD : AppView.LANDING)}>
-                <div className="w-7 h-7 md:w-8 md:h-8 bg-navy-900 rounded-lg flex items-center justify-center mr-2">
-                  <span className="text-gold-500 font-serif font-bold text-lg md:text-xl">V</span>
-                </div>
-                <span className="text-lg md:text-xl font-serif font-bold text-navy-900">Visionary</span>
+                <VisionaryLogo variant="full" size="sm" theme="light" />
               </div>
 
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
-                className="md:hidden flex items-center p-2 text-gray-500 hover:text-navy-900"
+                className="md:hidden flex items-center p-2 text-gold-400 hover:text-gold-300"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   {showMobileMenu ? (
@@ -1522,28 +1519,28 @@ const App = () => {
               {/* Desktop Navigation */}
               <div className="hidden md:flex items-center gap-4">
                 {/* Primary Navigation - v1.6 Simplified */}
-                <button onClick={() => setView(AppView.DASHBOARD)} className={`text-sm font-medium transition-colors ${view === AppView.DASHBOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                  Dashboard
+                <button onClick={() => setView(AppView.DASHBOARD)} className={`text-sm font-medium transition-colors ${view === AppView.DASHBOARD ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
+                  Ascension
                 </button>
-                <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Visualize
                 </button>
-                <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Gallery
                 </button>
-                <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Execute
                 </button>
-                <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   <FireIcon className="w-4 h-4" /> Habits
                 </button>
-                <button onClick={() => setView(AppView.VOICE_COACH)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.VOICE_COACH ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.VOICE_COACH)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.VOICE_COACH ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   <MicIcon className="w-4 h-4" /> Coach
                 </button>
-                <button onClick={() => setView(AppView.PRINT_PRODUCTS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PRINT_PRODUCTS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.PRINT_PRODUCTS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PRINT_PRODUCTS ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   <PrinterIcon className="w-4 h-4" /> Print
                 </button>
-                <button onClick={() => setShowWorkbookModal(true)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${showWorkbookModal ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setShowWorkbookModal(true)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${showWorkbookModal ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   <BookOpenIcon className="w-4 h-4" /> Workbook
                 </button>
 
@@ -1551,7 +1548,7 @@ const App = () => {
                 <div className="relative">
                   <button
                     onClick={() => setShowMoreMenu(!showMoreMenu)}
-                    className="text-sm font-medium text-gray-500 hover:text-navy-900 transition-colors flex items-center gap-1"
+                    className="text-sm font-medium text-gray-400 hover:text-gold-400 transition-colors flex items-center gap-1"
                   >
                     More
                     <svg className={`w-4 h-4 transition-transform ${showMoreMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1560,98 +1557,98 @@ const App = () => {
                   </button>
 
                   {showMoreMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50">
-                      <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                    <div className="absolute right-0 mt-2 w-48 bg-charcoal-800 rounded-lg shadow-xl border border-gold-500/20 py-2 z-50">
+                      <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <CalendarIcon className="w-4 h-4" /> Reviews
                       </button>
-                      <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <FolderIcon className="w-4 h-4" /> Knowledge
                       </button>
-                      <button onClick={() => { setView(AppView.PARTNER); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.PARTNER); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <HeartIcon className="w-4 h-4" /> Partner
                       </button>
-                      <button onClick={() => { setView(AppView.INTEGRATIONS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.INTEGRATIONS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <GlobeIcon className="w-4 h-4" /> Apps
                       </button>
-                      <button onClick={() => { setView(AppView.TEAM_LEADERBOARDS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.TEAM_LEADERBOARDS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <TrophyIcon className="w-4 h-4" /> Teams
                       </button>
-                      <button onClick={() => { setView(AppView.MANAGER_DASHBOARD); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.MANAGER_DASHBOARD); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <ChartBarIcon className="w-4 h-4" /> Manager
                       </button>
-                      <button onClick={() => { setView(AppView.MDALS_LAB); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.MDALS_LAB); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gold-400 hover:bg-navy-800 flex items-center gap-2">
                         <MusicNoteIcon className="w-4 h-4" /> MDALS Lab
                       </button>
-                      <div className="border-t border-gray-100 my-1" />
-                      <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <div className="border-t border-gold-500/20 my-1" />
+                      <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <ReceiptIcon className="w-4 h-4" /> Orders
                       </button>
                     </div>
                   )}
                 </div>
 
-                <div className="h-6 w-px bg-gray-200 mx-2"></div>
+                <div className="h-6 w-px bg-gold-500/20 mx-2"></div>
 
                 {/* User Menu */}
-                <span className="text-xs text-gray-400 hidden lg:block">{session.user.email}</span>
-                <button onClick={handleSignOut} className="text-xs font-bold text-navy-900 hover:text-red-500 transition-colors">Sign Out</button>
+                <span className="text-xs text-gray-500 hidden lg:block">{session.user.email}</span>
+                <button onClick={handleSignOut} className="text-xs font-bold text-gold-400 hover:text-red-400 transition-colors">Sign Out</button>
               </div>
             </div>
           </div>
 
           {/* Mobile Navigation Menu */}
           {showMobileMenu && (
-            <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
+            <div className="md:hidden bg-charcoal-800 border-t border-gold-500/20 shadow-lg">
               <div className="px-4 py-3 space-y-1">
                 {/* Primary Nav Items */}
-                <button onClick={() => { setView(AppView.DASHBOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.DASHBOARD ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
-                  <SparklesIcon className="w-4 h-4" /> Dashboard
+                <button onClick={() => { setView(AppView.DASHBOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.DASHBOARD ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <VisionaryIcon size={16} color={view === AppView.DASHBOARD ? '#C5A572' : '#9CA3AF'} /> Ascension
                 </button>
-                <button onClick={() => { setView(AppView.VISION_BOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VISION_BOARD ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <button onClick={() => { setView(AppView.VISION_BOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VISION_BOARD ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <SparklesIcon className="w-4 h-4" /> Visualize
                 </button>
-                <button onClick={() => { setView(AppView.GALLERY); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.GALLERY ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <button onClick={() => { setView(AppView.GALLERY); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.GALLERY ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <SparklesIcon className="w-4 h-4" /> Gallery
                 </button>
-                <button onClick={() => { setView(AppView.ACTION_PLAN); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.ACTION_PLAN ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <button onClick={() => { setView(AppView.ACTION_PLAN); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.ACTION_PLAN ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <SparklesIcon className="w-4 h-4" /> Execute
                 </button>
 
-                <div className="border-t border-gray-100 my-2" />
+                <div className="border-t border-gold-500/20 my-2" />
 
                 {/* Secondary Nav */}
-                <button onClick={() => { setView(AppView.HABITS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.HABITS ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <button onClick={() => { setView(AppView.HABITS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.HABITS ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <FireIcon className="w-4 h-4" /> Habits
                 </button>
-                <button onClick={() => { setView(AppView.VOICE_COACH); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VOICE_COACH ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <button onClick={() => { setView(AppView.VOICE_COACH); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VOICE_COACH ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <MicIcon className="w-4 h-4" /> Voice Coach
                 </button>
-                <button onClick={() => { setView(AppView.PRINT_PRODUCTS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.PRINT_PRODUCTS ? 'bg-navy-50 text-navy-900' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <button onClick={() => { setView(AppView.PRINT_PRODUCTS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.PRINT_PRODUCTS ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <PrinterIcon className="w-4 h-4" /> Print Products
                 </button>
-                <button onClick={() => { setShowWorkbookModal(true); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-600 hover:bg-gray-50">
+                <button onClick={() => { setShowWorkbookModal(true); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-300 hover:bg-navy-800">
                   <BookOpenIcon className="w-4 h-4" /> Workbook
                 </button>
 
-                <div className="border-t border-gray-100 my-2" />
+                <div className="border-t border-gold-500/20 my-2" />
 
                 {/* More Items */}
-                <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-600 hover:bg-gray-50">
+                <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-300 hover:bg-navy-800">
                   <CalendarIcon className="w-4 h-4" /> Reviews
                 </button>
-                <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-600 hover:bg-gray-50">
+                <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-300 hover:bg-navy-800">
                   <FolderIcon className="w-4 h-4" /> Knowledge Base
                 </button>
-                <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-600 hover:bg-gray-50">
+                <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-300 hover:bg-navy-800">
                   <ReceiptIcon className="w-4 h-4" /> Order History
                 </button>
 
-                <div className="border-t border-gray-100 my-2" />
+                <div className="border-t border-gold-500/20 my-2" />
 
                 {/* User Section */}
                 <div className="px-3 py-2">
-                  <p className="text-xs text-gray-400 mb-2">{session.user.email}</p>
-                  <button onClick={() => { handleSignOut(); setShowMobileMenu(false); }} className="text-sm font-bold text-red-500 hover:text-red-600">
+                  <p className="text-xs text-gray-500 mb-2">{session.user.email}</p>
+                  <button onClick={() => { handleSignOut(); setShowMobileMenu(false); }} className="text-sm font-bold text-red-400 hover:text-red-300">
                     Sign Out
                   </button>
                 </div>
