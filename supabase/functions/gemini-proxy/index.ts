@@ -27,13 +27,14 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 const getModelConfig = () => {
   const env = typeof Deno !== 'undefined' ? Deno.env : { get: () => undefined }
   return {
-    // Primary: Nano Banana Pro (Gemini 2.5 Pro with image generation)
-    // Best for: character consistency, likeness preservation, high-quality outputs
-    image_primary: env.get?.('GOOGLE_IMAGE_MODEL_PRIMARY') || 'gemini-2.5-pro-preview-06-05',
+    // Primary: Gemini 3 Pro Image (Nano Banana Pro) - BEST for character consistency
+    // Supports up to 14 reference images with up to 5 human subjects
+    // Optimal for likeness preservation with multi-turn conversation structure
+    image_primary: env.get?.('GOOGLE_IMAGE_MODEL_PRIMARY') || 'gemini-3-pro-image-preview',
 
-    // Fallback 1: Nano Banana (Gemini 2.5 Flash with image generation)
-    // Good for: faster generation, still maintains decent likeness
-    image_fallback_1: env.get?.('GOOGLE_IMAGE_MODEL_FALLBACK') || 'gemini-2.5-flash-preview-05-20',
+    // Fallback 1: Gemini 2.5 Flash Image (Nano Banana)
+    // Good balance of speed/quality, supports up to 3 reference images
+    image_fallback_1: env.get?.('GOOGLE_IMAGE_MODEL_FALLBACK') || 'gemini-2.5-flash-image',
 
     // Fallback 2: Gemini 2.0 Flash Experimental
     // Older but stable, uses responseModalities
@@ -567,10 +568,18 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 /**
  * Centralized Prompt Builder for Likeness-Preserving Image Generation
  *
- * This builds a multi-turn conversation structure optimized for Nano Banana / Nano Banana Pro:
- * 1. First turn: Base/couple photo with strong likeness preservation instructions
- * 2. Additional turns: Reference portraits with identity descriptions
- * 3. Final turn: Scene generation instructions with likeness priority
+ * UPDATED: December 2025 - Optimized for Gemini 3 Pro Image (Nano Banana Pro)
+ *
+ * This builds a 3-turn conversation structure based on Google's best practices:
+ * 1. TURN 1 (User): All reference images with comprehensive identity anchoring
+ * 2. TURN 2 (Model - Simulated): Acknowledgment that reinforces understanding
+ * 3. TURN 3 (User): Scene generation request with identity reminders
+ *
+ * Key improvements:
+ * - All images sent in first turn for better context
+ * - Simulated model acknowledgment for identity reinforcement
+ * - Lower temperature (0.4) for more consistent likeness
+ * - Proper imageConfig for aspect ratio and resolution
  */
 interface LikenessRequestParams {
   baseImage: string | null
@@ -610,150 +619,176 @@ function buildLikenessPreservingRequest(params: LikenessRequestParams, requestId
     : []
 
   // ============================================
-  // TURN 1: Base Image (couple/person to preserve)
+  // TURN 1: Identity Establishment (User)
+  // Introduce ALL reference images with strong identity anchoring
   // ============================================
+  const turn1Parts: any[] = []
+
+  // Add base image first
   if (baseImage) {
     const baseImageData = extractBase64Data(baseImage)
-    contents.push({
-      role: 'user',
-      parts: [
-        {
-          inlineData: {
-            mimeType: baseImageData.mimeType,
-            data: baseImageData.base64
-          }
-        },
-        {
-          text: `IMPORTANT: This is the primary reference photo. The person(s) in this image must appear in the final generated image with their exact likeness preserved.
-
-CRITICAL LIKENESS REQUIREMENTS:
-- Preserve exact facial features, face shape, and distinctive characteristics
-- Maintain accurate skin tone, complexion, and any visible marks/features
-- Keep the same approximate age appearance (do NOT make them younger or older)
-- Preserve body type and proportions (do NOT idealize or change their build)
-- Maintain hairstyle, hair color, and hair texture
-- Keep gender presentation and identity accurate
-- Preserve any glasses, facial hair, or accessories if present
-
-These requirements have HIGHEST PRIORITY - the scene can be adjusted, but the people cannot be changed.`
-        }
-      ]
+    turn1Parts.push({
+      inlineData: {
+        mimeType: baseImageData.mimeType,
+        data: baseImageData.base64
+      }
     })
   }
 
-  // ============================================
-  // TURNS 2-N: Additional Reference Images
-  // ============================================
-  referenceImages.forEach((refImage, index) => {
+  // Add all reference images to the first turn
+  referenceImages.forEach((refImage) => {
     const refImageData = extractBase64Data(refImage)
-    const tagLabel = referenceImageTags[index] || `Person ${index + 1}`
-    const identityDesc = identityDescriptions[index] || ''
-
-    let referenceText = `Additional reference photo of "${tagLabel}". Use this image to improve facial and body-type accuracy for this person.`
-
-    // Add identity description if available
-    if (identityDesc) {
-      referenceText += `\n\nPhysical description for ${tagLabel}: ${identityDesc}`
-      referenceText += `\n\nUse this description along with the photo to ensure accurate representation.`
-    }
-
-    contents.push({
-      role: 'user',
-      parts: [
-        {
-          inlineData: {
-            mimeType: refImageData.mimeType,
-            data: refImageData.base64
-          }
-        },
-        {
-          text: referenceText
-        }
-      ]
+    turn1Parts.push({
+      inlineData: {
+        mimeType: refImageData.mimeType,
+        data: refImageData.base64
+      }
     })
   })
 
+  // Build comprehensive identity description
+  let identityText = `IDENTITY LOCK PROTOCOL - READ CAREFULLY:
+
+These photos show the EXACT person(s) who MUST appear in all generated images.
+
+`
+
+  // Add tagged descriptions for each person
+  if (referenceImageTags.length > 0) {
+    identityText += `PEOPLE IN THESE PHOTOS:\n`
+    referenceImageTags.forEach((tag, index) => {
+      const desc = identityDescriptions[index] || ''
+      if (desc) {
+        identityText += `- ${tag}: ${desc}\n`
+      } else {
+        identityText += `- ${tag}\n`
+      }
+    })
+    identityText += `\n`
+  }
+
+  identityText += `MANDATORY IDENTITY REQUIREMENTS:
+1. FACE: Preserve EXACT facial structure, shape, and proportions. Every facial feature must match.
+2. SKIN: Match skin tone, complexion, and any visible marks/features EXACTLY.
+3. AGE: Keep the SAME age appearance - do NOT make younger or older.
+4. BODY: Preserve body type, height ratio, and build EXACTLY as shown.
+5. FEATURES: Keep hair style/color, glasses, facial hair, or accessories if present.
+6. ETHNICITY: Preserve exact ethnic appearance - do NOT change or generalize.
+
+These requirements are ABSOLUTE and override any scene requirements.
+If the scene conflicts with identity preservation, MODIFY THE SCENE, not the people.
+
+Confirm you understand these people and will preserve their exact likeness in any images you generate.`
+
+  turn1Parts.push({ text: identityText })
+
+  contents.push({
+    role: 'user',
+    parts: turn1Parts
+  })
+
   // ============================================
-  // FINAL TURN: Scene Generation Instructions
+  // TURN 2: Model Acknowledgment (Simulated)
+  // This helps reinforce the identity understanding
   // ============================================
-  let finalInstructions = `Now generate a photorealistic vision board image with the following scene:
+  const peopleNames = referenceImageTags.length > 0
+    ? referenceImageTags.join(' and ')
+    : 'the person(s) shown'
+
+  const totalImageCount = (baseImage ? 1 : 0) + referenceImages.length
+
+  contents.push({
+    role: 'model',
+    parts: [{
+      text: `I have carefully analyzed all ${totalImageCount} reference photo(s) and locked in the identity characteristics of ${peopleNames}.
+
+I will preserve their exact:
+- Facial features and structure
+- Skin tone and complexion
+- Age appearance
+- Body type and proportions
+- Distinctive features (hair, glasses, etc.)
+
+I understand that identity preservation is the HIGHEST PRIORITY and will never substitute generic models or idealized versions. I am ready to generate images with these individuals while maintaining 100% likeness fidelity. What scene would you like me to create?`
+    }]
+  })
+
+  // ============================================
+  // TURN 3: Scene Generation Request (User)
+  // Now request the actual vision board
+  // ============================================
+  let sceneInstructions = `Now generate a vision board image with the following scene:
 
 ${sceneDescription}
 
-STRICT GENERATION RULES (in priority order):
-1. LIKENESS PRESERVATION (HIGHEST PRIORITY)
-   - The people in this image MUST be the exact same individuals from the reference photos
-   - Match their faces, skin tone, age, height/weight ratio, and distinguishing features
-   - Do NOT substitute generic models or idealized versions of them
-   - Do NOT change their ethnicity, body type, or age appearance
-   - If preserving likeness conflicts with the scene, adjust the scene instead
+CRITICAL REMINDERS:
+- The people in this image MUST be the EXACT same individuals from the reference photos
+- Match their face, skin tone, age, body type, and all distinguishing features PRECISELY
+- If you cannot preserve likeness perfectly, adjust the scene composition instead
+- Do NOT substitute generic models or idealized versions
+- Do NOT change ethnicity, body type, or age appearance
+- KEEP FACE SAME - this is the most important requirement
+`
 
-2. SCENE INTEGRATION
-   - Place the preserved individuals naturally into the described scene
-   - Adjust clothing to fit the scene context while keeping it plausible for these specific people
-   - Maintain realistic proportions and perspective
-   - Create cohesive lighting that works with both the people and the environment`
-
-  // Add title text rendering instructions
   if (titleText) {
-    finalInstructions += `
-
-3. TEXT RENDERING
-   - Include the title "${titleText}" prominently in the image
-   - Use elegant, readable typography (decorative script or modern sans-serif)
-   - Position the text in a clear area that doesn't obscure the people
-   - Make it look like professional vision board typography`
+    sceneInstructions += `
+TEXT TO INCLUDE:
+- Display "${titleText}" prominently in elegant typography
+- Position text in a clear area that doesn't obscure the people
+`
   }
 
-  // Add embedded text
   if (embeddedText) {
-    finalInstructions += `
-   - Also include this text naturally in the scene: "${embeddedText}"`
+    sceneInstructions += `- Also include: "${embeddedText}"\n`
   }
 
-  // Add style instructions
-  if (style) {
+  if (style && style !== 'photorealistic') {
     const styleInstructions: Record<string, string> = {
-      'photorealistic': 'Use photorealistic style with natural lighting and realistic textures.',
-      'cinematic': 'Apply cinematic style with dramatic lighting, film-like color grading, and widescreen composition.',
+      'cinematic': 'Apply cinematic style with dramatic lighting and film-like color grading.',
       'oil_painting': 'Render in oil painting style while preserving recognizable facial features.',
       'watercolor': 'Apply soft watercolor aesthetic while maintaining facial likeness accuracy.',
       'cyberpunk': 'Use cyberpunk neon aesthetic while keeping faces clearly recognizable.',
       '3d_render': 'Create 3D rendered style while preserving accurate facial proportions and features.'
     }
 
-    finalInstructions += `
-
-4. ARTISTIC STYLE
-   ${styleInstructions[style] || `Apply ${style} style.`}
-   IMPORTANT: Style may change the aesthetic, but must NOT change who the people are.`
+    sceneInstructions += `
+ARTISTIC STYLE: ${styleInstructions[style] || style}
+Note: Apply style to the environment and aesthetic, but DO NOT alter the people's identities or features.
+`
   }
 
-  // Add quality modifiers for premium users
   if (isPremium) {
-    finalInstructions += `
-
-5. PREMIUM QUALITY ENHANCEMENTS
-   - Render at highest quality (8K resolution equivalent)
-   - Ultra-detailed textures and materials
-   - Professional photography lighting
-   - Cinematic composition and depth of field
-   - Award-winning visual quality`
+    sceneInstructions += `
+QUALITY: Render at highest quality with professional lighting, cinematic composition, and ultra-detailed textures.
+`
   }
 
   contents.push({
     role: 'user',
-    parts: [{ text: finalInstructions }]
+    parts: [{ text: sceneInstructions }]
   })
 
-  // Build generation config
+  // Build generation config with improved settings
   const generationConfig: any = {
-    temperature: 0.7, // Slightly lower for more consistent likeness
+    temperature: 0.4, // Lower temperature for more consistent likeness
     maxOutputTokens: 8192,
     responseModalities: ['IMAGE', 'TEXT']
   }
 
-  console.log(`[${requestId}] Prompt builder created ${contents.length} turns, ${baseImage ? 'with' : 'without'} base image, ${referenceImages.length} reference images`)
+  // Add imageConfig for Gemini 3 Pro Image
+  if (aspectRatio || isPremium) {
+    generationConfig.imageConfig = {}
+
+    if (aspectRatio) {
+      generationConfig.imageConfig.aspectRatio = aspectRatio
+    }
+
+    if (isPremium) {
+      generationConfig.imageConfig.imageSize = '2K' // Higher resolution for premium users
+    }
+  }
+
+  console.log(`[${requestId}] Built ${contents.length}-turn conversation with ${totalImageCount} reference images, temp=${generationConfig.temperature}`)
 
   return { contents, generationConfig }
 }
@@ -810,15 +845,22 @@ function extractBase64Data(imageData: string): { base64: string; mimeType: strin
 
 /**
  * Improved Gemini Image Generation with multi-turn conversation structure
+ *
+ * UPDATED: December 2025 - Added thought signature handling for Gemini 3 Pro Image
+ *
+ * Thought signatures are critical for Gemini 3 Pro Image:
+ * - They must be passed back exactly as received in multi-turn conversations
+ * - Failure to circulate thought signatures may cause the response to fail
  */
 async function tryGeminiImageGenerationV2(
   apiKey: string,
   request: { contents: any[]; generationConfig: any },
   model: string,
   requestId: string
-): Promise<{ success: boolean; image?: string; error?: string }> {
+): Promise<{ success: boolean; image?: string; error?: string; thoughtSignature?: string }> {
   try {
     console.log(`[${requestId}] Trying ${model} for likeness-preserving image generation...`)
+    console.log(`[${requestId}] Request has ${request.contents.length} turns, temp=${request.generationConfig.temperature}`)
 
     const requestBody = {
       contents: request.contents,
@@ -827,19 +869,43 @@ async function tryGeminiImageGenerationV2(
 
     const response = await callGeminiAPI(apiKey, model, requestBody, requestId)
 
+    // Extract image from response
     const imageData = extractImageFromResponse(response)
     if (imageData) {
-      return { success: true, image: imageData }
+      // Extract thought signature if present (for Gemini 3 Pro Image)
+      // This should be passed back in subsequent requests if doing multi-step refinement
+      const parts = response.candidates?.[0]?.content?.parts || []
+      const thoughtSignature = parts.find((p: any) => p.thought_signature)?.thought_signature
+
+      if (thoughtSignature) {
+        console.log(`[${requestId}] Thought signature captured for potential refinement`)
+      }
+
+      return {
+        success: true,
+        image: imageData,
+        thoughtSignature
+      }
     }
 
-    // Check if we got text instead
+    // Check if we got text instead of image
     const textResponse = response.candidates?.[0]?.content?.parts?.[0]?.text
     if (textResponse) {
+      // Log the full text for debugging likeness issues
+      console.log(`[${requestId}] Model returned text instead of image: ${textResponse.substring(0, 300)}`)
       return { success: false, error: `Model returned text instead of image: "${textResponse.substring(0, 100)}..."` }
+    }
+
+    // Check for safety blocks or other issues
+    const finishReason = response.candidates?.[0]?.finishReason
+    if (finishReason && finishReason !== 'STOP') {
+      console.log(`[${requestId}] Unexpected finish reason: ${finishReason}`)
+      return { success: false, error: `Generation stopped: ${finishReason}` }
     }
 
     return { success: false, error: 'No image or text in response' }
   } catch (error: any) {
+    console.error(`[${requestId}] tryGeminiImageGenerationV2 error:`, error.message)
     return { success: false, error: error.message }
   }
 }

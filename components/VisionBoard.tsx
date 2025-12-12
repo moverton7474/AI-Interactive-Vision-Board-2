@@ -434,8 +434,36 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     return true;
   };
 
+  // Validate references before generation (Gemini 3 Pro supports up to 5 human subjects)
+  const validateForGeneration = useCallback(() => {
+    const selectedRefs = references.filter(r => selectedRefIds.includes(r.id));
+
+    // Check max reference limit (Gemini 3 Pro Image supports up to 14 images, 5 human subjects)
+    if (selectedRefs.length > 5) {
+      showToast("Maximum 5 person references supported for best likeness. Consider selecting fewer references.", 'warning');
+      return false;
+    }
+
+    // Warn if references lack identity descriptions (non-blocking)
+    const refsWithoutDescription = selectedRefs.filter(r => !r.identityDescription);
+    if (refsWithoutDescription.length > 0 && selectedRefs.length > 0) {
+      showToast(
+        `Tip: Add identity descriptions to your reference photos for better likeness preservation. ${refsWithoutDescription.length} reference(s) missing descriptions.`,
+        'info'
+      );
+      // Don't block - just inform
+    }
+
+    return true;
+  }, [references, selectedRefIds, showToast]);
+
   const handleGenerate = async () => {
     if (!baseImage || !promptInput) return;
+
+    // Run validation checks
+    if (!validateForGeneration()) {
+      return;
+    }
 
     // Credit Check
     if (credits !== null && credits <= 0) {
