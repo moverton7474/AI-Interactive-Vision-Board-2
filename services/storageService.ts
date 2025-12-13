@@ -183,6 +183,12 @@ export interface VisionImageWithMetadata extends VisionImage {
 
 export const saveVisionImage = async (image: VisionImageWithMetadata): Promise<void> => {
   try {
+    // Get current user - CRITICAL: Must set user_id for security
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Must be authenticated to save vision images');
+    }
+
     const blob = base64ToBlob(image.url);
     const fileName = `${image.id}.png`;
 
@@ -206,6 +212,7 @@ export const saveVisionImage = async (image: VisionImageWithMetadata): Promise<v
       .insert([
         {
           id: image.id,
+          user_id: user.id,  // SECURITY: Explicitly set user_id
           prompt: image.prompt,
           image_url: publicUrl,
           created_at: new Date(image.createdAt).toISOString(),
@@ -228,9 +235,17 @@ export const saveVisionImage = async (image: VisionImageWithMetadata): Promise<v
 
 export const getVisionGallery = async (): Promise<VisionImage[]> => {
   try {
+    // Get current user - CRITICAL: Must filter by user_id for security
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.warn('getVisionGallery: No authenticated user');
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('vision_boards')
       .select('*')
+      .eq('user_id', user.id)  // SECURITY: Explicit user filtering (defense-in-depth with RLS)
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];
@@ -264,6 +279,12 @@ export const saveReferenceImage = async (
   identityDescription?: string
 ): Promise<ReferenceImage> => {
   try {
+    // Get current user - CRITICAL: Must set user_id for security
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Must be authenticated to save reference images');
+    }
+
     const id = crypto.randomUUID();
     const blob = base64ToBlob(base64Url);
     const fileName = `ref_${id}.png`;
@@ -284,6 +305,7 @@ export const saveReferenceImage = async (
       .from('reference_images')
       .insert([{
         id: id,
+        user_id: user.id,  // SECURITY: Explicitly set user_id
         image_url: publicUrl,
         tags: tags,
         created_at: new Date().toISOString(),
@@ -307,9 +329,17 @@ export const saveReferenceImage = async (
 
 export const getReferenceLibrary = async (): Promise<ReferenceImage[]> => {
   try {
+    // Get current user - CRITICAL: Must filter by user_id for security
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.warn('getReferenceLibrary: No authenticated user');
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('reference_images')
       .select('*')
+      .eq('user_id', user.id)  // SECURITY: Explicit user filtering
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];
@@ -339,6 +369,12 @@ export const deleteReferenceImage = async (id: string): Promise<void> => {
 
 export const saveDocument = async (doc: Omit<Document, 'id' | 'createdAt'>, file?: File): Promise<Document> => {
   try {
+    // Get current user - CRITICAL: Must set user_id for security
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Must be authenticated to save documents');
+    }
+
     const id = crypto.randomUUID();
     let publicUrl = '';
 
@@ -356,6 +392,7 @@ export const saveDocument = async (doc: Omit<Document, 'id' | 'createdAt'>, file
 
     const { error: dbError } = await supabase.from('documents').insert([{
       id,
+      user_id: user.id,  // SECURITY: Explicitly set user_id
       name: doc.name,
       url: publicUrl,
       type: doc.type,
@@ -379,9 +416,17 @@ export const saveDocument = async (doc: Omit<Document, 'id' | 'createdAt'>, file
 
 export const getDocuments = async (): Promise<Document[]> => {
   try {
+    // Get current user - CRITICAL: Must filter by user_id for security
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.warn('getDocuments: No authenticated user');
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('documents')
       .select('*')
+      .eq('user_id', user.id)  // SECURITY: Explicit user filtering
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];
@@ -434,9 +479,17 @@ export const saveActionTasks = async (tasks: ActionTask[], milestoneYear: number
 
 export const getActionTasks = async (): Promise<ActionTask[]> => {
   try {
+    // Get current user - CRITICAL: Must filter by user_id for security
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.warn('getActionTasks: No authenticated user');
+      return [];
+    }
+
     const { data, error } = await supabase
       .from('action_tasks')
       .select('*')
+      .eq('user_id', user.id)  // SECURITY: Explicit user filtering
       .order('created_at', { ascending: true });
 
     if (error || !data) return [];
