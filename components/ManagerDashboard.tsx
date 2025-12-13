@@ -69,6 +69,9 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
 
+  // Platform admin state
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -85,6 +88,17 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         return;
       }
 
+      // Check if user is a platform admin (bypasses team requirement)
+      const { data: platformRole } = await supabase
+        .from('platform_roles')
+        .select('role, is_active')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      const isAdmin = platformRole?.role === 'platform_admin';
+      setIsPlatformAdmin(isAdmin);
+
       // Check if user is a team member/manager
       const { data: memberData, error: memberError } = await supabase
         .from('team_members')
@@ -93,19 +107,27 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
           teams (*)
         `)
         .eq('user_id', user.id)
+        .eq('is_active', true)
         .single();
 
-      if (memberError || !memberData) {
+      if ((memberError || !memberData) && !isAdmin) {
         setError('You are not part of any team. Create or join a team to access this dashboard.');
         setLoading(false);
         return;
       }
 
-      setIsManager(memberData.role === 'admin' || memberData.role === 'manager');
-      setTeam(memberData.teams);
+      // Platform admins are always managers
+      setIsManager(isAdmin || memberData?.role === 'admin' || memberData?.role === 'manager' || memberData?.role === 'owner');
 
-      // Load team members
-      const { data: teamMembers, error: membersError } = await supabase
+      // Set team - platform admins without a team see "All Teams"
+      if (memberData?.teams) {
+        setTeam(memberData.teams);
+      } else if (isAdmin) {
+        setTeam({ id: 'all', name: 'All Teams (Platform Admin)', description: 'Platform-wide view', created_at: new Date().toISOString() });
+      }
+
+      // Load team members - platform admins can see all, others see their team only
+      let teamMembersQuery = supabase
         .from('team_members')
         .select(`
           *,
@@ -113,9 +135,16 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             names,
             email,
             avatar_url
-          )
-        `)
-        .eq('team_id', memberData.team_id);
+          ),
+          teams (name)
+        `);
+
+      // If not platform admin, filter to their team
+      if (!isAdmin && memberData?.team_id) {
+        teamMembersQuery = teamMembersQuery.eq('team_id', memberData.team_id);
+      }
+
+      const { data: teamMembers, error: membersError } = await teamMembersQuery;
 
       if (membersError) throw membersError;
 
@@ -265,6 +294,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
               <h1 className="text-3xl font-bold text-white flex items-center gap-3">
                 <ChartBarIcon className="w-8 h-8 text-indigo-400" />
                 Manager Dashboard
+                {isPlatformAdmin && (
+                  <span className="px-2 py-1 text-xs rounded-full bg-purple-500/30 text-purple-300 border border-purple-500/50">
+                    Platform Admin
+                  </span>
+                )}
               </h1>
               <p className="text-indigo-200 mt-1">
                 {team?.name || 'Team Overview'}
