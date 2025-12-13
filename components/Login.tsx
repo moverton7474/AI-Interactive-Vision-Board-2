@@ -17,12 +17,21 @@ const Login = () => {
 
     try {
       if (mode === 'SIGN_UP') {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
         if (error) throw error;
-        setMessage({ type: 'success', text: 'Check your email for the confirmation link!' });
+        // Check if email confirmation is required (session will be null if confirmation needed)
+        if (data?.session) {
+          // User is automatically signed in (email confirmation disabled)
+          setMessage({ type: 'success', text: 'Account created successfully! Redirecting to your dashboard...' });
+        } else if (data?.user && !data?.session) {
+          // Email confirmation is required
+          setMessage({ type: 'success', text: 'Check your email for the confirmation link!' });
+        } else {
+          setMessage({ type: 'success', text: 'Account created! You can now sign in.' });
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
