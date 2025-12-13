@@ -440,7 +440,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
     // Check max reference limit (Gemini 3 Pro Image supports up to 14 images, 5 human subjects)
     if (selectedRefs.length > 5) {
-      showToast("Maximum 5 person references supported for best likeness. Consider selecting fewer references.", 'warning');
+      showToast("Maximum 5 person references supported for best likeness. Consider selecting fewer references.", 'info');
       return false;
     }
 
@@ -585,7 +585,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
           } else if (validation.likeness_score >= 0.5) {
             showToast("Likeness could be improved. Try regenerating.", 'info');
           } else {
-            showToast("Low likeness score. Consider regenerating with 'stronger likeness emphasis'.", 'warning');
+            showToast("Low likeness score. Consider regenerating with 'stronger likeness emphasis'.", 'info');
           }
         }
       }
