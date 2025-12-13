@@ -90,6 +90,10 @@ const App = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
+  // Profile loading guard to prevent duplicate fetches
+  const [profileLoadingInProgress, setProfileLoadingInProgress] = useState(false);
+  const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null);
+
   useEffect(() => {
     // 1. Check DB Connection
     checkDatabaseConnection().then(isConnected => {
@@ -126,11 +130,25 @@ const App = () => {
   useEffect(() => {
     if (!session?.user) {
       setOnboardingCompleted(null);
+      setLastLoadedUserId(null);
+      return;
+    }
+
+    // Guard: Skip if already loading or if we've already loaded this user's profile
+    if (profileLoadingInProgress) {
+      return;
+    }
+
+    if (lastLoadedUserId === session.user.id) {
       return;
     }
 
     const loadUserProfile = async (retryCount = 0) => {
       const MAX_RETRIES = 1;
+
+      // Set loading guard
+      setProfileLoadingInProgress(true);
+
       console.log('🔍 Loading user profile...', { userId: session.user.id, email: session.user.email, attempt: retryCount + 1 });
 
       try {
@@ -299,6 +317,9 @@ const App = () => {
         }
 
         console.log('✅ Profile load complete');
+
+        // Mark this user as loaded to prevent duplicate fetches
+        setLastLoadedUserId(session.user.id);
       } catch (err) {
         console.error('❌ Unexpected error loading profile:', {
           error: err,
@@ -313,11 +334,17 @@ const App = () => {
         setSubscriptionTier('FREE');
         setUserName(session.user.email?.split('@')[0] || 'Friend');
         setView(AppView.GUIDED_ONBOARDING);
+
+        // Still mark as loaded to prevent retry loops
+        setLastLoadedUserId(session.user.id);
+      } finally {
+        // Clear loading guard
+        setProfileLoadingInProgress(false);
       }
     };
 
     loadUserProfile();
-  }, [session]);
+  }, [session, profileLoadingInProgress, lastLoadedUserId]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
