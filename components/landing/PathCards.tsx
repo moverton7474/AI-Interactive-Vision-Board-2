@@ -130,6 +130,18 @@ export const PathCards: React.FC<PathCardsProps> = ({ onGetStarted }) => {
       description: "Turn big dreams into daily habits. Track streaks, get AI coaching, and build unstoppable momentum.",
       color: "bg-amber-500",
       bgColor: "bg-gradient-to-br from-amber-50 to-transparent"
+    },
+    {
+      icon: (
+        <svg className="w-7 h-7 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 12v.01" />
+        </svg>
+      ),
+      title: "Health & Vitality",
+      description: "Turn wellness goals into daily habits that compound into energy and longevity. Track fitness, nutrition, and mindfulness.",
+      color: "bg-teal-500",
+      bgColor: "bg-gradient-to-br from-teal-50 to-transparent"
     }
   ];
 
