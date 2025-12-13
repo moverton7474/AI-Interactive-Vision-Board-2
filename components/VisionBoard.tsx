@@ -544,7 +544,9 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       let errorMsg = "An error occurred during generation.";
       if (e?.message) {
         // Check for common error patterns
-        if (e.message.includes('API_KEY_INVALID')) {
+        if (e.message.includes('Failed to send a request to the Edge Function')) {
+          errorMsg = "Image generation service is temporarily unavailable. Please try again in a few minutes or contact support if the issue persists.";
+        } else if (e.message.includes('API_KEY_INVALID')) {
           errorMsg = "API configuration issue. Please contact support.";
         } else if (e.message.includes('PERMISSION_DENIED')) {
           errorMsg = "Image generation unavailable. Please try again later.";
@@ -552,6 +554,10 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
           errorMsg = "Service busy. Please wait a moment and try again.";
         } else if (e.message.includes('network') || e.message.includes('fetch')) {
           errorMsg = "Network error. Please check your connection.";
+        } else if (e.message.includes('Missing authorization') || e.message.includes('401')) {
+          errorMsg = "Session expired. Please sign out and sign back in.";
+        } else if (e.message.includes('Invalid or expired')) {
+          errorMsg = "Your session has expired. Please refresh the page and sign in again.";
         } else {
           errorMsg = `Generation failed: ${e.message.substring(0, 100)}`;
         }
