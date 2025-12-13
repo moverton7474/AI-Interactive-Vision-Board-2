@@ -40,9 +40,19 @@ const HeroPlaceholder: React.FC = () => (
 /**
  * HeroVideo - Autoplay hero video component
  * Supports multiple video formats via <source> tags
+ * Includes mute/unmute toggle for user control
  */
 const HeroVideo: React.FC<{ sources: VideoSource[] }> = ({ sources }) => {
   const [failed, setFailed] = React.useState(false);
+  const [isMuted, setIsMuted] = React.useState(true);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(videoRef.current.muted);
+    }
+  };
 
   if (!sources?.length || failed) return null;
 
@@ -50,6 +60,7 @@ const HeroVideo: React.FC<{ sources: VideoSource[] }> = ({ sources }) => {
     <div className="bg-charcoal-800 rounded-3xl shadow-2xl border border-gold-500/20 p-3 overflow-hidden transform hover:scale-[1.02] transition-transform duration-500">
       <div className="relative aspect-[4/3] rounded-2xl overflow-hidden">
         <video
+          ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
           autoPlay
           muted
@@ -65,7 +76,25 @@ const HeroVideo: React.FC<{ sources: VideoSource[] }> = ({ sources }) => {
         </video>
 
         {/* Brand overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-navy-950/60 via-transparent to-charcoal-900/30" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-navy-950/60 via-transparent to-charcoal-900/30 pointer-events-none" />
+
+        {/* Mute/Unmute Button */}
+        <button
+          onClick={toggleMute}
+          className="absolute top-4 right-4 p-2.5 bg-charcoal-900/80 backdrop-blur-sm rounded-full text-white hover:bg-charcoal-900 transition-colors border border-white/10 shadow-lg"
+          title={isMuted ? 'Unmute' : 'Mute'}
+        >
+          {isMuted ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            </svg>
+          )}
+        </button>
 
         {/* Badge */}
         <div className="absolute bottom-4 left-4 bg-charcoal-900/85 backdrop-blur-sm rounded-full px-4 py-2 flex items-center gap-2 shadow-lg border border-gold-500/20">

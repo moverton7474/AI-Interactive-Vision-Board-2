@@ -128,26 +128,42 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
       }
 
       // Load team members - platform admins can see all, others see their team only
-      let teamMembersQuery = supabase
-        .from('team_members')
-        .select(`
-          *,
-          profiles:user_id (
-            names,
-            email,
-            avatar_url
-          ),
-          teams (name)
-        `);
+      let teamMembers: any[] = [];
 
-      // If not platform admin, filter to their team
-      if (!isAdmin && memberData?.team_id) {
-        teamMembersQuery = teamMembersQuery.eq('team_id', memberData.team_id);
+      // Only query team members if user has a team OR is platform admin viewing all
+      if (memberData?.team_id || isAdmin) {
+        let teamMembersQuery = supabase
+          .from('team_members')
+          .select(`
+            *,
+            profiles:user_id (
+              names,
+              email,
+              avatar_url
+            ),
+            teams (name)
+          `);
+
+        // If not platform admin, filter to their team
+        if (!isAdmin && memberData?.team_id) {
+          teamMembersQuery = teamMembersQuery.eq('team_id', memberData.team_id);
+        }
+
+        // For platform admins, limit the query to avoid overwhelming results
+        if (isAdmin && !memberData?.team_id) {
+          teamMembersQuery = teamMembersQuery.limit(100);
+        }
+
+        const { data, error: membersError } = await teamMembersQuery;
+
+        // Don't throw on error for platform admins - they can still access site settings
+        if (membersError) {
+          console.warn('Could not load team members:', membersError);
+          if (!isAdmin) throw membersError;
+        } else {
+          teamMembers = data || [];
+        }
       }
-
-      const { data: teamMembers, error: membersError } = await teamMembersQuery;
-
-      if (membersError) throw membersError;
 
       // Transform member data
       const transformedMembers: TeamMember[] = (teamMembers || []).map((member: any) => {
