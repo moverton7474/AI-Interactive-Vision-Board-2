@@ -599,6 +599,10 @@ CREATE POLICY "Users can delete own vision boards"
   ON vision_boards FOR DELETE
   USING (user_id = auth.uid() OR is_platform_admin());
 
+-- Set default for user_id on vision_boards
+ALTER TABLE vision_boards
+  ALTER COLUMN user_id SET DEFAULT auth.uid();
+
 -- Update user_identity_profiles for platform admin access
 DROP POLICY IF EXISTS "Users own their identity profiles" ON user_identity_profiles;
 
@@ -785,7 +789,81 @@ CREATE TRIGGER audit_teams
   FOR EACH ROW EXECUTE FUNCTION audit_team_changes();
 
 -- ============================================
--- 15. VIEW FOR USER PERMISSIONS
+-- 15. REFERENCE_IMAGES RLS POLICIES
+-- ============================================
+-- Secure reference images so users only see their own (platform admins can see all)
+
+-- Enable RLS on reference_images
+ALTER TABLE reference_images ENABLE ROW LEVEL SECURITY;
+
+-- Drop any overly permissive policies
+DROP POLICY IF EXISTS "Allow public read RI" ON reference_images;
+DROP POLICY IF EXISTS "Allow public insert RI" ON reference_images;
+DROP POLICY IF EXISTS "Allow public delete RI" ON reference_images;
+DROP POLICY IF EXISTS "Users can manage own references" ON reference_images;
+DROP POLICY IF EXISTS "Users can view own references" ON reference_images;
+DROP POLICY IF EXISTS "Users can insert own references" ON reference_images;
+DROP POLICY IF EXISTS "Users can delete own references" ON reference_images;
+
+CREATE POLICY "Users can view references"
+  ON reference_images FOR SELECT
+  USING (
+    user_id = auth.uid()
+    OR is_platform_admin()
+    OR is_support_agent()
+  );
+
+CREATE POLICY "Users can insert own references"
+  ON reference_images FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can delete own references"
+  ON reference_images FOR DELETE
+  USING (user_id = auth.uid() OR is_platform_admin());
+
+-- Set default for user_id
+ALTER TABLE reference_images
+  ALTER COLUMN user_id SET DEFAULT auth.uid();
+
+-- ============================================
+-- 16. DOCUMENTS RLS POLICIES
+-- ============================================
+-- Secure documents so users only see their own (platform admins can see all)
+
+-- Enable RLS on documents
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+
+-- Drop any overly permissive policies
+DROP POLICY IF EXISTS "Allow public read Docs" ON documents;
+DROP POLICY IF EXISTS "Allow public insert Docs" ON documents;
+DROP POLICY IF EXISTS "Allow public delete Docs" ON documents;
+DROP POLICY IF EXISTS "Users can manage own documents" ON documents;
+DROP POLICY IF EXISTS "Users can view own documents" ON documents;
+DROP POLICY IF EXISTS "Users can insert own documents" ON documents;
+DROP POLICY IF EXISTS "Users can delete own documents" ON documents;
+
+CREATE POLICY "Users can view documents"
+  ON documents FOR SELECT
+  USING (
+    user_id = auth.uid()
+    OR is_platform_admin()
+    OR is_support_agent()
+  );
+
+CREATE POLICY "Users can insert own documents"
+  ON documents FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can delete own documents"
+  ON documents FOR DELETE
+  USING (user_id = auth.uid() OR is_platform_admin());
+
+-- Set default for user_id
+ALTER TABLE documents
+  ALTER COLUMN user_id SET DEFAULT auth.uid();
+
+-- ============================================
+-- 17. VIEW FOR USER PERMISSIONS
 -- ============================================
 
 CREATE OR REPLACE VIEW user_permissions AS
@@ -818,6 +896,8 @@ GRANT SELECT ON user_permissions TO authenticated;
 -- Tables created: 4 (platform_roles, audit_logs, team_goals, team_integrations)
 -- Functions created: 8
 -- Triggers created: 2
--- Policies updated: 40+
+-- Policies updated: 45+ (includes vision_boards, reference_images, documents)
 -- Views created: 1
+-- Security fixes: Consolidated RLS policies for vision_boards, reference_images, documents
+--                 All policies now properly scope to user_id with platform admin bypass
 -- ============================================
