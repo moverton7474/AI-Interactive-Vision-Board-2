@@ -57,7 +57,7 @@ interface Team {
 // User account interface for admin view
 interface UserAccount {
   id: string;
-  names: string;
+  full_name?: string;
   email: string;
   avatar_url?: string;
   subscription_tier: string;
@@ -294,13 +294,13 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
       // Direct query to profiles table - RLS policy allows platform admins to read all
       let query = supabase
         .from('profiles')
-        .select('id, names, email, avatar_url, subscription_tier, stripe_customer_id, is_beta_user, is_early_access, is_locked, credits, created_at, updated_at')
+        .select('id, full_name, email, avatar_url, subscription_tier, stripe_customer_id, is_beta_user, is_early_access, is_locked, credits, created_at, updated_at')
         .order('created_at', { ascending: false })
         .limit(100);
 
       // Add search filter if provided
       if (search && search.trim()) {
-        query = query.or(`email.ilike.%${search.trim()}%,names.ilike.%${search.trim()}%`);
+        query = query.or(`email.ilike.%${search.trim()}%,full_name.ilike.%${search.trim()}%`);
       }
 
       const { data, error } = await query;
@@ -338,7 +338,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             to: user.email,
             template: 'welcome',
             data: {
-              name: user.names || user.email.split('@')[0]
+              name: user.full_name || user.email.split('@')[0]
             },
             userId: user.id
           })
@@ -803,11 +803,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
                                 {user.avatar_url ? (
                                   <img src={user.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
                                 ) : (
-                                  (user.names || user.email || 'U').charAt(0).toUpperCase()
+                                  (user.full_name || user.email || 'U').charAt(0).toUpperCase()
                                 )}
                               </div>
                               <div>
-                                <p className="font-medium text-white">{user.names || 'No Name'}</p>
+                                <p className="font-medium text-white">{user.full_name || 'No Name'}</p>
                                 <p className="text-sm text-indigo-200">{user.email}</p>
                               </div>
                             </div>
