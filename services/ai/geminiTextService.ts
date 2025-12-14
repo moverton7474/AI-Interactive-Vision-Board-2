@@ -263,3 +263,249 @@ export async function generateWorkbookPageJson(context: any): Promise<{
         imageBlocks
     };
 }
+
+// ==============================
+// ASCENSION PLAN GENERATION (P0-D)
+// ==============================
+
+export interface AscensionTask {
+    id: string;
+    title: string;
+    description: string;
+    category: 'MINDSET' | 'FINANCE' | 'HEALTH' | 'CAREER' | 'RELATIONSHIPS';
+    dueDate: string;
+    priority: 'high' | 'medium' | 'low';
+    aiMetadata?: {
+        generatedFrom: string;
+        confidence: number;
+        reasoning: string;
+    };
+}
+
+export interface AscensionPlanResult {
+    tasks: AscensionTask[];
+    summary: string;
+    affirmation: string;
+}
+
+/**
+ * Generate an Ascension Plan based on the user's vision board content
+ * Called automatically after vision board generation/save
+ */
+export async function generateAscensionPlan(
+    visionPrompt: string,
+    userGoals?: {
+        financialTarget?: number;
+        visionText?: string;
+        domain?: string;
+    }
+): Promise<AscensionPlanResult> {
+    console.log('[AscensionPlan] Generating tasks for prompt:', visionPrompt.substring(0, 100));
+
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            console.warn('[AscensionPlan] No session, returning fallback tasks');
+            return getFallbackAscensionPlan(visionPrompt);
+        }
+
+        // Build context for AI
+        const contextParts: string[] = [
+            `Vision Description: ${visionPrompt}`,
+        ];
+
+        if (userGoals?.financialTarget) {
+            contextParts.push(`Financial Target: $${userGoals.financialTarget.toLocaleString()}`);
+        }
+        if (userGoals?.visionText) {
+            contextParts.push(`Personal Vision Statement: ${userGoals.visionText}`);
+        }
+        if (userGoals?.domain) {
+            contextParts.push(`Primary Focus Domain: ${userGoals.domain}`);
+        }
+
+        const systemPrompt = `You are an expert life coach and strategic planner. Based on the user's vision board and goals, generate 5 specific, actionable tasks that will help them manifest their vision into reality.
+
+Each task should be:
+- Specific and measurable
+- Achievable within 2 weeks
+- Directly connected to their stated vision
+- Categorized appropriately (MINDSET, FINANCE, HEALTH, CAREER, or RELATIONSHIPS)
+
+Return ONLY a valid JSON object with this exact structure:
+{
+  "tasks": [
+    {
+      "title": "Task title (max 50 chars)",
+      "description": "Detailed description of what to do",
+      "category": "MINDSET|FINANCE|HEALTH|CAREER|RELATIONSHIPS",
+      "priority": "high|medium|low",
+      "daysFromNow": 1-14
+    }
+  ],
+  "summary": "Brief summary of the action plan (1-2 sentences)",
+  "affirmation": "A powerful daily affirmation related to their vision"
+}`;
+
+        const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+            body: {
+                action: 'raw',
+                contents: [
+                    {
+                        role: 'user',
+                        parts: [{ text: `${systemPrompt}\n\n${contextParts.join('\n')}` }]
+                    }
+                ],
+                config: {
+                    temperature: 0.7,
+                    maxOutputTokens: 2000,
+                }
+            },
+            headers: {
+                Authorization: `Bearer ${session.access_token}`
+            }
+        });
+
+        if (error) {
+            console.error('[AscensionPlan] Gemini proxy error:', error);
+            return getFallbackAscensionPlan(visionPrompt);
+        }
+
+        // Extract text from response
+        const responseText = data?.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        // Parse JSON from response (handle markdown code blocks)
+        let jsonStr = responseText;
+        const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonMatch) {
+            jsonStr = jsonMatch[1];
+        }
+
+        const parsed = JSON.parse(jsonStr.trim());
+
+        // Transform tasks with proper IDs and due dates
+        const tasks: AscensionTask[] = parsed.tasks.map((task: any, index: number) => {
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + (task.daysFromNow || index + 1));
+
+            return {
+                id: `ascension-${Date.now()}-${index}`,
+                title: task.title,
+                description: task.description,
+                category: task.category || 'MINDSET',
+                dueDate: dueDate.toISOString(),
+                priority: task.priority || 'medium',
+                aiMetadata: {
+                    generatedFrom: 'vision_board',
+                    confidence: 0.85,
+                    reasoning: `Generated from vision: "${visionPrompt.substring(0, 50)}..."`,
+                },
+            };
+        });
+
+        console.log('[AscensionPlan] Generated', tasks.length, 'tasks');
+
+        return {
+            tasks,
+            summary: parsed.summary || 'Your personalized action plan is ready.',
+            affirmation: parsed.affirmation || 'I am taking aligned action toward my vision every day.',
+        };
+
+    } catch (err) {
+        console.error('[AscensionPlan] Generation error:', err);
+        return getFallbackAscensionPlan(visionPrompt);
+    }
+}
+
+/**
+ * Fallback tasks when AI generation fails
+ */
+function getFallbackAscensionPlan(visionPrompt: string): AscensionPlanResult {
+    const now = new Date();
+
+    return {
+        tasks: [
+            {
+                id: `fallback-${Date.now()}-1`,
+                title: 'Define your vision clarity statement',
+                description: 'Write a clear 1-paragraph description of your vision and why it matters to you.',
+                category: 'MINDSET',
+                dueDate: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString(),
+                priority: 'high',
+            },
+            {
+                id: `fallback-${Date.now()}-2`,
+                title: 'Research one concrete step',
+                description: 'Spend 30 minutes researching one specific action that moves you toward your vision.',
+                category: 'CAREER',
+                dueDate: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                priority: 'high',
+            },
+            {
+                id: `fallback-${Date.now()}-3`,
+                title: 'Set a financial milestone',
+                description: 'Determine the first financial milestone needed for your vision and create a savings target.',
+                category: 'FINANCE',
+                dueDate: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+                priority: 'medium',
+            },
+            {
+                id: `fallback-${Date.now()}-4`,
+                title: 'Share your vision with someone',
+                description: 'Tell a trusted friend or family member about your vision to create accountability.',
+                category: 'RELATIONSHIPS',
+                dueDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                priority: 'medium',
+            },
+            {
+                id: `fallback-${Date.now()}-5`,
+                title: 'Schedule a vision review',
+                description: 'Block 15 minutes on your calendar each morning to review your vision board.',
+                category: 'MINDSET',
+                dueDate: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+                priority: 'low',
+            },
+        ],
+        summary: 'Your action plan focuses on clarity, research, and accountability.',
+        affirmation: 'I am actively creating the life I visualize every single day.',
+    };
+}
+
+/**
+ * Save Ascension Plan tasks to the database
+ */
+export async function insertAscensionPlanTasks(tasks: AscensionTask[]): Promise<boolean> {
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            console.error('[AscensionPlan] No user for task insert');
+            return false;
+        }
+
+        const taskRecords = tasks.map(task => ({
+            user_id: user.id,
+            title: task.title,
+            description: task.description,
+            type: task.category,
+            due_date: task.dueDate,
+            is_completed: false,
+            priority: task.priority,
+            ai_metadata: task.aiMetadata || null,
+        }));
+
+        const { error } = await supabase
+            .from('action_tasks')
+            .insert(taskRecords);
+
+        if (error) {
+            console.error('[AscensionPlan] Task insert error:', error);
+            return false;
+        }
+
+        console.log('[AscensionPlan] Inserted', taskRecords.length, 'tasks');
+        return true;
+    } catch (err) {
+        console.error('[AscensionPlan] Insert error:', err);
+        return false;
+    }
+}

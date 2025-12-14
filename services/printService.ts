@@ -238,3 +238,185 @@ export const getPosterOrders = async (): Promise<PosterOrder[]> => {
     return [];
   }
 };
+
+// ==============================
+// PRINT ASSET VALIDATION (P0-C)
+// ==============================
+
+export interface ImageValidationResult {
+  isValid: boolean;
+  imageWidthPx: number;
+  imageHeightPx: number;
+  requiredWidthPx: number;
+  requiredHeightPx: number;
+  qualityLevel: 'excellent' | 'good' | 'acceptable' | 'poor' | 'unacceptable';
+  message: string;
+  warnings: string[];
+}
+
+// Minimum DPI requirements for print quality
+const MIN_DPI_EXCELLENT = 300;
+const MIN_DPI_GOOD = 200;
+const MIN_DPI_ACCEPTABLE = 150;
+const MIN_DPI_POOR = 100;
+
+// Size dimensions in inches
+const SIZE_DIMENSIONS: Record<string, { width: number; height: number }> = {
+  '12x18': { width: 12, height: 18 },
+  '18x24': { width: 18, height: 24 },
+  '24x36': { width: 24, height: 36 },
+};
+
+/**
+ * Calculate required pixel dimensions for a given print size and DPI
+ */
+export function getRequiredPixels(size: string, dpi: number = MIN_DPI_ACCEPTABLE): { width: number; height: number } {
+  const dims = SIZE_DIMENSIONS[size] || SIZE_DIMENSIONS['18x24'];
+  return {
+    width: Math.ceil(dims.width * dpi),
+    height: Math.ceil(dims.height * dpi),
+  };
+}
+
+/**
+ * Validate an image URL for print quality
+ * Loads the image and checks dimensions against size requirements
+ */
+export async function validatePrintImage(
+  imageUrl: string,
+  size: string
+): Promise<ImageValidationResult> {
+  const warnings: string[] = [];
+
+  try {
+    // Load image to get dimensions
+    const dimensions = await getImageDimensions(imageUrl);
+
+    if (!dimensions) {
+      return {
+        isValid: false,
+        imageWidthPx: 0,
+        imageHeightPx: 0,
+        requiredWidthPx: getRequiredPixels(size, MIN_DPI_ACCEPTABLE).width,
+        requiredHeightPx: getRequiredPixels(size, MIN_DPI_ACCEPTABLE).height,
+        qualityLevel: 'unacceptable',
+        message: 'Could not load image. Please try a different image.',
+        warnings: ['Image failed to load'],
+      };
+    }
+
+    const { width: imageWidth, height: imageHeight } = dimensions;
+    const sizeDims = SIZE_DIMENSIONS[size] || SIZE_DIMENSIONS['18x24'];
+
+    // Calculate effective DPI
+    const dpiWidth = imageWidth / sizeDims.width;
+    const dpiHeight = imageHeight / sizeDims.height;
+    const effectiveDpi = Math.min(dpiWidth, dpiHeight);
+
+    // Determine quality level
+    let qualityLevel: ImageValidationResult['qualityLevel'];
+    if (effectiveDpi >= MIN_DPI_EXCELLENT) {
+      qualityLevel = 'excellent';
+    } else if (effectiveDpi >= MIN_DPI_GOOD) {
+      qualityLevel = 'good';
+    } else if (effectiveDpi >= MIN_DPI_ACCEPTABLE) {
+      qualityLevel = 'acceptable';
+      warnings.push('Image quality is acceptable but not optimal. Consider a larger source image for best results.');
+    } else if (effectiveDpi >= MIN_DPI_POOR) {
+      qualityLevel = 'poor';
+      warnings.push('Image resolution is low. Print may appear pixelated or blurry.');
+    } else {
+      qualityLevel = 'unacceptable';
+    }
+
+    // Check if image meets minimum requirements (150 DPI)
+    const requiredPixels = getRequiredPixels(size, MIN_DPI_ACCEPTABLE);
+    const isValid = effectiveDpi >= MIN_DPI_POOR; // Allow "poor" quality with warning
+
+    // Build message
+    let message: string;
+    if (qualityLevel === 'excellent') {
+      message = `Excellent quality for ${size}" print (${Math.round(effectiveDpi)} DPI)`;
+    } else if (qualityLevel === 'good') {
+      message = `Good quality for ${size}" print (${Math.round(effectiveDpi)} DPI)`;
+    } else if (qualityLevel === 'acceptable') {
+      message = `Acceptable quality - print may show slight softness`;
+    } else if (qualityLevel === 'poor') {
+      message = `Low resolution warning - print quality will be reduced`;
+    } else {
+      message = `Image too small for ${size}" print. Minimum ${requiredPixels.width}x${requiredPixels.height}px needed.`;
+    }
+
+    return {
+      isValid,
+      imageWidthPx: imageWidth,
+      imageHeightPx: imageHeight,
+      requiredWidthPx: requiredPixels.width,
+      requiredHeightPx: requiredPixels.height,
+      qualityLevel,
+      message,
+      warnings,
+    };
+
+  } catch (err) {
+    console.error('[PrintValidation] Error:', err);
+    return {
+      isValid: false,
+      imageWidthPx: 0,
+      imageHeightPx: 0,
+      requiredWidthPx: getRequiredPixels(size, MIN_DPI_ACCEPTABLE).width,
+      requiredHeightPx: getRequiredPixels(size, MIN_DPI_ACCEPTABLE).height,
+      qualityLevel: 'unacceptable',
+      message: 'Failed to validate image. Please try again.',
+      warnings: ['Validation error'],
+    };
+  }
+}
+
+/**
+ * Get image dimensions from URL
+ */
+async function getImageDimensions(url: string): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+
+    img.onerror = () => {
+      console.error('[PrintValidation] Image load error:', url);
+      resolve(null);
+    };
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      resolve(null);
+    }, 10000);
+
+    img.src = url;
+  });
+}
+
+/**
+ * Validate print order before submission
+ */
+export async function validatePrintOrder(
+  imageUrl: string,
+  size: string,
+  productType: ProductType
+): Promise<{ valid: boolean; validation: ImageValidationResult }> {
+  const validation = await validatePrintImage(imageUrl, size);
+
+  // Canvas requires higher quality
+  if (productType === 'canvas' && validation.qualityLevel === 'poor') {
+    validation.isValid = false;
+    validation.message = 'Canvas prints require higher resolution images. Please select a smaller size or use a higher resolution image.';
+  }
+
+  return {
+    valid: validation.isValid,
+    validation,
+  };
+}

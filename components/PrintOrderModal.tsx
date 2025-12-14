@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { VisionImage, ShippingAddress } from '../types';
 import { PrinterIcon, CheckBadgeIcon, TruckIcon, LockIcon, RobotIcon, ReceiptIcon } from './Icons';
-import { checkFirstTimeDiscount, calculatePrice, createPosterOrder, ProductType, PRODUCT_CONFIG } from '../services/printService';
+import { checkFirstTimeDiscount, calculatePrice, createPosterOrder, ProductType, PRODUCT_CONFIG, validatePrintOrder, ImageValidationResult } from '../services/printService';
 import { createStripeCheckoutSession, getLastShippingAddress } from '../services/storageService';
 import PrintPreview from './PrintPreview';
 
@@ -53,6 +53,10 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
   // Card Info (Dummy - for visual only if not using Stripe Link)
   const [cardInfo, setCardInfo] = useState({ number: '', exp: '', cvc: '' });
 
+  // Image Validation State (P0-C)
+  const [imageValidation, setImageValidation] = useState<ImageValidationResult | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+
   useEffect(() => {
     checkDiscount();
     // Intelligent Auto-Fill: Fetch last used address
@@ -60,6 +64,25 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
       if (addr) setShipping(addr);
     });
   }, []);
+
+  // Validate image when size or product type changes (P0-C)
+  useEffect(() => {
+    if (!image?.url) return;
+
+    const runValidation = async () => {
+      setIsValidating(true);
+      try {
+        const { validation } = await validatePrintOrder(image.url, selectedSize, productType);
+        setImageValidation(validation);
+      } catch (err) {
+        console.error('Validation error:', err);
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    runValidation();
+  }, [image?.url, selectedSize, productType]);
 
   const checkDiscount = async () => {
     const eligible = await checkFirstTimeDiscount();
@@ -215,13 +238,76 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
              </p>
            </div>
          )}
+
+         {/* Image Quality Validation Display (P0-C) */}
+         {imageValidation && (
+           <div className={`rounded-lg p-3 border ${
+             imageValidation.qualityLevel === 'excellent' || imageValidation.qualityLevel === 'good'
+               ? 'bg-green-50 border-green-200'
+               : imageValidation.qualityLevel === 'acceptable'
+                 ? 'bg-yellow-50 border-yellow-200'
+                 : imageValidation.qualityLevel === 'poor'
+                   ? 'bg-orange-50 border-orange-200'
+                   : 'bg-red-50 border-red-200'
+           }`}>
+             <div className="flex items-start gap-2">
+               {imageValidation.qualityLevel === 'excellent' || imageValidation.qualityLevel === 'good' ? (
+                 <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                 </svg>
+               ) : imageValidation.qualityLevel === 'unacceptable' ? (
+                 <svg className="w-5 h-5 text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+               ) : (
+                 <svg className="w-5 h-5 text-yellow-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                 </svg>
+               )}
+               <div className="flex-1">
+                 <p className={`text-sm font-medium ${
+                   imageValidation.qualityLevel === 'excellent' || imageValidation.qualityLevel === 'good'
+                     ? 'text-green-800'
+                     : imageValidation.qualityLevel === 'unacceptable'
+                       ? 'text-red-800'
+                       : 'text-yellow-800'
+                 }`}>
+                   {imageValidation.message}
+                 </p>
+                 <p className="text-xs text-gray-500 mt-1">
+                   Image: {imageValidation.imageWidthPx}x{imageValidation.imageHeightPx}px |
+                   Required: {imageValidation.requiredWidthPx}x{imageValidation.requiredHeightPx}px
+                 </p>
+                 {imageValidation.warnings.length > 0 && (
+                   <ul className="text-xs text-gray-600 mt-1 list-disc list-inside">
+                     {imageValidation.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                   </ul>
+                 )}
+               </div>
+             </div>
+           </div>
+         )}
+
+         {isValidating && (
+           <div className="flex items-center gap-2 text-sm text-gray-500">
+             <div className="w-4 h-4 border-2 border-gray-300 border-t-navy-900 rounded-full animate-spin" />
+             Checking image quality...
+           </div>
+         )}
        </div>
 
        <button
          onClick={() => setStep('SHIPPING')}
-         className="w-full bg-navy-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-navy-800 transition-all"
+         disabled={!imageValidation?.isValid || isValidating}
+         className={`w-full font-bold py-4 rounded-xl shadow-lg transition-all ${
+           !imageValidation?.isValid || isValidating
+             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+             : 'bg-navy-900 text-white hover:bg-navy-800'
+         }`}
        >
-         Continue to Shipping
+         {isValidating ? 'Validating...' :
+          !imageValidation?.isValid ? 'Image Quality Too Low' :
+          'Continue to Shipping'}
        </button>
     </div>
   );
