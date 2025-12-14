@@ -8,6 +8,273 @@ interface GenerationContext {
     [key: string]: any;
 }
 
+// ============================================
+// ASCENSION PLAN TYPES & GENERATION (P0-D)
+// ============================================
+
+export type AscensionTaskCategory = 'finance' | 'career' | 'health' | 'relationships' | 'spiritual' | 'personal';
+
+export interface AscensionTask {
+    title: string;
+    metric: string;
+    due_days: number;
+    category: AscensionTaskCategory;
+    priority: 1 | 2 | 3;
+    success_criteria: string;
+}
+
+export interface AscensionPlanContext {
+    userId: string;
+    visionTitle?: string;
+    visionNarrative?: string;
+    imageDescription?: string;
+    visionBoardId?: string;
+}
+
+/**
+ * P0-D: Generate an "Ascension Plan" immediately after saving a vision
+ *
+ * This function calls Gemini to generate 5 structured, actionable tasks
+ * based on the user's vision board content. Tasks are then inserted into
+ * the action_tasks table.
+ *
+ * @param visionContext - Context from the saved vision board
+ * @returns Array of 5 AscensionTask objects
+ */
+export async function generateAscensionPlan(
+    visionContext: AscensionPlanContext
+): Promise<AscensionTask[]> {
+    const systemPrompt = `You are an elite goal strategist specializing in vision-to-action conversion.
+Your task is to generate EXACTLY 5 distinct, measurable tasks that will help the user achieve their vision.
+
+RULES:
+1. Return ONLY valid JSON - no markdown, no explanations, no code blocks
+2. Each task must be executable within 7-30 days
+3. Each task must have a clear, quantifiable metric
+4. Tasks should be diverse across categories when possible
+5. Avoid vague items like "think about..." or "consider..." - be specific
+6. Each task should move the user tangibly closer to their vision
+
+Output JSON schema:
+{
+  "tasks": [
+    {
+      "title": "Short actionable title (max 60 chars)",
+      "metric": "Specific measurable outcome (e.g., '5 companies researched')",
+      "due_days": 7-30,
+      "category": "finance|career|health|relationships|spiritual|personal",
+      "priority": 1-3 (1=highest),
+      "success_criteria": "How to know this task is complete"
+    }
+  ]
+}`;
+
+    const userPrompt = JSON.stringify({
+        visionTitle: visionContext.visionTitle ?? 'My Vision',
+        visionNarrative: visionContext.visionNarrative ?? '',
+        imageDescription: visionContext.imageDescription ?? '',
+    });
+
+    try {
+        // Get current session for auth
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            console.warn('[AscensionPlan] No session, using fallback tasks');
+            return getDefaultAscensionTasks();
+        }
+
+        // Call Gemini via proxy
+        const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+            body: {
+                action: 'raw',
+                contents: [
+                    { parts: [{ text: `System: ${systemPrompt}` }] },
+                    { parts: [{ text: `User Vision Context:\n${userPrompt}` }] }
+                ],
+                config: {
+                    temperature: 0.6,
+                    maxOutputTokens: 2000,
+                    responseMimeType: 'application/json'
+                }
+            },
+            headers: {
+                Authorization: `Bearer ${session.access_token}`
+            }
+        });
+
+        if (error) {
+            console.error('[AscensionPlan] Gemini proxy error:', error);
+            return getDefaultAscensionTasks();
+        }
+
+        // Parse response
+        const rawText = data?.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        // Clean any markdown wrappers
+        const cleanText = rawText.replace(/```json\n?|\n?```/g, '').trim();
+
+        let parsed: { tasks: AscensionTask[] };
+        try {
+            parsed = JSON.parse(cleanText);
+        } catch (parseErr) {
+            console.error('[AscensionPlan] JSON parse error:', parseErr, 'Raw:', cleanText.substring(0, 200));
+            return getDefaultAscensionTasks();
+        }
+
+        // Validate structure
+        if (!parsed?.tasks || !Array.isArray(parsed.tasks) || parsed.tasks.length !== 5) {
+            console.warn('[AscensionPlan] Invalid task count, using fallback');
+            return getDefaultAscensionTasks();
+        }
+
+        // Validate each task has required fields
+        const validatedTasks = parsed.tasks.map((t, i) => ({
+            title: t.title || `Action Step ${i + 1}`,
+            metric: t.metric || 'Complete the task',
+            due_days: Math.min(Math.max(t.due_days || 7, 7), 30),
+            category: validateCategory(t.category),
+            priority: validatePriority(t.priority),
+            success_criteria: t.success_criteria || t.metric || 'Task completed'
+        }));
+
+        console.log('[AscensionPlan] Generated', validatedTasks.length, 'tasks');
+        return validatedTasks;
+
+    } catch (err) {
+        console.error('[AscensionPlan] Unexpected error:', err);
+        return getDefaultAscensionTasks();
+    }
+}
+
+/**
+ * Insert Ascension Plan tasks into the database
+ *
+ * @param userId - User ID to associate tasks with
+ * @param tasks - Array of AscensionTask objects
+ * @param visionBoardId - Optional vision board ID to link tasks to
+ */
+export async function insertAscensionPlanTasks(
+    userId: string,
+    tasks: AscensionTask[],
+    visionBoardId?: string
+): Promise<{ success: boolean; insertedCount: number; error?: string }> {
+    try {
+        const taskRecords = tasks.map((t) => ({
+            user_id: userId,
+            title: t.title,
+            description: t.success_criteria,
+            type: mapCategoryToType(t.category),
+            due_date: new Date(Date.now() + t.due_days * 86400000).toISOString(),
+            is_completed: false,
+            ai_metadata: {
+                source: 'ascension_plan',
+                metric: t.metric,
+                category: t.category,
+                priority: t.priority,
+                success_criteria: t.success_criteria,
+                vision_board_id: visionBoardId
+            }
+        }));
+
+        const { data, error } = await supabase
+            .from('action_tasks')
+            .insert(taskRecords)
+            .select('id');
+
+        if (error) {
+            console.error('[AscensionPlan] Insert error:', error);
+            return { success: false, insertedCount: 0, error: error.message };
+        }
+
+        console.log('[AscensionPlan] Inserted', data?.length || 0, 'tasks for user', userId);
+        return { success: true, insertedCount: data?.length || 0 };
+
+    } catch (err) {
+        console.error('[AscensionPlan] Insert exception:', err);
+        return {
+            success: false,
+            insertedCount: 0,
+            error: err instanceof Error ? err.message : 'Unknown error'
+        };
+    }
+}
+
+// Helper: Map AscensionTask category to action_tasks type
+function mapCategoryToType(category: AscensionTaskCategory): 'FINANCE' | 'LIFESTYLE' | 'ADMIN' {
+    switch (category) {
+        case 'finance':
+            return 'FINANCE';
+        case 'career':
+        case 'personal':
+            return 'ADMIN';
+        case 'health':
+        case 'relationships':
+        case 'spiritual':
+        default:
+            return 'LIFESTYLE';
+    }
+}
+
+// Helper: Validate category value
+function validateCategory(category: string): AscensionTaskCategory {
+    const validCategories: AscensionTaskCategory[] = ['finance', 'career', 'health', 'relationships', 'spiritual', 'personal'];
+    return validCategories.includes(category as AscensionTaskCategory)
+        ? category as AscensionTaskCategory
+        : 'personal';
+}
+
+// Helper: Validate priority value
+function validatePriority(priority: number): 1 | 2 | 3 {
+    if (priority === 1 || priority === 2 || priority === 3) return priority;
+    return 2;
+}
+
+// Helper: Default fallback tasks if AI generation fails
+function getDefaultAscensionTasks(): AscensionTask[] {
+    return [
+        {
+            title: 'Define your top 3 priorities for this vision',
+            metric: '3 priorities documented',
+            due_days: 7,
+            category: 'personal',
+            priority: 1,
+            success_criteria: 'Written down top 3 priorities with why each matters'
+        },
+        {
+            title: 'Research key resources or mentors',
+            metric: '5 resources identified',
+            due_days: 14,
+            category: 'career',
+            priority: 2,
+            success_criteria: 'List of 5 books, courses, or mentors relevant to your vision'
+        },
+        {
+            title: 'Create a financial milestone plan',
+            metric: '3 financial milestones set',
+            due_days: 14,
+            category: 'finance',
+            priority: 1,
+            success_criteria: 'Documented 3 financial checkpoints with target dates'
+        },
+        {
+            title: 'Establish a daily visualization habit',
+            metric: '7 consecutive days completed',
+            due_days: 7,
+            category: 'spiritual',
+            priority: 2,
+            success_criteria: 'Spent 5 minutes each day visualizing your achieved vision'
+        },
+        {
+            title: 'Share your vision with an accountability partner',
+            metric: '1 conversation completed',
+            due_days: 21,
+            category: 'relationships',
+            priority: 3,
+            success_criteria: 'Had a meaningful conversation about your vision with someone supportive'
+        }
+    ];
+}
+
 export async function generateWorkbookPageJson(context: any): Promise<{
     type: WorkbookPageType;
     textBlocks: WorkbookTextBlock[];

@@ -2,7 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { VisionImage, ShippingAddress } from '../types';
 import { PrinterIcon, CheckBadgeIcon, TruckIcon, LockIcon, RobotIcon, ReceiptIcon } from './Icons';
-import { checkFirstTimeDiscount, calculatePrice, createPosterOrder, ProductType, PRODUCT_CONFIG } from '../services/printService';
+import {
+  checkFirstTimeDiscount,
+  calculatePrice,
+  createPosterOrder,
+  ProductType,
+  PRODUCT_CONFIG,
+  validatePrintOrder,
+  PrintAssetValidation
+} from '../services/printService';
 import { createStripeCheckoutSession, getLastShippingAddress } from '../services/storageService';
 import PrintPreview from './PrintPreview';
 
@@ -32,6 +40,10 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
   const [isEligibleForDiscount, setIsEligibleForDiscount] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // P0-C: Print asset validation state
+  const [assetValidation, setAssetValidation] = useState<PrintAssetValidation | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+
   // Config State
   const [productType, setProductType] = useState<ProductType>('poster');
   const [selectedSize, setSelectedSize] = useState('18x24');
@@ -60,6 +72,30 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
       if (addr) setShipping(addr);
     });
   }, []);
+
+  // P0-C: Validate image dimensions when image or size changes
+  useEffect(() => {
+    if (!image?.url) return;
+
+    const runValidation = async () => {
+      setIsValidating(true);
+      try {
+        const result = await validatePrintOrder({
+          imageUrl: image.url,
+          size: selectedSize
+        });
+        setAssetValidation(result);
+        console.log('[PrintOrder] Validation result:', result);
+      } catch (err) {
+        console.error('[PrintOrder] Validation error:', err);
+        setAssetValidation(null);
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    runValidation();
+  }, [image?.url, selectedSize]);
 
   const checkDiscount = async () => {
     const eligible = await checkFirstTimeDiscount();
@@ -215,13 +251,56 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
              </p>
            </div>
          )}
+
+         {/* P0-C: Image Quality Feedback */}
+         {isValidating && (
+           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center gap-2">
+             <div className="w-4 h-4 border-2 border-navy-500/30 border-t-navy-500 rounded-full animate-spin" />
+             <p className="text-xs text-gray-600">Checking image quality...</p>
+           </div>
+         )}
+
+         {assetValidation && !isValidating && (
+           <>
+             {/* Error - Image too small */}
+             {!assetValidation.valid && (
+               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                 <p className="text-xs text-red-700 font-medium mb-1">Image Resolution Too Low</p>
+                 <p className="text-xs text-red-600">{assetValidation.error}</p>
+                 <p className="text-xs text-red-500 mt-2">
+                   Tip: Try selecting a smaller print size, or generate a new higher-resolution vision image.
+                 </p>
+               </div>
+             )}
+
+             {/* Warning - Acceptable but not ideal */}
+             {assetValidation.valid && assetValidation.warning && (
+               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                 <p className="text-xs text-amber-700 font-medium mb-1">Print Quality Warning</p>
+                 <p className="text-xs text-amber-600">{assetValidation.warning}</p>
+               </div>
+             )}
+
+             {/* Success - Good quality */}
+             {assetValidation.valid && !assetValidation.warning && (
+               <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+                 <CheckBadgeIcon className="w-4 h-4 text-green-600" />
+                 <p className="text-xs text-green-700">
+                   <strong>{assetValidation.quality === 'excellent' ? 'Excellent' : 'Good'} quality</strong> -
+                   {' '}{assetValidation.effectiveDPI} DPI at selected size
+                 </p>
+               </div>
+             )}
+           </>
+         )}
        </div>
 
        <button
          onClick={() => setStep('SHIPPING')}
-         className="w-full bg-navy-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-navy-800 transition-all"
+         disabled={isValidating || (assetValidation && !assetValidation.valid)}
+         className="w-full bg-navy-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-navy-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
        >
-         Continue to Shipping
+         {isValidating ? 'Checking Image...' : (assetValidation && !assetValidation.valid) ? 'Image Too Small for Print' : 'Continue to Shipping'}
        </button>
     </div>
   );

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { AppView, VisionImage, FinancialGoal, OnboardingState, ActionTask, Habit, UserProfile } from './types';
 import { withRetry } from './utils/retry';
+import { useEntitlementPolling, clearCheckoutSessionFromUrl } from './hooks/useEntitlementPolling';
 import FinancialDashboard from './components/FinancialDashboard';
 import VisionBoard from './components/VisionBoard';
 import ActionPlanAgent from './components/ActionPlanAgent';
@@ -93,6 +94,48 @@ const App = () => {
   // Profile loading guard to prevent duplicate fetches
   const [profileLoadingInProgress, setProfileLoadingInProgress] = useState(false);
   const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null);
+
+  // P0-B: Entitlement polling for Pro unlock after checkout
+  const { pollForEntitlements, isPolling: isEntitlementPolling, entitlementStatus } = useEntitlementPolling();
+  const checkoutPollingRef = useRef(false);
+
+  // P0-B: Handle checkout return - poll for entitlement updates
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    if (checkoutPollingRef.current) return; // Prevent duplicate polling
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+
+    if (sessionId) {
+      console.log('[App] Detected checkout return with session_id:', sessionId);
+      checkoutPollingRef.current = true;
+
+      // Poll for entitlement updates
+      pollForEntitlements(
+        session.user.id,
+        'PRO',
+        (updatedProfile) => {
+          // Update local state when entitlements are confirmed
+          console.log('[App] Entitlements updated:', updatedProfile);
+          setSubscriptionTier(updatedProfile.subscription_tier as 'FREE' | 'PRO' | 'ELITE');
+          setCredits(updatedProfile.credits);
+
+          // Force reload lastLoadedUserId to trigger profile refresh
+          setLastLoadedUserId(null);
+
+          // Clear the session_id from URL to prevent re-polling
+          clearCheckoutSessionFromUrl();
+        }
+      ).finally(() => {
+        // Clear the session_id from URL even if polling times out
+        setTimeout(() => {
+          clearCheckoutSessionFromUrl();
+          checkoutPollingRef.current = false;
+        }, 1000);
+      });
+    }
+  }, [session?.user?.id, pollForEntitlements]);
 
   useEffect(() => {
     // 1. Check DB Connection
