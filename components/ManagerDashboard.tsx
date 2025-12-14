@@ -55,11 +55,11 @@ interface Team {
  * and engagement metrics for team managers and administrators.
  */
 // User account interface for admin view
+// Note: profiles table columns: id, email, credits, subscription_tier, stripe_customer_id,
+// is_beta_user, is_early_access, is_locked, created_at, updated_at
 interface UserAccount {
   id: string;
-  full_name?: string;
   email: string;
-  avatar_url?: string;
   subscription_tier: string;
   stripe_customer_id?: string;
   is_beta_user?: boolean;
@@ -68,7 +68,6 @@ interface UserAccount {
   credits: number;
   created_at: string;
   updated_at?: string;
-  last_sign_in_at?: string;
 }
 
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
@@ -292,15 +291,16 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
 
     try {
       // Direct query to profiles table - RLS policy allows platform admins to read all
+      // Only select columns that exist in profiles table
       let query = supabase
         .from('profiles')
-        .select('id, full_name, email, avatar_url, subscription_tier, stripe_customer_id, is_beta_user, is_early_access, is_locked, credits, created_at, updated_at')
+        .select('id, email, subscription_tier, stripe_customer_id, is_beta_user, is_early_access, is_locked, credits, created_at, updated_at')
         .order('created_at', { ascending: false })
         .limit(100);
 
-      // Add search filter if provided
+      // Add search filter if provided (email only - no name column exists)
       if (search && search.trim()) {
-        query = query.or(`email.ilike.%${search.trim()}%,full_name.ilike.%${search.trim()}%`);
+        query = query.ilike('email', `%${search.trim()}%`);
       }
 
       const { data, error } = await query;
@@ -338,7 +338,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             to: user.email,
             template: 'welcome',
             data: {
-              name: user.full_name || user.email.split('@')[0]
+              name: user.email.split('@')[0]
             },
             userId: user.id
           })
@@ -738,7 +738,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
                 <div className="flex-1">
                   <input
                     type="text"
-                    placeholder="Search by email or name..."
+                    placeholder="Search by email..."
                     value={userSearchQuery}
                     onChange={(e) => setUserSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && loadUsers(userSearchQuery)}
@@ -800,15 +800,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
                           <td className="p-4">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-semibold">
-                                {user.avatar_url ? (
-                                  <img src={user.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                                ) : (
-                                  (user.full_name || user.email || 'U').charAt(0).toUpperCase()
-                                )}
+                                {(user.email || 'U').charAt(0).toUpperCase()}
                               </div>
                               <div>
-                                <p className="font-medium text-white">{user.full_name || 'No Name'}</p>
-                                <p className="text-sm text-indigo-200">{user.email}</p>
+                                <p className="font-medium text-white">{user.email}</p>
+                                <p className="text-sm text-indigo-200">ID: {user.id.slice(0, 8)}...</p>
                               </div>
                             </div>
                           </td>
