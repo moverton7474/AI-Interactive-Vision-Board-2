@@ -14,6 +14,8 @@ import {
 } from '../services/storageService';
 import { VisionImage, ReferenceImage } from '../types';
 import { SparklesIcon, UploadIcon, SaveIcon, TrashIcon, DownloadIcon, RobotIcon, MicIcon, LibraryIcon, TagIcon, PlusIcon, PrinterIcon } from './Icons';
+import { generateAscensionPlan, insertAscensionPlanTasks } from '../services/ai/geminiTextService';
+import { supabase } from '../lib/supabase';
 
 // Camera Icon Component
 const CameraIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -77,6 +79,33 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [selectedStyle, setSelectedStyle] = useState<string>('photorealistic');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // P1-B: Manifestation Ritual loading messages
+  const [manifestMessageIndex, setManifestMessageIndex] = useState(0);
+  const MANIFEST_MESSAGES = [
+    'Manifesting your vision...',
+    'Aligning with your future self...',
+    'Bringing dreams to reality...',
+    'Crystallizing your intentions...',
+    'Painting your destiny...',
+    'The universe is conspiring in your favor...',
+    'Your vision is taking form...',
+    'Creating your reality...',
+  ];
+
+  // P1-B: Rotate messages during loading
+  useEffect(() => {
+    if (!loading) {
+      setManifestMessageIndex(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setManifestMessageIndex((prev) => (prev + 1) % MANIFEST_MESSAGES.length);
+    }, 2500); // Rotate every 2.5 seconds
+
+    return () => clearInterval(interval);
+  }, [loading]);
   const [isListening, setIsListening] = useState(false);
   const { showToast } = useToast();
   // const [toastMessage, setToastMessage] = useState<string | null>(null); // Removed local toast
@@ -614,8 +643,9 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         // Get selected reference IDs for tracking
         const selectedRefs = references.filter(r => selectedRefIds.includes(r.id));
 
+        const visionId = crypto.randomUUID();
         const newImage = {
-          id: crypto.randomUUID(),
+          id: visionId,
           url: resultImage,
           prompt: currentPrompt || "Vision Board Image",
           createdAt: Date.now(),
@@ -634,6 +664,44 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         await saveVisionImage(newImage);
 
         showToast("Vision successfully saved to cloud.", 'success');
+
+        // P1-C: Physical Anchor upsell - show print modal after save
+        // Trigger with delay so user sees the save confirmation first
+        setTimeout(() => {
+          setShowPrintModal(true);
+        }, 3000);
+
+        // P0-D: Generate Ascension Plan tasks in the background
+        // This runs async to not block the UI - user sees their saved vision immediately
+        (async () => {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            console.log('[VisionBoard] Generating Ascension Plan for vision:', visionId);
+            const tasks = await generateAscensionPlan({
+              userId: user.id,
+              visionTitle: currentPrompt?.slice(0, 100) || 'My Vision',
+              visionNarrative: currentPrompt || '',
+              visionBoardId: visionId
+            });
+
+            if (tasks.length > 0) {
+              const result = await insertAscensionPlanTasks(user.id, tasks, visionId);
+              if (result.success) {
+                console.log('[VisionBoard] Ascension Plan created:', result.insertedCount, 'tasks');
+                // Show subtle notification that action items are ready
+                setTimeout(() => {
+                  showToast(`✨ ${result.insertedCount} action items generated for your vision!`, 'success');
+                }, 2000);
+              }
+            }
+          } catch (err) {
+            console.error('[VisionBoard] Ascension Plan generation failed:', err);
+            // Silent failure - don't disrupt user experience
+          }
+        })();
+
       } catch (e) {
         showToast("Failed to save. Please try again.", 'error');
       } finally {
@@ -1096,7 +1164,8 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                 {loading ? (
                   <>
                     <div className="w-4 h-4 md:w-5 md:h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span className="text-sm md:text-base">Manifesting...</span>
+                    {/* P1-B: Rotating manifestation messages */}
+                    <span className="text-sm md:text-base transition-opacity duration-300">{MANIFEST_MESSAGES[manifestMessageIndex]}</span>
                   </>
                 ) : (
                   <>
@@ -1118,7 +1187,8 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
           {/* Canvas / Preview */}
           <div className="w-full md:w-7/12 flex flex-col gap-4 order-first md:order-last">
             <div className="bg-gray-100 rounded-2xl border-4 border-white shadow-2xl overflow-hidden flex flex-col relative min-h-[300px] md:min-h-[500px]">
-              <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative">
+              {/* P1-A: touch-action: manipulation allows zoom/pan but prevents scroll interference on mobile */}
+              <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative" style={{ touchAction: 'manipulation' }}>
 
                 {/* Badge for Base Image */}
                 {baseImage && !resultImage && (
@@ -1314,7 +1384,8 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                 </svg>
               </button>
             </div>
-            <div className="p-4 flex flex-col gap-4 overflow-y-auto h-[calc(100%-60px)]">
+            {/* P1-A: touch-action: pan-y allows vertical scroll but prevents horizontal scroll interference */}
+            <div className="p-4 flex flex-col gap-4 overflow-y-auto h-[calc(100%-60px)]" style={{ touchAction: 'pan-y' }}>
               {/* Upload Area */}
               <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">

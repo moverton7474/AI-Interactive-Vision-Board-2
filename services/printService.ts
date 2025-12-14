@@ -43,6 +43,227 @@ export const PRODUCT_CONFIG = {
   },
 };
 
+// ============================================
+// P0-C: PRINT ASSET VALIDATION
+// Validates image dimensions before allowing print orders
+// ============================================
+
+/**
+ * Print size dimensions in inches
+ */
+export interface PrintSize {
+  widthIn: number;
+  heightIn: number;
+}
+
+/**
+ * Parse size string (e.g., "18x24") into PrintSize object
+ */
+export function parsePrintSize(sizeStr: string): PrintSize {
+  const match = sizeStr.match(/(\d+)x(\d+)/);
+  if (!match) {
+    return { widthIn: 18, heightIn: 24 }; // Default to 18x24
+  }
+  return {
+    widthIn: parseInt(match[1], 10),
+    heightIn: parseInt(match[2], 10)
+  };
+}
+
+/**
+ * Minimum DPI for acceptable print quality
+ * 150 DPI is industry standard minimum; 300 DPI is ideal
+ */
+const MIN_DPI = 150;
+const IDEAL_DPI = 300;
+
+/**
+ * Calculate minimum pixel dimensions for a print size
+ */
+function getMinPixelsFor(size: PrintSize, dpi: number = MIN_DPI): { minW: number; minH: number } {
+  return {
+    minW: Math.round(size.widthIn * dpi),
+    minH: Math.round(size.heightIn * dpi)
+  };
+}
+
+/**
+ * Calculate effective DPI given image dimensions and print size
+ */
+export function calculateEffectiveDPI(
+  imageWidthPx: number,
+  imageHeightPx: number,
+  size: PrintSize
+): { widthDPI: number; heightDPI: number; effectiveDPI: number } {
+  const widthDPI = imageWidthPx / size.widthIn;
+  const heightDPI = imageHeightPx / size.heightIn;
+  // Effective DPI is the minimum of width and height DPI
+  return {
+    widthDPI: Math.round(widthDPI),
+    heightDPI: Math.round(heightDPI),
+    effectiveDPI: Math.round(Math.min(widthDPI, heightDPI))
+  };
+}
+
+/**
+ * Print asset validation result
+ */
+export interface PrintAssetValidation {
+  valid: boolean;
+  error?: string;
+  warning?: string;
+  imageWidthPx: number;
+  imageHeightPx: number;
+  requiredWidthPx: number;
+  requiredHeightPx: number;
+  effectiveDPI: number;
+  quality: 'excellent' | 'good' | 'acceptable' | 'too_low';
+}
+
+/**
+ * P0-C: Validate print assets before checkout
+ *
+ * Confirms that the image meets minimum dimension requirements
+ * for the selected print size. This prevents orders that would
+ * result in pixelated prints and customer refund requests.
+ *
+ * @param params - Validation parameters
+ * @returns Validation result with quality assessment
+ */
+export function validatePrintAssets(params: {
+  imageWidthPx: number;
+  imageHeightPx: number;
+  size: PrintSize | string;
+}): PrintAssetValidation {
+  // Parse size if string
+  const printSize = typeof params.size === 'string'
+    ? parsePrintSize(params.size)
+    : params.size;
+
+  const { minW, minH } = getMinPixelsFor(printSize, MIN_DPI);
+  const idealPixels = getMinPixelsFor(printSize, IDEAL_DPI);
+  const dpiInfo = calculateEffectiveDPI(params.imageWidthPx, params.imageHeightPx, printSize);
+
+  // Determine quality level
+  let quality: PrintAssetValidation['quality'];
+  if (dpiInfo.effectiveDPI >= IDEAL_DPI) {
+    quality = 'excellent';
+  } else if (dpiInfo.effectiveDPI >= 200) {
+    quality = 'good';
+  } else if (dpiInfo.effectiveDPI >= MIN_DPI) {
+    quality = 'acceptable';
+  } else {
+    quality = 'too_low';
+  }
+
+  const baseResult: PrintAssetValidation = {
+    valid: true,
+    imageWidthPx: params.imageWidthPx,
+    imageHeightPx: params.imageHeightPx,
+    requiredWidthPx: minW,
+    requiredHeightPx: minH,
+    effectiveDPI: dpiInfo.effectiveDPI,
+    quality
+  };
+
+  // Check if image meets minimum requirements
+  if (params.imageWidthPx < minW || params.imageHeightPx < minH) {
+    return {
+      ...baseResult,
+      valid: false,
+      error: `Image too small for ${printSize.widthIn}x${printSize.heightIn}" print. ` +
+             `Need at least ${minW}x${minH}px (${MIN_DPI} DPI). ` +
+             `Your image is ${params.imageWidthPx}x${params.imageHeightPx}px (${dpiInfo.effectiveDPI} DPI).`
+    };
+  }
+
+  // Add warning for suboptimal but acceptable quality
+  if (quality === 'acceptable') {
+    return {
+      ...baseResult,
+      warning: `Image quality is acceptable but not ideal. ` +
+               `For best results, use an image at least ${idealPixels.minW}x${idealPixels.minH}px (${IDEAL_DPI} DPI). ` +
+               `Current: ${dpiInfo.effectiveDPI} DPI.`
+    };
+  }
+
+  return baseResult;
+}
+
+/**
+ * Validate print assets and throw if invalid
+ * Use this as a pre-checkout guard
+ */
+export function assertPrintAssetsValid(params: {
+  imageWidthPx: number;
+  imageHeightPx: number;
+  size: PrintSize | string;
+}): void {
+  const result = validatePrintAssets(params);
+  if (!result.valid) {
+    throw new Error(result.error);
+  }
+}
+
+/**
+ * Get image dimensions from a URL (async)
+ * Returns null if unable to load image
+ */
+export async function getImageDimensions(imageUrl: string): Promise<{
+  width: number;
+  height: number;
+} | null> {
+  return new Promise((resolve) => {
+    // Handle base64 data URLs
+    if (imageUrl.startsWith('data:image')) {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => resolve(null);
+      img.src = imageUrl;
+      return;
+    }
+
+    // Handle regular URLs
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => {
+      console.warn('[PrintService] Failed to load image for dimension check:', imageUrl.substring(0, 50));
+      resolve(null);
+    };
+    img.src = imageUrl;
+  });
+}
+
+/**
+ * Full validation pipeline: Load image and validate
+ */
+export async function validatePrintOrder(params: {
+  imageUrl: string;
+  size: string;
+}): Promise<PrintAssetValidation> {
+  const dimensions = await getImageDimensions(params.imageUrl);
+
+  if (!dimensions) {
+    return {
+      valid: false,
+      error: 'Unable to verify image dimensions. Please ensure the image is accessible.',
+      imageWidthPx: 0,
+      imageHeightPx: 0,
+      requiredWidthPx: 0,
+      requiredHeightPx: 0,
+      effectiveDPI: 0,
+      quality: 'too_low'
+    };
+  }
+
+  return validatePrintAssets({
+    imageWidthPx: dimensions.width,
+    imageHeightPx: dimensions.height,
+    size: params.size
+  });
+}
+
 export const calculatePrice = (
   size: string,
   finish: string,
