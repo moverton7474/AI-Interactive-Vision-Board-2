@@ -291,54 +291,29 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
     setUsersError(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      // Direct query to profiles table - RLS policy allows platform admins to read all
+      let query = supabase
+        .from('profiles')
+        .select('id, names, email, avatar_url, subscription_tier, stripe_customer_id, is_beta_user, is_early_access, is_locked, credits, created_at, updated_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-      // Build query params
-      const params = new URLSearchParams();
-      if (search) params.set('search', search);
-      params.set('limit', '100');
-
-      const response = await fetch(
-        `https://edaigbnnofyxcfbpcvct.supabase.co/functions/v1/admin-list-users?${params.toString()}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        // If the edge function fails, fall back to direct query
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(100);
-
-        if (error) throw error;
-        setUsers(data || []);
-        return;
+      // Add search filter if provided
+      if (search && search.trim()) {
+        query = query.or(`email.ilike.%${search.trim()}%,names.ilike.%${search.trim()}%`);
       }
 
-      const result = await response.json();
-      setUsers(result.data || []);
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error loading users:', error);
+        throw error;
+      }
+
+      setUsers(data || []);
     } catch (err) {
       console.error('Error loading users:', err);
-      // Fallback: try direct query
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(100);
-
-        if (error) throw error;
-        setUsers(data || []);
-      } catch (fallbackErr) {
-        setUsersError('Failed to load users');
-      }
+      setUsersError('Failed to load users. Make sure you have platform admin permissions.');
     } finally {
       setUsersLoading(false);
     }
