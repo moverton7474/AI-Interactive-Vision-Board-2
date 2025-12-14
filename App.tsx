@@ -35,6 +35,7 @@ import { checkDatabaseConnection, saveDocument } from './services/storageService
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 import { ToastProvider } from './components/ToastContext';
 import NotificationSettings from './components/settings/NotificationSettings';
+import { useEntitlementPolling } from './hooks';
 
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -93,6 +94,42 @@ const App = () => {
   // Profile loading guard to prevent duplicate fetches
   const [profileLoadingInProgress, setProfileLoadingInProgress] = useState(false);
   const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null);
+
+  // ==============================
+  // CHECKOUT RETURN POLLING (P0-B)
+  // ==============================
+  const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
+  const [showEntitlementToast, setShowEntitlementToast] = useState(false);
+
+  // Extract session_id from URL on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    if (sessionId) {
+      console.log('[App] Checkout return detected, session_id:', sessionId);
+      setCheckoutSessionId(sessionId);
+    }
+  }, []);
+
+  // Use the entitlement polling hook
+  const { isPolling: entitlementPolling, subscriptionTier: polledTier, pollError } = useEntitlementPolling({
+    sessionId: checkoutSessionId,
+    onSuccess: (tier) => {
+      console.log('[App] Entitlement confirmed:', tier);
+      setSubscriptionTier(tier as 'FREE' | 'PRO' | 'ELITE');
+      setShowEntitlementToast(true);
+      setCheckoutSessionId(null);
+
+      // Auto-hide toast after 5 seconds
+      setTimeout(() => setShowEntitlementToast(false), 5000);
+    },
+    onTimeout: () => {
+      console.warn('[App] Entitlement polling timeout');
+      setCheckoutSessionId(null);
+    },
+    maxAttempts: 20,
+    intervalMs: 1000,
+  });
 
   useEffect(() => {
     // 1. Check DB Connection
@@ -1755,6 +1792,35 @@ const App = () => {
               setView(AppView.HABITS);
             }}
           />
+        )}
+
+        {/* Entitlement Polling Toast (P0-B) */}
+        {entitlementPolling && (
+          <div className="fixed bottom-4 right-4 z-50 bg-navy-900 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in">
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="text-sm">Confirming your subscription...</span>
+          </div>
+        )}
+
+        {showEntitlementToast && (
+          <div className="fixed bottom-4 right-4 z-50 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-sm font-medium">Welcome to {polledTier}! Your subscription is now active.</span>
+          </div>
+        )}
+
+        {pollError && (
+          <div className="fixed bottom-4 right-4 z-50 bg-yellow-500 text-navy-900 px-4 py-3 rounded-lg shadow-lg max-w-sm animate-fade-in">
+            <p className="text-sm font-medium">{pollError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="text-xs underline mt-1"
+            >
+              Refresh page
+            </button>
+          </div>
         )}
       </div>
     </ToastProvider>

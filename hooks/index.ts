@@ -23,3 +23,7 @@ export {
   type JourneyKey,
   type LandingHeroVideosConfig
 } from './useLandingHeroVideos';
+
+export {
+  useEntitlementPolling
+} from './useEntitlementPolling';

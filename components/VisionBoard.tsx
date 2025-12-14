@@ -38,6 +38,7 @@ const ImageLibraryIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 import PrintOrderModal from './PrintOrderModal';
 import SubscriptionModal from './SubscriptionModal'; // Import subscription modal
+import { generateAscensionPlan, insertAscensionPlanTasks } from '../services/ai/geminiTextService';
 
 // Granular tags that can be combined
 const PRESET_TAGS = [
@@ -126,6 +127,37 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Ascension Plan State (P0-D)
+  const [isGeneratingAscension, setIsGeneratingAscension] = useState(false);
+
+  // Loading Copy State (P1-B)
+  const [loadingCopyIndex, setLoadingCopyIndex] = useState(0);
+  const LOADING_MESSAGES = [
+    'Connecting to the universe...',
+    'Aligning your vision with possibility...',
+    'Manifesting your dreams into pixels...',
+    'Consulting the cosmic algorithm...',
+    'Weaving your future into reality...',
+    'Channeling abundance...',
+  ];
+
+  // Physical Anchor Upsell State (P1-C)
+  const [showPrintUpsell, setShowPrintUpsell] = useState(false);
+
+  // Rotate loading messages every 2.5 seconds (P1-B)
+  useEffect(() => {
+    if (!loading) {
+      setLoadingCopyIndex(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setLoadingCopyIndex(prev => (prev + 1) % LOADING_MESSAGES.length);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleGetSuggestions = async () => {
     setIsSuggesting(true);
@@ -634,6 +666,38 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         await saveVisionImage(newImage);
 
         showToast("Vision successfully saved to cloud.", 'success');
+
+        // ==============================
+        // P0-D: Generate Ascension Plan
+        // ==============================
+        if (currentPrompt) {
+          console.log('[VisionBoard] Generating Ascension Plan...');
+          setIsGeneratingAscension(true);
+
+          try {
+            const ascensionResult = await generateAscensionPlan(currentPrompt, userGoals || undefined);
+
+            if (ascensionResult.tasks.length > 0) {
+              const inserted = await insertAscensionPlanTasks(ascensionResult.tasks);
+              if (inserted) {
+                showToast(`✨ ${ascensionResult.tasks.length} action items generated for your vision!`, 'success');
+              }
+            }
+          } catch (ascErr) {
+            console.error('[VisionBoard] Ascension plan error:', ascErr);
+            // Non-blocking - don't show error toast
+          } finally {
+            setIsGeneratingAscension(false);
+          }
+        }
+
+        // ==============================
+        // P1-C: Physical Anchor Upsell
+        // ==============================
+        setTimeout(() => {
+          setShowPrintUpsell(true);
+        }, 3000);
+
       } catch (e) {
         showToast("Failed to save. Please try again.", 'error');
       } finally {
@@ -677,6 +741,66 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       {/* Subscription Modal */}
       {showSubModal && (
         <SubscriptionModal tier="PRO" onClose={onSubClose} />
+      )}
+
+      {/* Physical Anchor Upsell Modal (P1-C) */}
+      {showPrintUpsell && resultImage && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-gold-500 to-amber-500"></div>
+
+            <button
+              onClick={() => setShowPrintUpsell(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="mb-4">
+              <div className="w-16 h-16 bg-gold-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <PrinterIcon className="w-8 h-8 text-gold-600" />
+              </div>
+              <h3 className="text-xl font-serif font-bold text-navy-900 mb-2">
+                Make It Physical
+              </h3>
+              <p className="text-gray-600 text-sm">
+                Studies show that <strong>physical vision boards</strong> are 42% more effective
+                at manifesting goals. Print your vision and place it where you'll see it daily.
+              </p>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-3 mb-4">
+              <img
+                src={resultImage}
+                alt="Your vision"
+                className="w-full h-32 object-cover rounded-lg shadow-md"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setShowPrintUpsell(false);
+                  setShowPrintModal(true);
+                }}
+                className="w-full bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 text-navy-900 font-bold py-3 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <PrinterIcon className="w-5 h-5" />
+                Order Premium Print
+                <span className="text-xs bg-white/50 px-2 py-0.5 rounded-full">From $24</span>
+              </button>
+
+              <button
+                onClick={() => setShowPrintUpsell(false)}
+                className="w-full text-gray-500 hover:text-navy-900 font-medium py-2 text-sm"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Camera Capture Modal */}
@@ -1096,7 +1220,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                 {loading ? (
                   <>
                     <div className="w-4 h-4 md:w-5 md:h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span className="text-sm md:text-base">Manifesting...</span>
+                    <span className="text-sm md:text-base">{LOADING_MESSAGES[loadingCopyIndex]}</span>
                   </>
                 ) : (
                   <>
@@ -1117,7 +1241,21 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
           {/* Canvas / Preview */}
           <div className="w-full md:w-7/12 flex flex-col gap-4 order-first md:order-last">
-            <div className="bg-gray-100 rounded-2xl border-4 border-white shadow-2xl overflow-hidden flex flex-col relative min-h-[300px] md:min-h-[500px]">
+            <div
+              className="bg-gray-100 rounded-2xl border-4 border-white shadow-2xl overflow-hidden flex flex-col relative min-h-[300px] md:min-h-[500px]"
+              onTouchStart={(e) => {
+                // P1-A: Prevent scroll interference on canvas area on mobile
+                if (e.touches.length === 1) {
+                  e.stopPropagation();
+                }
+              }}
+              onTouchMove={(e) => {
+                // P1-A: Allow pinch zoom but prevent scroll
+                if (e.touches.length === 1) {
+                  e.stopPropagation();
+                }
+              }}
+            >
               <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] relative">
 
                 {/* Badge for Base Image */}
