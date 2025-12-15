@@ -16,3 +16,10 @@ export {
   type NoAccessProps,
   type RequireRoleProps
 } from './useAuthz';
+
+export {
+  useLandingHeroVideos,
+  type VideoSource,
+  type JourneyKey,
+  type LandingHeroVideosConfig
+} from './useLandingHeroVideos';

@@ -8,10 +8,11 @@ const corsHeaders = {
 
 interface CommunicationRequest {
     userId: string;
-    type: 'morning_briefing' | 'habit_reminder' | 'pace_warning' | 'weekly_review' | 'generic';
+    type: 'morning_briefing' | 'habit_reminder' | 'pace_warning' | 'weekly_review' | 'milestone_celebration' | 'streak_milestone' | 'welcome' | 'generic';
     content: string; // Text content or ID of content to generate
     urgency?: 'high' | 'medium' | 'low';
-    context?: any; // Extra data for the message
+    context?: any; // Extra data for the message (e.g., habitTitle, streak, milestoneTitle, etc.)
+    preferredChannel?: 'sms' | 'voice' | 'email' | 'push'; // Override channel selection
 }
 
 serve(async (req) => {
@@ -25,7 +26,7 @@ serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        const { userId, type, content, urgency = 'medium', context }: CommunicationRequest = await req.json()
+        const { userId, type, content, urgency = 'medium', context, preferredChannel }: CommunicationRequest = await req.json()
 
         if (!userId) throw new Error('userId is required')
 
@@ -36,19 +37,32 @@ serve(async (req) => {
             .eq('user_id', userId)
             .single()
 
-        // We also need the phone number from auth or a separate profile table
-        // Assuming it's in auth.users or a 'profiles' table. Let's check 'profiles' first.
+        // Get user profile with phone and email
         const { data: profile, error: userError } = await supabase
             .from('profiles')
-            .select('phone_number') // Assuming this column exists, if not we might need to fetch from auth
+            .select('phone_number, email, names')
             .eq('id', userId)
             .single()
 
-        // 2. Determine Channel based on Urgency & Type
-        let channel = 'push'; // Default
-        if (urgency === 'high') channel = 'sms';
-        if (type === 'morning_briefing') channel = 'voice'; // Or push with audio link
-        if (type === 'weekly_review') channel = 'email';
+        // Get communication preferences
+        const { data: commPrefs } = await supabase
+            .from('user_comm_preferences')
+            .select('preferred_channel, voice_enabled, call_enabled')
+            .eq('user_id', userId)
+            .single()
+
+        // 2. Determine Channel based on Urgency, Type, and Preferences
+        let channel = preferredChannel || commPrefs?.preferred_channel || 'push'; // Default
+
+        // Override based on urgency and type if no preferred channel specified
+        if (!preferredChannel) {
+            if (urgency === 'high') channel = 'sms';
+            if (type === 'morning_briefing' && commPrefs?.call_enabled) channel = 'voice';
+            if (type === 'weekly_review') channel = 'email';
+            if (type === 'milestone_celebration') channel = 'email';
+            if (type === 'streak_milestone') channel = 'email';
+            if (type === 'welcome') channel = 'email';
+        }
 
         console.log(`Routing message for user ${userId}: Type=${type}, Urgency=${urgency} -> Channel=${channel}`);
 
@@ -77,8 +91,44 @@ serve(async (req) => {
                 break;
 
             case 'email':
-                // TODO: Implement email sending (e.g. via Resend or SendGrid)
-                console.log("Email sending not yet implemented, logging content:", content);
+                if (profile?.email) {
+                    // Map communication type to email template
+                    const templateMap: Record<string, string> = {
+                        'weekly_review': 'weekly_review',
+                        'milestone_celebration': 'milestone_celebration',
+                        'streak_milestone': 'streak_milestone',
+                        'habit_reminder': 'habit_reminder',
+                        'pace_warning': 'pace_warning',
+                        'welcome': 'welcome',
+                        'morning_briefing': 'coach_message',
+                        'generic': 'generic'
+                    };
+
+                    result = await supabase.functions.invoke('send-email', {
+                        body: {
+                            to: profile.email,
+                            template: templateMap[type] || 'generic',
+                            data: {
+                                name: profile.names || 'Visionary',
+                                ...context, // Pass through context data (habitTitle, streak, etc.)
+                                message: content
+                            },
+                            userId: userId
+                        }
+                    });
+                } else {
+                    console.log("No email address, falling back to push");
+                    channel = 'push';
+                    // Fall through to push notification
+                    result = await supabase.functions.invoke('schedule-notification', {
+                        body: {
+                            user_id: userId,
+                            title: getTitleForType(type),
+                            body: content,
+                            scheduled_for: new Date().toISOString()
+                        }
+                    });
+                }
                 break;
 
             case 'push':
@@ -114,6 +164,9 @@ function getTitleForType(type: string): string {
         case 'habit_reminder': return '💪 Habit Reminder';
         case 'pace_warning': return '⚠️ Pace Alert';
         case 'weekly_review': return '📅 Weekly Review';
+        case 'milestone_celebration': return '🎉 Milestone Achieved!';
+        case 'streak_milestone': return '🔥 Streak Achievement!';
+        case 'welcome': return '✨ Welcome to Visionary!';
         default: return 'Visionary AI';
     }
 }

@@ -148,7 +148,8 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Increased to support transactional emails (welcome, password reset, etc.)
+email_sent = 100
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -175,6 +176,7 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
+# NOTE: For production with Resend, set this to true and configure SMTP below
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
@@ -185,15 +187,33 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# ============================================================================
+# SMTP CONFIGURATION FOR PRODUCTION
+# ============================================================================
+# To enable email confirmations in production:
+# 1. Uncomment the [auth.email.smtp] section below
+# 2. Set enable_confirmations = true above
+# 3. Configure your SMTP provider (Resend recommended)
+#
+# For Resend SMTP:
+# [auth.email.smtp]
+# enabled = true
+# host = "smtp.resend.com"
+# port = 465
+# user = "resend"
+# pass = "env(RESEND_API_KEY)"
+# admin_email = "noreply@yourdomain.com"
+# sender_name = "Visionary"
+#
+# For SendGrid SMTP:
 # [auth.email.smtp]
 # enabled = true
 # host = "smtp.sendgrid.net"
 # port = 587
 # user = "apikey"
 # pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# admin_email = "noreply@yourdomain.com"
+# sender_name = "Visionary"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

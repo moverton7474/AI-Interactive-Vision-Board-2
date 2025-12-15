@@ -27,21 +27,22 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 const getModelConfig = () => {
   const env = typeof Deno !== 'undefined' ? Deno.env : { get: () => undefined }
   return {
-    // Primary: Gemini 3 Pro Image (Nano Banana Pro) - BEST for character consistency
-    // Supports up to 14 reference images with up to 5 human subjects
-    // Optimal for likeness preservation with multi-turn conversation structure
-    image_primary: env.get?.('GOOGLE_IMAGE_MODEL_PRIMARY') || 'gemini-3-pro-image-preview',
+    // Primary: Gemini 2.0 Flash Exp - MOST RELIABLE for image generation
+    // This is currently the best working model for image generation with reference images
+    // If you have access to gemini-3-pro-image-preview, set GOOGLE_IMAGE_MODEL_PRIMARY env var
+    image_primary: env.get?.('GOOGLE_IMAGE_MODEL_PRIMARY') || 'gemini-2.0-flash-exp',
 
     // Fallback 1: Gemini 2.5 Flash Image (Nano Banana)
     // Good balance of speed/quality, supports up to 3 reference images
-    image_fallback_1: env.get?.('GOOGLE_IMAGE_MODEL_FALLBACK') || 'gemini-2.5-flash-image',
+    image_fallback_1: env.get?.('GOOGLE_IMAGE_MODEL_FALLBACK') || 'gemini-2.5-flash-preview-05-20',
 
-    // Fallback 2: Gemini 2.0 Flash Experimental
+    // Fallback 2: Gemini 2.0 Flash Experimental (older variant)
     // Older but stable, uses responseModalities
-    image_fallback_2: 'gemini-2.0-flash-exp',
+    image_fallback_2: 'gemini-2.0-flash-exp-image-generation',
 
     // Fallback 3: Imagen 3 (different API endpoint)
     // Last resort - doesn't support reference images for likeness
+    // WARNING: Likeness will NOT be preserved with this model
     image_imagen: 'imagen-3.0-generate-002',
   }
 }
@@ -407,16 +408,28 @@ ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
 /**
  * Generate/Edit Vision Board Image with Likeness Preservation
  *
- * This function implements the Nano Banana / Nano Banana Pro best practices:
- * 1. Uses multi-turn conversation structure for character consistency
- * 2. Sends reference images as separate "user" turns with explicit instructions
- * 3. Prioritizes likeness over scene details in prompt engineering
+ * UPDATED: December 2025 - Dual-Strategy Approach for Better Success Rate
+ *
+ * This function implements a TWO-STRATEGY approach for each model:
+ *
+ * STRATEGY A (Complex): 3-turn conversation with Identity Lock Protocol
+ * - Best for advanced models that support multi-turn with images
+ * - More detailed identity preservation instructions
+ * - May fail due to safety filters or unsupported model formats
+ *
+ * STRATEGY B (Simple): Single-turn request with all images + text together
+ * - More compatible across different model versions
+ * - Natural language prompt (less "robotic")
+ * - Used as immediate fallback when complex fails
  *
  * Model fallback order:
- * 1. Nano Banana Pro (gemini-2.5-pro-preview) - Best likeness preservation
- * 2. Nano Banana (gemini-2.5-flash-preview) - Good balance of speed/quality
- * 3. Gemini 2.0 Flash Exp - Stable fallback
- * 4. Imagen 3 - Last resort (no reference image support)
+ * 1. Gemini 2.0 Flash Exp (Primary) - Most reliable for image generation
+ * 2. Gemini 2.5 Flash Preview - Good balance of speed/quality
+ * 3. Gemini 2.0 Flash Exp Image Gen - Older variant fallback
+ * 4. Imagen 3 - LAST RESORT (no reference image support - likeness LOST)
+ *
+ * For each Gemini model, we try BOTH strategies before moving to next model.
+ * This significantly improves success rate while preserving likeness.
  */
 async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
   const { images = [], prompt, embeddedText, titleText, style, aspectRatio, identityPrompt, referenceImageTags = [] } = params
@@ -426,6 +439,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   const referenceImageCount = images.length > 1 ? images.length - 1 : 0 // First image is base
   const hasIdentity = !!identityPrompt
   const identityLength = identityPrompt ? identityPrompt.length : 0
+  const isPremium = profile?.subscription_tier === 'PRO' || profile?.subscription_tier === 'ELITE'
 
   console.log(`[${requestId}] Image generation requested:`, JSON.stringify({
     baseImage: baseImagePresent,
@@ -439,8 +453,8 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     referenceTagCount: referenceImageTags.length
   }))
 
-  // Build the generation request using the centralized prompt builder
-  const generationRequest = buildLikenessPreservingRequest({
+  // Common request params
+  const requestParams: LikenessRequestParams = {
     baseImage: images[0] || null,
     referenceImages: images.slice(1),
     referenceImageTags,
@@ -450,93 +464,92 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     embeddedText,
     style,
     aspectRatio,
-    isPremium: profile?.subscription_tier === 'PRO' || profile?.subscription_tier === 'ELITE'
-  }, requestId)
+    isPremium
+  }
 
-  console.log(`[${requestId}] Built generation request with ${generationRequest.contents.length} conversation turns`)
+  // Build BOTH request strategies
+  // Strategy A: Complex 3-turn conversation (original approach - better for advanced models)
+  const complexRequest = buildLikenessPreservingRequest(requestParams, requestId)
+
+  // Strategy B: Simple single-turn (more compatible - fallback for when complex fails)
+  const simpleRequest = buildSimpleLikenessRequest(requestParams, requestId)
+
+  console.log(`[${requestId}] Built generation requests: complex=${complexRequest.contents.length} turns, simple=1 turn`)
 
   // Get model configuration
   const modelConfig = getModelConfig()
   const errors: Record<string, string> = {}
-  let modelUsed: string | null = null
 
-  // Attempt 1: Nano Banana Pro (Primary - best for likeness)
-  const primaryResult = await tryGeminiImageGenerationV2(
-    apiKey,
-    generationRequest,
-    modelConfig.image_primary,
-    requestId
-  )
-  if (primaryResult.success) {
-    modelUsed = modelConfig.image_primary
-    console.log(`[${requestId}] Nano Banana Pro succeeded (${modelUsed})`)
-    return successResponse({
-      image: primaryResult.image,
-      model_used: modelUsed,
-      likeness_optimized: true
-    }, requestId)
+  // Define model sequence to try
+  // Prioritize gemini-2.0-flash-exp as it's currently most reliable for image generation
+  const modelSequence = [
+    { id: modelConfig.image_primary, name: 'Primary (Nano Banana Pro)' },
+    { id: modelConfig.image_fallback_2, name: 'Gemini 2.0 Flash Exp' }, // Moved up - most reliable
+    { id: modelConfig.image_fallback_1, name: 'Fallback (Nano Banana)' },
+  ]
+
+  // Try each model with BOTH strategies before moving to next model
+  for (const model of modelSequence) {
+    console.log(`[${requestId}] Trying ${model.name} (${model.id})...`)
+
+    // Strategy A: Try complex multi-turn prompt first
+    let result = await tryGeminiImageGenerationV2(apiKey, complexRequest, model.id, requestId)
+
+    if (result.success) {
+      console.log(`[${requestId}] ${model.name} succeeded with COMPLEX prompt`)
+      return successResponse({
+        image: result.image,
+        model_used: model.id,
+        strategy_used: 'complex_3turn',
+        likeness_optimized: true
+      }, requestId)
+    }
+
+    const complexError = result.error || 'Unknown error'
+    console.warn(`[${requestId}] ${model.name} complex prompt failed: ${complexError}`)
+
+    // Strategy B: If complex fails, immediately try SIMPLE single-turn on SAME model
+    // This often succeeds when complex fails due to safety filters or format issues
+    console.log(`[${requestId}] ${model.name} - retrying with SIMPLE single-turn prompt...`)
+    result = await tryGeminiImageGenerationV2(apiKey, simpleRequest, model.id, requestId)
+
+    if (result.success) {
+      console.log(`[${requestId}] ${model.name} succeeded with SIMPLE prompt`)
+      return successResponse({
+        image: result.image,
+        model_used: model.id,
+        strategy_used: 'simple_single_turn',
+        likeness_optimized: true
+      }, requestId)
+    }
+
+    // Both strategies failed for this model - record error and move to next
+    const simpleError = result.error || 'Unknown error'
+    errors[model.id] = `complex: ${complexError} | simple: ${simpleError}`
+    console.warn(`[${requestId}] ${model.name} failed all strategies: ${errors[model.id]}`)
   }
-  errors[modelConfig.image_primary] = primaryResult.error || 'Unknown error'
-  console.warn(`[${requestId}] Nano Banana Pro failed: ${primaryResult.error}`)
 
-  // Attempt 2: Nano Banana (Fallback 1)
-  const fallback1Result = await tryGeminiImageGenerationV2(
-    apiKey,
-    generationRequest,
-    modelConfig.image_fallback_1,
-    requestId
-  )
-  if (fallback1Result.success) {
-    modelUsed = modelConfig.image_fallback_1
-    console.log(`[${requestId}] Nano Banana succeeded (${modelUsed})`)
-    return successResponse({
-      image: fallback1Result.image,
-      model_used: modelUsed,
-      likeness_optimized: true
-    }, requestId)
-  }
-  errors[modelConfig.image_fallback_1] = fallback1Result.error || 'Unknown error'
-  console.warn(`[${requestId}] Nano Banana failed: ${fallback1Result.error}`)
+  // Last resort: Imagen 3 (no reference image support - likeness WILL be lost)
+  console.log(`[${requestId}] All Gemini models failed - trying Imagen 3 (WARNING: no likeness preservation)`)
 
-  // Attempt 3: Gemini 2.0 Flash Exp (Fallback 2)
-  const fallback2Result = await tryGeminiImageGenerationV2(
-    apiKey,
-    generationRequest,
-    modelConfig.image_fallback_2,
-    requestId
-  )
-  if (fallback2Result.success) {
-    modelUsed = modelConfig.image_fallback_2
-    console.log(`[${requestId}] Gemini 2.0 Exp succeeded (${modelUsed})`)
-    return successResponse({
-      image: fallback2Result.image,
-      model_used: modelUsed,
-      likeness_optimized: true
-    }, requestId)
-  }
-  errors[modelConfig.image_fallback_2] = fallback2Result.error || 'Unknown error'
-  console.warn(`[${requestId}] Gemini 2.0 Exp failed: ${fallback2Result.error}`)
-
-  // Attempt 4: Imagen 3 (Last resort - no reference image support)
-  // Build a simplified text-only prompt for Imagen
   const imagenPrompt = buildImagenFallbackPrompt({
     sceneDescription: prompt,
     identityPrompt,
     titleText,
     embeddedText,
     style,
-    isPremium: profile?.subscription_tier === 'PRO' || profile?.subscription_tier === 'ELITE'
+    isPremium
   })
 
   const imagenResult = await tryImagenGeneration(apiKey, imagenPrompt, requestId, aspectRatio)
   if (imagenResult.success) {
-    modelUsed = modelConfig.image_imagen
-    console.log(`[${requestId}] Imagen 3 succeeded (${modelUsed}) - WARNING: No likeness preservation`)
+    console.log(`[${requestId}] Imagen 3 succeeded (${modelConfig.image_imagen}) - WARNING: No likeness preservation`)
     return successResponse({
       image: imagenResult.image,
-      model_used: modelUsed,
+      model_used: modelConfig.image_imagen,
+      strategy_used: 'imagen_text_only',
       likeness_optimized: false,
-      warning: 'Generated with Imagen 3 fallback - likeness may not be preserved'
+      warning: 'Generated with Imagen 3 fallback - likeness may not be preserved. Reference photos were not used.'
     }, requestId)
   }
   errors[modelConfig.image_imagen] = imagenResult.error || 'Unknown error'
@@ -794,6 +807,130 @@ QUALITY: Render at highest quality with professional lighting, cinematic composi
 }
 
 /**
+ * Simple Single-Turn Likeness Request Builder
+ *
+ * UPDATED: December 2025 - Alternative to complex 3-turn structure
+ *
+ * This builds a simpler single-turn request that:
+ * - Puts all images + text in ONE user message
+ * - Avoids simulated model turns that may trigger safety refusals
+ * - More compatible with various Gemini model versions
+ *
+ * Use this as a fallback when the complex 3-turn approach fails.
+ */
+function buildSimpleLikenessRequest(params: LikenessRequestParams, requestId: string): {
+  contents: any[]
+  generationConfig: any
+} {
+  const {
+    baseImage,
+    referenceImages,
+    referenceImageTags,
+    identityPrompt,
+    sceneDescription,
+    titleText,
+    embeddedText,
+    style,
+    aspectRatio,
+    isPremium
+  } = params
+
+  const parts: any[] = []
+
+  // 1. Add ALL reference images first (base image + additional references)
+  if (baseImage) {
+    const data = extractBase64Data(baseImage)
+    parts.push({ inlineData: { mimeType: data.mimeType, data: data.base64 } })
+  }
+
+  referenceImages.forEach((img: string) => {
+    const data = extractBase64Data(img)
+    parts.push({ inlineData: { mimeType: data.mimeType, data: data.base64 } })
+  })
+
+  const totalImages = (baseImage ? 1 : 0) + referenceImages.length
+
+  // 2. Build a natural language prompt (less "robotic" than the Identity Lock Protocol)
+  const identityNames = referenceImageTags.length > 0
+    ? referenceImageTags.join(' and ')
+    : 'these people'
+
+  // Parse identity descriptions
+  const identityDescriptions = identityPrompt
+    ? identityPrompt.split('\n\n').filter(Boolean)
+    : []
+
+  let identityDesc = ''
+  if (identityDescriptions.length > 0) {
+    identityDesc = `\n\nKey physical details to preserve:\n${identityDescriptions.map((desc, i) => {
+      const tag = referenceImageTags[i] || `Person ${i + 1}`
+      return `- ${tag}: ${desc}`
+    }).join('\n')}`
+  }
+
+  let prompt = `Generate a photorealistic image of ${identityNames} ${sceneDescription}.
+${identityDesc}
+
+CRITICAL REQUIREMENTS:
+- The people in the generated image MUST look EXACTLY like the people in the attached ${totalImages} reference photo(s)
+- Match their facial features, skin tone, body type, and age PRECISELY
+- Do NOT substitute generic models or idealized versions
+- Do NOT alter ethnicity, body type, or age appearance
+- Preserve any distinctive features (glasses, facial hair, etc.)`
+
+  // Add text overlay instructions
+  if (titleText) {
+    prompt += `\n\nTEXT TO INCLUDE: Display "${titleText}" prominently in elegant typography.`
+  }
+  if (embeddedText) {
+    prompt += `\nAlso include: "${embeddedText}"`
+  }
+
+  // Add style instructions
+  if (style && style !== 'photorealistic') {
+    const styleInstructions: Record<string, string> = {
+      'cinematic': 'Apply cinematic style with dramatic lighting and film-like color grading.',
+      'oil_painting': 'Render in oil painting style while preserving recognizable facial features.',
+      'watercolor': 'Apply soft watercolor aesthetic while maintaining facial likeness accuracy.',
+      'cyberpunk': 'Use cyberpunk neon aesthetic while keeping faces clearly recognizable.',
+      '3d_render': 'Create 3D rendered style while preserving accurate facial proportions.'
+    }
+    prompt += `\n\nARTISTIC STYLE: ${styleInstructions[style] || style}. Apply style to environment/aesthetic only - do NOT alter the people's identities.`
+  }
+
+  if (isPremium) {
+    prompt += `\n\nQUALITY: Render at highest quality with professional lighting, cinematic composition, and ultra-detailed textures.`
+  }
+
+  parts.push({ text: prompt })
+
+  // Build generation config
+  const generationConfig: any = {
+    temperature: 0.4, // Low temperature for more consistent likeness
+    maxOutputTokens: 8192,
+    responseModalities: ['IMAGE', 'TEXT']
+  }
+
+  // Add imageConfig for aspect ratio and resolution
+  if (aspectRatio || isPremium) {
+    generationConfig.imageConfig = {}
+    if (aspectRatio) {
+      generationConfig.imageConfig.aspectRatio = aspectRatio
+    }
+    if (isPremium) {
+      generationConfig.imageConfig.imageSize = '2K'
+    }
+  }
+
+  console.log(`[${requestId}] Built SIMPLE single-turn request with ${totalImages} reference images`)
+
+  return {
+    contents: [{ role: 'user', parts }],
+    generationConfig
+  }
+}
+
+/**
  * Build simplified prompt for Imagen fallback (text-only, no image references)
  */
 function buildImagenFallbackPrompt(params: {
@@ -920,6 +1057,9 @@ async function tryImagenGeneration(apiKey: string, prompt: string, requestId: st
   try {
     console.log(`[${requestId}] Trying Imagen 3 (${modelConfig.image_imagen})...`)
 
+    // Add negative prompts to improve quality and consistency
+    const negativePrompt = 'blurry, distorted faces, cartoon, anime, low quality, ugly, deformed hands, extra fingers, bad proportions, unrealistic skin'
+
     const response = await fetch(
       `${GEMINI_API_BASE}/models/${modelConfig.image_imagen}:predict?key=${apiKey}`,
       {
@@ -931,7 +1071,8 @@ async function tryImagenGeneration(apiKey: string, prompt: string, requestId: st
             sampleCount: 1,
             aspectRatio: aspectRatio || '4:3',
             safetyFilterLevel: 'block_only_high',
-            personGeneration: 'allow_adult'
+            personGeneration: 'allow_adult',
+            negativePrompt
           }
         })
       }

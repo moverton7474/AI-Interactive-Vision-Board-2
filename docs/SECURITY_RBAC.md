@@ -1,8 +1,66 @@
 # Visionary AI Security Architecture - RBAC & Policies
 
-> **Version**: 2.0
+> **Version**: 2.1
 > **Last Updated**: 2025-12-13
 > **Author**: Security Architecture Review
+
+---
+
+## Admin Control Center Status (2025-12-13)
+
+### What Exists Today
+
+The core RBAC infrastructure is fully implemented and operational:
+
+| Component | Status | Location |
+|-----------|--------|----------|
+| `platform_roles` table | Implemented | `supabase/sql/01_rbac_tables_and_functions.sql` |
+| `audit_logs` table | Implemented | `supabase/sql/01_rbac_tables_and_functions.sql` |
+| `is_platform_admin()` SQL function | Implemented | `supabase/sql/01_rbac_tables_and_functions.sql` |
+| `has_platform_role()` SQL function | Implemented | `supabase/sql/01_rbac_tables_and_functions.sql` |
+| `log_audit()` SQL function | Implemented | `supabase/sql/01_rbac_tables_and_functions.sql` |
+| Team RLS policies | Implemented | `supabase/sql/02_rbac_policies.sql` |
+| Audit triggers for team operations | Implemented | `supabase/sql/04_audit_triggers.sql` |
+| `_shared/authz.ts` Edge Function helper | Implemented | `supabase/functions/_shared/authz.ts` |
+| `useAuthz` React hook | Implemented | `hooks/useAuthz.tsx` |
+| `ManagerDashboard` UI (team view) | Implemented | `components/ManagerDashboard.tsx` |
+
+### Admin Edge Functions (Backend APIs)
+
+| Function | Status | Description |
+|----------|--------|-------------|
+| `admin-list-users` | Implemented | Search/filter users by email, name, tier, etc. |
+| `admin-get-user-detail` | Implemented | Full user profile, subscription, teams, stats |
+| `admin-update-user` | Implemented | Adjust credits, lock/unlock, set flags |
+| `admin-list-teams` | Implemented | Search/filter teams |
+| `admin-get-team-detail` | Implemented | Team info, members, roles, metrics |
+| `admin-update-team` | Implemented | Change owner, rename, toggle features |
+| `admin-manage-team-membership` | Implemented | Add/remove members, change roles |
+| `admin-list-print-orders` | Implemented | Filter orders by status, date, user |
+| `admin-get-print-order-detail` | Implemented | Full order metadata for support |
+| `admin-update-print-order-status` | Implemented | Mark reprint, refund, cancel |
+| `admin-start-impersonation` | Implemented | Create impersonation session |
+| `admin-stop-impersonation` | Implemented | End impersonation session |
+| `admin-sync-stripe-subscription` | Implemented | Sync subscription from Stripe |
+| `admin-override-subscription-tier` | Implemented | Override tier with constraints |
+
+### What Still Needs to Be Built
+
+| Component | Priority | Notes |
+|-----------|----------|-------|
+| Admin Control Center UI | High | React pages at `/admin` route |
+| SAML/SSO Enterprise Identity | Medium | For enterprise customers |
+| SCIM 2.0 Provisioning | Medium | Directory sync |
+| Admin audit log viewer UI | Medium | Paginated log browser |
+
+### Security Notes
+
+- All admin functions require `platform_admin` role (enforced server-side)
+- All mutations are logged to `audit_logs` table
+- Impersonation creates time-limited sessions with full audit trail
+- No secrets (API keys, Plaid tokens, Gemini keys) are ever exposed via admin APIs
+
+---
 
 ## Table of Contents
 
