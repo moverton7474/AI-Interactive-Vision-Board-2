@@ -38,6 +38,12 @@ const ClockIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   </svg>
 );
 
+const CalendarIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+);
+
 const XMarkIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -135,6 +141,11 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
   });
   const [eligibleRecipients, setEligibleRecipients] = useState<TeamMemberForSelect[]>([]);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
+
+  // Scheduling state
+  const [scheduleForLater, setScheduleForLater] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
 
   // Detail view state
   const [selectedCommunication, setSelectedCommunication] = useState<Communication | null>(null);
@@ -283,8 +294,8 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     }
   }, [selectedCommunication, loadCommunicationDetail]);
 
-  // Send communication - saves to DB and sends actual emails
-  const handleSend = async () => {
+  // Send communication - saves to DB and optionally sends emails immediately or schedules
+  const handleSend = async (immediate: boolean = true) => {
     if (!subject.trim()) {
       setError('Subject is required');
       return;
@@ -296,6 +307,19 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     if (eligibleRecipients.length === 0) {
       setError('No eligible recipients found');
       return;
+    }
+
+    // Validate scheduling if selected
+    if (scheduleForLater && immediate) {
+      if (!scheduledDate || !scheduledTime) {
+        setError('Please select a date and time for scheduling');
+        return;
+      }
+      const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+      if (scheduledDateTime <= new Date()) {
+        setError('Scheduled time must be in the future');
+        return;
+      }
     }
 
     setSending(true);
@@ -310,7 +334,11 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
 
       const recipientCount = eligibleRecipients.length;
 
-      // Insert communication record first
+      // Determine if this is immediate send or scheduled
+      const isScheduled = scheduleForLater && scheduledDate && scheduledTime;
+      const scheduledFor = isScheduled ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString() : null;
+
+      // Insert communication record
       const { data: communication, error: insertError } = await supabase
         .from('team_communications')
         .insert({
@@ -322,8 +350,9 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
           template_type: templateType,
           recipient_filter: recipientFilter,
           total_recipients: recipientCount,
-          status: 'sending',
-          sent_at: new Date().toISOString(),
+          status: isScheduled ? 'scheduled' : 'sending',
+          scheduled_for: scheduledFor,
+          sent_at: isScheduled ? null : new Date().toISOString(),
           sent_count: 0
         })
         .select()
@@ -331,11 +360,55 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
 
       if (insertError) throw insertError;
 
-      // Map template type to email template
-      const emailTemplate = templateType === 'announcement' ? 'team_announcement'
-        : templateType === 'recognition' ? 'team_recognition'
-        : templateType === 'reminder' ? 'team_reminder'
-        : 'manager_direct_message';
+      // Insert recipient records for queue processing
+      const recipientRecords = eligibleRecipients.map(r => ({
+        communication_id: communication.id,
+        user_id: r.user_id,
+        email: r.email,
+        status: 'pending'
+      }));
+
+      const { error: recipientsError } = await supabase
+        .from('team_communication_recipients')
+        .insert(recipientRecords);
+
+      if (recipientsError) {
+        console.error('Error inserting recipients:', recipientsError);
+        // Continue anyway - emails can still be sent
+      }
+
+      // If scheduled, we're done - the queue processor will handle it
+      if (isScheduled) {
+        setSuccessMessage(`Communication scheduled for ${new Date(scheduledFor!).toLocaleString()} to ${recipientCount} recipients`);
+        setTimeout(() => {
+          resetForm();
+          setViewMode('list');
+        }, 2000);
+        return;
+      }
+
+      // Otherwise, send immediately
+      const emailTemplate = 'generic'; // Use generic for now as team templates may not be deployed
+
+      // Build HTML content for the email body
+      const emailHtmlContent = `
+        <h2 style="color: #F5F5F5; font-size: 22px; margin: 0 0 15px 0;">
+          ${templateType === 'announcement' ? '📢 Team Announcement' :
+            templateType === 'recognition' ? '🏆 Recognition' :
+            templateType === 'reminder' ? '⏰ Reminder' : '💬 Message'}
+        </h2>
+        <p style="color: #9CA3AF; font-size: 14px; margin: 0 0 20px 0;">
+          From: Team Manager at <strong style="color: #D4AF37;">${teamName}</strong>
+        </p>
+        <div style="background: rgba(30, 58, 95, 0.3); border-left: 4px solid #D4AF37; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <div style="color: #F5F5F5; font-size: 16px; line-height: 1.8;">
+            ${messageHtml}
+          </div>
+        </div>
+        <p style="color: #9CA3AF; font-size: 13px; margin-top: 20px;">
+          This message was sent to members of ${teamName}.
+        </p>
+      `;
 
       // Send emails to each recipient
       let sentCount = 0;
@@ -355,11 +428,9 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
               template: emailTemplate,
               subject: subject,
               data: {
-                teamName: teamName,
                 subject: subject,
-                message: messageHtml,
-                senderName: 'Team Manager',
-                recipientName: recipient.email.split('@')[0]
+                html: emailHtmlContent,
+                content: emailHtmlContent // fallback
               }
             }
           });
@@ -368,8 +439,22 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
             console.error(`Failed to send to ${recipient.email}:`, emailError);
             failedCount++;
             errors.push(`${recipient.email}: ${emailError.message}`);
+
+            // Update recipient status to failed
+            await supabase
+              .from('team_communication_recipients')
+              .update({ status: 'failed', error_message: emailError.message })
+              .eq('communication_id', communication.id)
+              .eq('email', recipient.email);
           } else {
             sentCount++;
+
+            // Update recipient status to sent
+            await supabase
+              .from('team_communication_recipients')
+              .update({ status: 'sent', sent_at: new Date().toISOString() })
+              .eq('communication_id', communication.id)
+              .eq('email', recipient.email);
           }
         } catch (emailErr) {
           console.error(`Error sending to ${recipient.email}:`, emailErr);
@@ -398,10 +483,7 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
       // Reset form and go back to list after delay
       if (sentCount > 0) {
         setTimeout(() => {
-          setSubject('');
-          setMessageHtml('');
-          setTemplateType('announcement');
-          setSuccessMessage(null);
+          resetForm();
           setViewMode('list');
         }, 2000);
       }
@@ -411,6 +493,17 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     } finally {
       setSending(false);
     }
+  };
+
+  // Reset form helper
+  const resetForm = () => {
+    setSubject('');
+    setMessageHtml('');
+    setTemplateType('announcement');
+    setScheduleForLater(false);
+    setScheduledDate('');
+    setScheduledTime('');
+    setSuccessMessage(null);
   };
 
   // View communication detail
@@ -736,28 +829,101 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
         </p>
       </div>
 
+      {/* Scheduling */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={scheduleForLater}
+            onChange={(e) => {
+              setScheduleForLater(e.target.checked);
+              if (!e.target.checked) {
+                setScheduledDate('');
+                setScheduledTime('');
+              }
+            }}
+            className="w-5 h-5 rounded bg-white/10 border-white/30 text-indigo-500 focus:ring-indigo-500"
+          />
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="w-5 h-5 text-indigo-300" />
+            <span className="text-white font-medium">Schedule for later</span>
+          </div>
+        </label>
+
+        {scheduleForLater && (
+          <div className="mt-4 pl-8 flex flex-wrap gap-4">
+            <div>
+              <label className="block text-xs text-indigo-300 mb-1">Date</label>
+              <input
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-indigo-300 mb-1">Time</label>
+              <input
+                type="time"
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+                className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            {scheduledDate && scheduledTime && (
+              <div className="flex items-end">
+                <p className="text-indigo-200 text-sm py-2">
+                  Will be sent on {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString()}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!scheduleForLater && (
+          <p className="text-indigo-300 text-xs mt-2 pl-8">
+            Email will be sent immediately when you click the button below.
+          </p>
+        )}
+      </div>
+
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
         <button
-          onClick={() => setViewMode('list')}
+          onClick={() => {
+            resetForm();
+            setViewMode('list');
+          }}
           className="px-6 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors"
         >
           Cancel
         </button>
         <button
-          onClick={handleSend}
-          disabled={sending || !subject.trim() || !messageHtml.trim() || eligibleRecipients.length === 0}
+          onClick={() => handleSend()}
+          disabled={
+            sending ||
+            !subject.trim() ||
+            !messageHtml.trim() ||
+            eligibleRecipients.length === 0 ||
+            (scheduleForLater && (!scheduledDate || !scheduledTime))
+          }
           className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {sending ? (
             <>
               <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span>
-              Sending...
+              {scheduleForLater ? 'Scheduling...' : 'Sending...'}
+            </>
+          ) : scheduleForLater ? (
+            <>
+              <CalendarIcon className="w-5 h-5" />
+              Schedule for {eligibleRecipients.length} Recipients
             </>
           ) : (
             <>
               <EnvelopeIcon className="w-5 h-5" />
-              Send to {eligibleRecipients.length} Recipients
+              Send Now to {eligibleRecipients.length} Recipients
             </>
           )}
         </button>
