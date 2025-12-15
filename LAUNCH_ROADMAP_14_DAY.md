@@ -233,6 +233,58 @@ This roadmap outlines the critical path to launch the AI Interactive Vision Boar
 
 ---
 
+---
+
+## 🚨 HIGH PRIORITY: Goals Review & Approval Flow
+
+**Status:** PLANNED | **Priority:** P0-HIGH | **Effort:** ~18-20 hours
+
+### Overview
+Add a "Review & Approve" step after AI generates goals, allowing users to edit, delete, add, and approve goals before the AI Coach begins helping execute them.
+
+### Problem Statement
+Currently, after onboarding:
+1. AI generates goals/roadmap automatically
+2. Goals go directly to execution without user review
+3. Users cannot edit, delete, or add their own goals
+4. No approval mechanism exists
+
+### Proposed Solution
+Insert new step in onboarding flow:
+```
+... → ACTION_PLAN_PREVIEW → [NEW] GOALS_REVIEW → HABITS_SETUP → ...
+```
+
+### Key Features
+| Feature | Description |
+|---------|-------------|
+| View Goals | Display AI-generated goals organized by milestone year |
+| Edit Goals | Modify title, description, due date, type |
+| Delete Goals | Remove unwanted goals |
+| Add Custom Goals | User can add their own goals |
+| Regenerate | Request new AI suggestions (adds to existing, doesn't replace) |
+| Quick Approve | "Approve All" option for users who want to skip review |
+| Max 5 per Milestone | Limit goals to 5 per year for focus |
+
+### Implementation Phases
+1. **Database Migration** - Add `status`, `sort_order` fields to `action_tasks`
+2. **Storage Service** - Add CRUD functions for goal management
+3. **GoalsReviewStep Component** - Main review UI with milestone cards
+4. **Edit/Add Modals** - Forms for goal modification
+5. **GuidedOnboarding Update** - Integrate new step
+6. **Dashboard Editing** - Post-approval edit capabilities
+
+### Files to Create
+- `components/onboarding/GoalsReviewStep.tsx`
+- `components/onboarding/GoalEditModal.tsx`
+- `components/onboarding/AddGoalModal.tsx`
+- `supabase/migrations/[timestamp]_add_goals_approval.sql`
+
+### Detailed Plan
+See: `IMPLEMENTATION_PLAN_GOALS_REVIEW.md`
+
+---
+
 ### PHASE 2: CORE FEATURE POLISH (Days 4-7)
 **Goal:** Ensure smooth user experience for launch
 
@@ -652,6 +704,7 @@ Day 14: Production Launch
 
 | Date | Changes | Commit |
 |------|---------|--------|
+| Dec 15, 2025 | Added HIGH PRIORITY: Goals Review & Approval Flow to roadmap | - |
 | Dec 14, 2025 | Day 4: Roadmap updated, status report generated | - |
 | Dec 14, 2025 | AI Coach email scheduling, email functions deployed | `d5e5c7b` |
 | Dec 13, 2025 | Full email system with Resend integration | `1f43705` |

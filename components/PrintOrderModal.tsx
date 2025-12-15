@@ -5,6 +5,7 @@ import { PrinterIcon, CheckBadgeIcon, TruckIcon, LockIcon, RobotIcon, ReceiptIco
 import { checkFirstTimeDiscount, calculatePrice, createPosterOrder, ProductType, PRODUCT_CONFIG } from '../services/printService';
 import { createStripeCheckoutSession, getLastShippingAddress } from '../services/storageService';
 import PrintPreview from './PrintPreview';
+import { getImageDimensions, validatePrintAsset, PrintQualityResult } from '../utils/printValidation';
 
 interface Props {
   image: VisionImage | null;
@@ -53,6 +54,10 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
   // Card Info (Dummy - for visual only if not using Stripe Link)
   const [cardInfo, setCardInfo] = useState({ number: '', exp: '', cvc: '' });
 
+  // P0-C: Print quality validation state
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [printQuality, setPrintQuality] = useState<PrintQualityResult | null>(null);
+
   useEffect(() => {
     checkDiscount();
     // Intelligent Auto-Fill: Fetch last used address
@@ -60,6 +65,34 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
       if (addr) setShipping(addr);
     });
   }, []);
+
+  // P0-C: Load image dimensions on mount
+  useEffect(() => {
+    if (image?.url) {
+      getImageDimensions(image.url)
+        .then(dims => {
+          console.log('Image dimensions loaded:', dims);
+          setImageDimensions(dims);
+        })
+        .catch(err => {
+          console.warn('Could not load image dimensions:', err);
+          setImageDimensions(null);
+        });
+    }
+  }, [image?.url]);
+
+  // P0-C: Validate print quality when size or dimensions change
+  useEffect(() => {
+    if (imageDimensions) {
+      const result = validatePrintAsset(
+        imageDimensions.width,
+        imageDimensions.height,
+        selectedSize
+      );
+      console.log('Print quality validation:', result);
+      setPrintQuality(result);
+    }
+  }, [imageDimensions, selectedSize]);
 
   const checkDiscount = async () => {
     const eligible = await checkFirstTimeDiscount();
@@ -185,6 +218,45 @@ const PrintOrderModal: React.FC<Props> = ({ image, onClose, onViewHistory }) => 
                 })}
             </div>
          </div>
+
+         {/* P0-C: Print Quality Indicator */}
+         {printQuality && (
+           <div className={`rounded-lg p-3 border ${
+             printQuality.quality === 'excellent' ? 'bg-green-50 border-green-200' :
+             printQuality.quality === 'good' ? 'bg-green-50 border-green-200' :
+             printQuality.quality === 'acceptable' ? 'bg-yellow-50 border-yellow-200' :
+             'bg-red-50 border-red-200'
+           }`}>
+             <div className="flex items-center gap-2 mb-1">
+               <span className={`text-xs font-bold uppercase tracking-wide ${
+                 printQuality.quality === 'excellent' || printQuality.quality === 'good' ? 'text-green-700' :
+                 printQuality.quality === 'acceptable' ? 'text-yellow-700' :
+                 'text-red-700'
+               }`}>
+                 {printQuality.quality === 'excellent' ? '★ Excellent Quality' :
+                  printQuality.quality === 'good' ? '★ Good Quality' :
+                  printQuality.quality === 'acceptable' ? '⚠ Acceptable Quality' :
+                  '⚠ Low Quality Warning'}
+               </span>
+               <span className="text-xs text-gray-500">({printQuality.effectiveDpi} DPI)</span>
+             </div>
+             <p className={`text-xs ${
+               printQuality.quality === 'excellent' || printQuality.quality === 'good' ? 'text-green-600' :
+               printQuality.quality === 'acceptable' ? 'text-yellow-600' :
+               'text-red-600'
+             }`}>
+               {printQuality.message}
+             </p>
+             {printQuality.recommendedSize && (
+               <button
+                 onClick={() => setSelectedSize(printQuality.recommendedSize!)}
+                 className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-800 underline"
+               >
+                 Switch to recommended size
+               </button>
+             )}
+           </div>
+         )}
 
          {/* Finish Selector - Only for Posters */}
          {productType === 'poster' && (

@@ -392,24 +392,38 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   }, [baseImage, showToast]);
 
   const startListening = () => {
-    if ('webkitSpeechRecognition' in window) {
-      const recognition = new (window as any).webkitSpeechRecognition();
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
       recognition.lang = 'en-US';
 
       recognition.onstart = () => setIsListening(true);
       recognition.onend = () => setIsListening(false);
-      recognition.onerror = () => setIsListening(false);
+      recognition.onerror = (event: any) => {
+        setIsListening(false);
+        if (event.error === 'no-speech') {
+          showToast("No speech detected. Please try again.", 'info');
+        } else if (event.error === 'audio-capture') {
+          showToast("Microphone not available. Please check your permissions.", 'error');
+        } else if (event.error === 'not-allowed') {
+          showToast("Microphone access denied. Please enable in browser settings.", 'error');
+        }
+      };
 
       recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setPromptInput(prev => prev + (prev ? ' ' : '') + transcript);
+        if (event.results && event.results.length > 0) {
+          const transcript = event.results[event.results.length - 1][0]?.transcript;
+          if (transcript) {
+            setPromptInput(prev => prev + (prev ? ' ' : '') + transcript);
+          }
+        }
       };
 
       recognition.start();
     } else {
-      alert("Voice input is not supported in this browser.");
+      showToast("Voice input is not supported in this browser. Try Chrome, Edge, or Safari.", 'error');
     }
   };
 
@@ -598,8 +612,6 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
   const handleRefine = () => {
     if (resultImage) {
-      setBaseImage(resultImage);
-      setResultImage(null);
       setBaseImage(resultImage);
       setResultImage(null);
       showToast("Image set as new base. Refine away!", 'info');

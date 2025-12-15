@@ -57,11 +57,12 @@ interface Team {
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'site_settings'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'all_users' | 'reports' | 'site_settings'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [stats, setStats] = useState<TeamStats | null>(null);
   const [isManager, setIsManager] = useState(false);
 
@@ -215,6 +216,29 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         at_risk_count: atRiskCount
       });
 
+      // Platform admins can view all users (from profiles table)
+      if (isAdmin) {
+        const { data: usersData, error: usersError } = await supabase
+          .from('profiles')
+          .select('id, email, credits, subscription_tier, subscription_status, onboarding_completed, updated_at')
+          .order('updated_at', { ascending: false })
+          .limit(100);
+
+        if (usersError) {
+          console.warn('Could not load all users:', usersError);
+        } else {
+          setAllUsers(usersData || []);
+          // Update stats for platform admin view
+          if (usersData && usersData.length > 0) {
+            setStats(prev => prev ? {
+              ...prev,
+              total_members: usersData.length,
+              active_members: usersData.filter(u => u.subscription_status === 'active').length
+            } : null);
+          }
+        }
+      }
+
     } catch (err) {
       console.error('Error loading dashboard data:', err);
       setError('Failed to load dashboard data');
@@ -353,6 +377,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
           {[
             { id: 'overview', label: 'Overview', adminOnly: false },
             { id: 'members', label: 'Team Members', adminOnly: false },
+            { id: 'all_users', label: 'All Users', adminOnly: true },
             { id: 'reports', label: 'Reports', adminOnly: false },
             { id: 'site_settings', label: 'Site Settings', adminOnly: true },
           ]
@@ -591,6 +616,86 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
               <div className="h-48 flex items-center justify-center text-indigo-200">
                 <p>Chart visualization coming soon...</p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* All Users View - Platform Admin Only */}
+        {activeView === 'all_users' && isPlatformAdmin && (
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl overflow-hidden border border-white/20">
+            <div className="p-4 border-b border-white/10">
+              <h2 className="text-xl font-semibold text-white">All Platform Users ({allUsers.length})</h2>
+              <p className="text-sm text-indigo-200 mt-1">View and manage all registered users</p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-white/5">
+                  <tr>
+                    <th className="text-left p-4 text-indigo-200 font-medium">Email</th>
+                    <th className="text-center p-4 text-indigo-200 font-medium">Tier</th>
+                    <th className="text-center p-4 text-indigo-200 font-medium">Credits</th>
+                    <th className="text-center p-4 text-indigo-200 font-medium">Status</th>
+                    <th className="text-center p-4 text-indigo-200 font-medium">Onboarded</th>
+                    <th className="text-left p-4 text-indigo-200 font-medium">Last Active</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {allUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                            {(user.email || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-medium text-white">{user.email || 'No email'}</p>
+                            <p className="text-xs text-indigo-300 font-mono">{user.id.slice(0, 8)}...</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          user.subscription_tier === 'ELITE' ? 'bg-purple-500/20 text-purple-300' :
+                          user.subscription_tier === 'PRO' ? 'bg-gold-500/20 text-gold-300' :
+                          'bg-gray-500/20 text-gray-300'
+                        }`}>
+                          {user.subscription_tier || 'FREE'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className="font-medium text-white">{user.credits ?? 0}</span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          user.subscription_status === 'active' ? 'bg-green-500/20 text-green-400' :
+                          user.subscription_status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                          'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {user.subscription_status || 'inactive'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        {user.onboarding_completed ? (
+                          <CheckCircleIcon className="w-5 h-5 text-green-400 mx-auto" />
+                        ) : (
+                          <span className="text-gray-400 text-xs">No</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-sm text-indigo-200">
+                        {user.updated_at ? new Date(user.updated_at).toLocaleDateString() : 'Never'}
+                      </td>
+                    </tr>
+                  ))}
+                  {allUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-indigo-200">
+                        No users found. Users will appear here after they sign up.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

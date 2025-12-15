@@ -119,21 +119,44 @@ export default function NotificationSettings() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user || !prefs) return;
 
-            // Save communication preferences
+            // Save communication preferences - use select-then-update/insert pattern
+            const { data: existingComm } = await supabase
+                .from('user_comm_preferences')
+                .select('id')
+                .eq('user_id', user.id)
+                .single();
+
             const commUpdates = {
                 user_id: user.id,
                 ...prefs,
                 updated_at: new Date().toISOString()
             };
 
-            // Use onConflict to handle existing user_id (unique constraint)
-            const { error: commError } = await supabase
-                .from('user_comm_preferences')
-                .upsert(commUpdates, { onConflict: 'user_id' });
+            let commError;
+            if (existingComm?.id) {
+                // Update existing record
+                const { error } = await supabase
+                    .from('user_comm_preferences')
+                    .update(commUpdates)
+                    .eq('id', existingComm.id);
+                commError = error;
+            } else {
+                // Insert new record
+                const { error } = await supabase
+                    .from('user_comm_preferences')
+                    .insert(commUpdates);
+                commError = error;
+            }
 
             if (commError) throw commError;
 
-            // Save email preferences
+            // Save email preferences - use select-then-update/insert pattern for reliability
+            const { data: existingEmail } = await supabase
+                .from('email_preferences')
+                .select('id')
+                .eq('user_id', user.id)
+                .single();
+
             const emailUpdates = {
                 user_id: user.id,
                 weekly_review_emails: emailPrefs.weekly_review_emails,
@@ -147,10 +170,21 @@ export default function NotificationSettings() {
                 updated_at: new Date().toISOString()
             };
 
-            // Use onConflict to handle existing user_id (unique constraint)
-            const { error: emailError } = await supabase
-                .from('email_preferences')
-                .upsert(emailUpdates, { onConflict: 'user_id' });
+            let emailError;
+            if (existingEmail?.id) {
+                // Update existing record
+                const { error } = await supabase
+                    .from('email_preferences')
+                    .update(emailUpdates)
+                    .eq('id', existingEmail.id);
+                emailError = error;
+            } else {
+                // Insert new record
+                const { error } = await supabase
+                    .from('email_preferences')
+                    .insert(emailUpdates);
+                emailError = error;
+            }
 
             if (emailError) throw emailError;
 
