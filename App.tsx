@@ -35,6 +35,7 @@ import { checkDatabaseConnection, saveDocument } from './services/storageService
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 import { ToastProvider } from './components/ToastContext';
 import NotificationSettings from './components/settings/NotificationSettings';
+import { useSubscriptionPolling } from './hooks/useSubscriptionPolling';
 
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -93,6 +94,25 @@ const App = () => {
   // Profile loading guard to prevent duplicate fetches
   const [profileLoadingInProgress, setProfileLoadingInProgress] = useState(false);
   const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null);
+
+  // P0-B: Subscription polling after Stripe checkout
+  // Detects session_id in URL and polls for tier update
+  const { isPolling: isSubscriptionPolling, message: pollingMessage } = useSubscriptionPolling({
+    userId: session?.user?.id,
+    currentTier: subscriptionTier,
+    onTierUpdate: (newTier, newCredits) => {
+      console.log('Subscription upgraded via polling!', { newTier, newCredits });
+      setSubscriptionTier(newTier);
+      if (newCredits !== undefined) {
+        setCredits(newCredits);
+      }
+      // Force refresh of user profile to ensure all state is synced
+      setLastLoadedUserId(null);
+    },
+    onCreditsUpdate: (newCredits) => {
+      setCredits(newCredits);
+    }
+  });
 
   useEffect(() => {
     // 1. Check DB Connection
@@ -1687,6 +1707,14 @@ const App = () => {
         {/* Click outside to close dropdowns */}
         {(showMoreMenu || showMobileMenu) && (
           <div className="fixed inset-0 z-40" onClick={() => { setShowMoreMenu(false); setShowMobileMenu(false); }} />
+        )}
+
+        {/* Subscription Polling Status Banner */}
+        {isSubscriptionPolling && pollingMessage && (
+          <div className="bg-gold-500 text-navy-900 px-4 py-2 text-center text-sm font-medium flex items-center justify-center gap-2">
+            <div className="w-4 h-4 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
+            {pollingMessage}
+          </div>
         )}
 
         {/* Main Content */}
