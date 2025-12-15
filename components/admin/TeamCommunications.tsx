@@ -283,7 +283,7 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     }
   }, [selectedCommunication, loadCommunicationDetail]);
 
-  // Send communication - using direct Supabase insert
+  // Send communication - saves to DB and sends actual emails
   const handleSend = async () => {
     if (!subject.trim()) {
       setError('Subject is required');
@@ -310,7 +310,7 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
 
       const recipientCount = eligibleRecipients.length;
 
-      // Insert communication record directly
+      // Insert communication record first
       const { data: communication, error: insertError } = await supabase
         .from('team_communications')
         .insert({
@@ -322,25 +322,89 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
           template_type: templateType,
           recipient_filter: recipientFilter,
           total_recipients: recipientCount,
-          status: 'sent',
+          status: 'sending',
           sent_at: new Date().toISOString(),
-          sent_count: recipientCount
+          sent_count: 0
         })
         .select()
         .single();
 
       if (insertError) throw insertError;
 
-      setSuccessMessage(`Successfully sent to ${recipientCount} recipients`);
+      // Map template type to email template
+      const emailTemplate = templateType === 'announcement' ? 'team_announcement'
+        : templateType === 'recognition' ? 'team_recognition'
+        : templateType === 'reminder' ? 'team_reminder'
+        : 'manager_direct_message';
 
-      // Reset form and go back to list
-      setTimeout(() => {
-        setSubject('');
-        setMessageHtml('');
-        setTemplateType('announcement');
-        setSuccessMessage(null);
-        setViewMode('list');
-      }, 2000);
+      // Send emails to each recipient
+      let sentCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      for (const recipient of eligibleRecipients) {
+        if (!recipient.email) {
+          failedCount++;
+          continue;
+        }
+
+        try {
+          const { error: emailError } = await supabase.functions.invoke('send-email', {
+            body: {
+              to: recipient.email,
+              template: emailTemplate,
+              subject: subject,
+              data: {
+                teamName: teamName,
+                subject: subject,
+                message: messageHtml,
+                senderName: 'Team Manager',
+                recipientName: recipient.email.split('@')[0]
+              }
+            }
+          });
+
+          if (emailError) {
+            console.error(`Failed to send to ${recipient.email}:`, emailError);
+            failedCount++;
+            errors.push(`${recipient.email}: ${emailError.message}`);
+          } else {
+            sentCount++;
+          }
+        } catch (emailErr) {
+          console.error(`Error sending to ${recipient.email}:`, emailErr);
+          failedCount++;
+        }
+      }
+
+      // Update communication record with final status
+      const finalStatus = failedCount === 0 ? 'sent' : sentCount === 0 ? 'failed' : 'partial';
+      await supabase
+        .from('team_communications')
+        .update({
+          status: finalStatus,
+          sent_count: sentCount,
+          failed_count: failedCount,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', communication.id);
+
+      if (sentCount > 0) {
+        setSuccessMessage(`Successfully sent to ${sentCount} of ${recipientCount} recipients${failedCount > 0 ? ` (${failedCount} failed)` : ''}`);
+      } else {
+        setError(`Failed to send emails. ${errors.length > 0 ? errors[0] : 'Please check email configuration.'}`);
+      }
+
+      // Reset form and go back to list after delay
+      if (sentCount > 0) {
+        setTimeout(() => {
+          setSubject('');
+          setMessageHtml('');
+          setTemplateType('announcement');
+          setSuccessMessage(null);
+          setViewMode('list');
+        }, 2000);
+      }
     } catch (err) {
       console.error('Error sending communication:', err);
       setError(err instanceof Error ? err.message : 'Failed to send communication');
@@ -624,6 +688,24 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
               )}
             </p>
           </div>
+
+          {/* Recipient List Preview */}
+          {!loadingRecipients && eligibleRecipients.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <p className="text-xs text-indigo-300 mb-2">Recipients:</p>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {eligibleRecipients.map((r) => (
+                  <div key={r.user_id} className="flex items-center gap-2 text-sm">
+                    <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-300 text-xs font-medium">
+                      {r.email ? r.email[0].toUpperCase() : '?'}
+                    </div>
+                    <span className="text-white">{r.email || 'No email'}</span>
+                    <span className="text-indigo-400 text-xs capitalize">({r.role})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
