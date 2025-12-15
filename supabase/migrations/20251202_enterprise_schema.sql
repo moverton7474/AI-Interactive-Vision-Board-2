@@ -375,24 +375,24 @@ CREATE POLICY "Team members can view their team"
     id IN (SELECT team_id FROM team_members WHERE user_id = auth.uid() AND is_active = TRUE)
   );
 
--- Team Members Policies
+-- Team Members Policies (non-recursive to avoid infinite loops)
 DROP POLICY IF EXISTS "Team admins can manage members" ON team_members;
-CREATE POLICY "Team admins can manage members"
-  ON team_members FOR ALL
-  USING (
-    team_id IN (
-      SELECT team_id FROM team_members
-      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
-    )
-    OR auth.role() = 'service_role'
-  );
-
 DROP POLICY IF EXISTS "Members can view their team members" ON team_members;
-CREATE POLICY "Members can view their team members"
+DROP POLICY IF EXISTS "Team members can view all members in their team" ON team_members;
+DROP POLICY IF EXISTS "Team members can view teammates" ON team_members;
+DROP POLICY IF EXISTS "Users can view own team membership" ON team_members;
+DROP POLICY IF EXISTS "Platform admins can manage all team members" ON team_members;
+
+-- NOTE: Avoid recursive policies that query team_members from within team_members policies
+-- Platform admins get full access via is_platform_admin() function
+CREATE POLICY "Platform admins can manage all team members"
+  ON team_members FOR ALL
+  USING (is_platform_admin() OR auth.role() = 'service_role');
+
+-- Users can always view their own membership (non-recursive, safe)
+CREATE POLICY "Users can view own team membership"
   ON team_members FOR SELECT
-  USING (
-    team_id IN (SELECT team_id FROM team_members WHERE user_id = auth.uid() AND is_active = TRUE)
-  );
+  USING (user_id = auth.uid());
 
 -- Team Leaderboards Policies
 DROP POLICY IF EXISTS "Team members can view leaderboards" ON team_leaderboards;

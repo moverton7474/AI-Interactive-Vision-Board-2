@@ -105,19 +105,21 @@ DROP POLICY IF EXISTS "Team admins can manage members" ON team_members;
 DROP POLICY IF EXISTS "Members can view their team members" ON team_members;
 DROP POLICY IF EXISTS "Platform admins can manage all team members" ON team_members;
 DROP POLICY IF EXISTS "Team members can view all members in their team" ON team_members;
+DROP POLICY IF EXISTS "Team members can view teammates" ON team_members;
+DROP POLICY IF EXISTS "Users can view own team membership" ON team_members;
 DROP POLICY IF EXISTS "Team owners/admins can add members" ON team_members;
 DROP POLICY IF EXISTS "Team owners/admins can update members" ON team_members;
 DROP POLICY IF EXISTS "Team owners/admins can remove members" ON team_members;
 
+-- Platform admins have full access to all team members
 CREATE POLICY "Platform admins can manage all team members"
   ON team_members FOR ALL
   USING (is_platform_admin() OR auth.role() = 'service_role');
 
-CREATE POLICY "Team members can view all members in their team"
+-- Users can view their own team membership (non-recursive, safe)
+CREATE POLICY "Users can view own team membership"
   ON team_members FOR SELECT
-  USING (
-    team_id IN (SELECT tm.team_id FROM team_members tm WHERE tm.user_id = auth.uid() AND tm.is_active = TRUE)
-  );
+  USING (user_id = auth.uid());
 
 CREATE POLICY "Team owners/admins can add members"
   ON team_members FOR INSERT
