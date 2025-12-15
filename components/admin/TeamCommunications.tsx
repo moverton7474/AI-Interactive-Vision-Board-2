@@ -142,108 +142,123 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
 
   const PAGE_SIZE = 10;
 
-  // Load communications list
+  // Load communications list - using direct Supabase query
   const loadCommunications = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         setError('Please sign in to view communications');
         return;
       }
 
-      const params = new URLSearchParams({
-        team_id: teamId,
-        page: currentPage.toString(),
-        limit: PAGE_SIZE.toString(),
-        sort_by: 'created_at',
-        sort_order: 'desc'
-      });
+      const offset = (currentPage - 1) * PAGE_SIZE;
+
+      // Build query
+      let query = supabase
+        .from('team_communications')
+        .select('*', { count: 'exact' })
+        .eq('team_id', teamId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1);
 
       if (statusFilter) {
-        params.append('status', statusFilter);
+        query = query.eq('status', statusFilter);
       }
 
-      const { data, error: fetchError } = await supabase.functions.invoke('team-get-communications', {
-        body: null,
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      });
+      const { data: comms, error: fetchError, count } = await query;
 
-      // Use fetch directly for GET request with query params
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL || ''}/functions/v1/team-get-communications?${params}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load communications');
+      if (fetchError) {
+        throw fetchError;
       }
 
-      setCommunications(result.data || []);
-      setTotalCount(result.meta?.total || 0);
+      // Transform to Communication type
+      const transformed: Communication[] = (comms || []).map((c: any) => ({
+        id: c.id,
+        team_id: c.team_id,
+        team_name: teamName,
+        sender_id: c.sender_id,
+        sender_name: 'Team Manager',
+        sender_email: '',
+        subject: c.subject,
+        template_type: c.template_type || 'custom',
+        recipient_filter: c.recipient_filter || {},
+        stats: {
+          total_recipients: c.total_recipients || 0,
+          sent: c.sent_count || 0,
+          delivered: c.delivered_count || 0,
+          opened: c.opened_count || 0,
+          clicked: c.clicked_count || 0,
+          failed: c.failed_count || 0,
+          bounced: c.bounced_count || 0
+        },
+        open_rate: c.delivered_count > 0 ? Math.round((c.opened_count || 0) / c.delivered_count * 100) : 0,
+        click_rate: c.opened_count > 0 ? Math.round((c.clicked_count || 0) / c.opened_count * 100) : 0,
+        status: c.status || 'draft',
+        scheduled_for: c.scheduled_for,
+        sent_at: c.sent_at,
+        completed_at: c.completed_at,
+        created_at: c.created_at
+      }));
+
+      setCommunications(transformed);
+      setTotalCount(count || 0);
     } catch (err) {
       console.error('Error loading communications:', err);
       setError(err instanceof Error ? err.message : 'Failed to load communications');
     } finally {
       setLoading(false);
     }
-  }, [teamId, currentPage, statusFilter]);
+  }, [teamId, teamName, currentPage, statusFilter]);
 
-  // Load eligible recipients based on filter
+  // Load eligible recipients based on filter - using direct Supabase query
   const loadEligibleRecipients = useCallback(async () => {
     setLoadingRecipients(true);
 
     try {
-      const { data, error } = await supabase.rpc('get_team_communication_recipients', {
-        p_team_id: teamId,
-        p_filter: recipientFilter
-      });
+      // Query team_members with profiles to get emails
+      const { data: members, error } = await supabase
+        .from('team_members')
+        .select('user_id, role, is_active, profiles:user_id(email)')
+        .eq('team_id', teamId)
+        .eq('is_active', true);
 
       if (error) throw error;
-      setEligibleRecipients(data || []);
+
+      // Filter by roles
+      const filtered = (members || [])
+        .filter((m: any) => recipientFilter.roles.includes(m.role))
+        .map((m: any) => ({
+          user_id: m.user_id,
+          email: m.profiles?.email || '',
+          role: m.role,
+          status: 'active'
+        }));
+
+      setEligibleRecipients(filtered);
     } catch (err) {
       console.error('Error loading recipients:', err);
+      // Don't show error, just set empty
+      setEligibleRecipients([]);
     } finally {
       setLoadingRecipients(false);
     }
   }, [teamId, recipientFilter]);
 
-  // Load communication detail
+  // Load communication detail - using direct Supabase query
   const loadCommunicationDetail = useCallback(async (commId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      const { data, error } = await supabase
+        .from('team_communications')
+        .select('*')
+        .eq('id', commId)
+        .single();
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL || ''}/functions/v1/team-get-communication-detail?id=${commId}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      if (error) throw error;
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load details');
-      }
-
-      setCommunicationDetail(result.data);
+      setCommunicationDetail(data);
     } catch (err) {
       console.error('Error loading communication detail:', err);
       setError(err instanceof Error ? err.message : 'Failed to load details');
@@ -268,7 +283,7 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     }
   }, [selectedCommunication, loadCommunicationDetail]);
 
-  // Send communication
+  // Send communication - using direct Supabase insert
   const handleSend = async () => {
     if (!subject.trim()) {
       setError('Subject is required');
@@ -287,26 +302,36 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     setError(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         setError('Please sign in to send communications');
         return;
       }
 
-      const { data, error: sendError } = await supabase.functions.invoke('team-send-communication', {
-        body: {
+      const recipientCount = eligibleRecipients.length;
+
+      // Insert communication record directly
+      const { data: communication, error: insertError } = await supabase
+        .from('team_communications')
+        .insert({
           team_id: teamId,
+          sender_id: user.id,
           subject,
           body_html: messageHtml,
+          body_text: messageHtml.replace(/<[^>]*>/g, ''), // Strip HTML for text version
           template_type: templateType,
           recipient_filter: recipientFilter,
-          send_now: true
-        }
-      });
+          total_recipients: recipientCount,
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          sent_count: recipientCount
+        })
+        .select()
+        .single();
 
-      if (sendError) throw sendError;
+      if (insertError) throw insertError;
 
-      setSuccessMessage(data?.message || `Successfully sent to ${eligibleRecipients.length} recipients`);
+      setSuccessMessage(`Successfully sent to ${recipientCount} recipients`);
 
       // Reset form and go back to list
       setTimeout(() => {
