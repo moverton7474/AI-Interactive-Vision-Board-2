@@ -132,9 +132,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         .select(`
           *,
           profiles:user_id (
-            names,
-            email,
-            avatar_url
+            email
           ),
           teams (name)
         `);
@@ -160,12 +158,16 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         if (daysSinceActive > 7) status = 'inactive';
         else if (daysSinceActive > 3) status = 'at_risk';
 
+        // Extract name from email (before @) as display name
+        const email = member.profiles?.email || '';
+        const displayName = email ? email.split('@')[0] : 'Team Member';
+
         return {
           id: member.id,
           user_id: member.user_id,
-          name: member.profiles?.names || 'Team Member',
-          email: member.profiles?.email || '',
-          avatar_url: member.profiles?.avatar_url,
+          name: displayName,
+          email: email,
+          avatar_url: null,
           role: member.role,
           joined_at: member.created_at,
           current_streak: member.current_streak || 0,
