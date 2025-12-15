@@ -139,7 +139,7 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId, onN
       window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
     } else if (type === 'copy') {
       navigator.clipboard.writeText(url);
-      alert("Link copied to clipboard!");
+      showToast("Link copied to clipboard!", 'success');
     }
     setActiveShareId(null);
     console.log('✅ Share action completed');
