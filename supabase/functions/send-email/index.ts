@@ -32,7 +32,12 @@ type EmailTemplate =
   | 'streak_milestone'
   | 'pace_warning'
   | 'coach_message'
-  | 'generic';
+  | 'generic'
+  // Team Communication Templates
+  | 'team_announcement'
+  | 'team_recognition'
+  | 'team_reminder'
+  | 'manager_direct_message';
 
 interface EmailRequest {
   to: string;
@@ -580,6 +585,140 @@ function generateEmailContent(template: EmailTemplate, data: Record<string, any>
             <strong style="color: ${brandStyles.primaryColor};">AMIE</strong>
           </p>
         `, siteUrl, 'Coach Message')
+      };
+
+    // ===== TEAM ANNOUNCEMENT =====
+    case 'team_announcement':
+      return {
+        subject: data.subject || `📢 Team Announcement from ${data.teamName || 'Your Team'}`,
+        html: emailWrapper(`
+          <h2 style="color: ${brandStyles.textColor}; font-size: 24px; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            Team Announcement 📢
+          </h2>
+          <p style="color: ${brandStyles.textColor}; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            Hi ${name},
+          </p>
+          <p style="color: ${brandStyles.mutedColor}; font-size: 14px; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            ${data.senderName || 'Your team manager'} from <strong style="color: ${brandStyles.primaryColor};">${data.teamName || 'your team'}</strong> has an announcement:
+          </p>
+          <div style="background: rgba(30, 58, 95, 0.3); border-left: 4px solid ${brandStyles.primaryColor}; padding: 25px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+            <div style="color: ${brandStyles.textColor}; font-size: 16px; line-height: 1.8; font-family: ${brandStyles.fontFamily};">
+              ${data.message || data.body_html || ''}
+            </div>
+          </div>
+          ${data.actionUrl ? ctaButton(data.actionLabel || 'View in App', data.actionUrl) : ctaButton('Open Dashboard', `${siteUrl}/dashboard`)}
+          <p style="color: ${brandStyles.mutedColor}; font-size: 13px; line-height: 1.6; margin: 25px 0 0 0; font-family: ${brandStyles.fontFamily};">
+            This announcement was sent to all members of ${data.teamName || 'your team'}.
+            <a href="${siteUrl}/settings/notifications" style="color: ${brandStyles.primaryColor}; text-decoration: none;">Manage notification preferences</a>
+          </p>
+        `, siteUrl, 'Team Announcement')
+      };
+
+    // ===== TEAM RECOGNITION =====
+    case 'team_recognition':
+      return {
+        subject: `🏆 You've Been Recognized by ${data.senderName || 'Your Team'}!`,
+        html: emailWrapper(`
+          <div style="text-align: center; margin-bottom: 30px;">
+            <div style="font-size: 64px; margin-bottom: 10px;">🏆</div>
+            <h2 style="color: ${brandStyles.primaryColor}; font-size: 28px; margin: 0; font-family: ${brandStyles.fontFamily};">
+              Kudos to You, ${name}!
+            </h2>
+          </div>
+
+          <p style="color: ${brandStyles.textColor}; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0; text-align: center; font-family: ${brandStyles.fontFamily};">
+            ${data.senderName || 'Your team manager'} wants to recognize your amazing work:
+          </p>
+
+          <div style="background: linear-gradient(135deg, rgba(212, 175, 55, 0.2) 0%, rgba(212, 175, 55, 0.05) 100%); border: 2px solid ${brandStyles.primaryColor}; border-radius: 12px; padding: 30px; text-align: center; margin: 25px 0;">
+            <p style="color: ${brandStyles.textColor}; font-size: 18px; line-height: 1.6; margin: 0; font-family: ${brandStyles.fontFamily}; font-style: italic;">
+              "${data.message || data.recognitionMessage || 'Great work!'}"
+            </p>
+          </div>
+
+          ${data.achievement ? `
+          <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid ${brandStyles.successColor}; padding: 20px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+            <h3 style="color: ${brandStyles.successColor}; font-size: 16px; margin: 0 0 10px 0; font-family: ${brandStyles.fontFamily};">
+              🎯 Achievement Highlighted
+            </h3>
+            <p style="color: ${brandStyles.textColor}; font-size: 14px; line-height: 1.6; margin: 0; font-family: ${brandStyles.fontFamily};">
+              ${data.achievement}
+            </p>
+          </div>
+          ` : ''}
+
+          ${ctaButton('Celebrate & Continue', `${siteUrl}/dashboard`)}
+
+          <p style="color: ${brandStyles.mutedColor}; font-size: 14px; line-height: 1.6; margin: 25px 0 0 0; text-align: center; font-family: ${brandStyles.fontFamily};">
+            Keep up the amazing work! Your team is proud of you.
+          </p>
+        `, siteUrl, 'Team Recognition')
+      };
+
+    // ===== TEAM REMINDER =====
+    case 'team_reminder':
+      return {
+        subject: `⏰ Reminder: ${data.subject || data.reminderTitle || 'Action Needed'}`,
+        html: emailWrapper(`
+          <h2 style="color: ${brandStyles.textColor}; font-size: 24px; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            Quick Reminder ⏰
+          </h2>
+          <p style="color: ${brandStyles.textColor}; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            Hi ${name},
+          </p>
+          <p style="color: ${brandStyles.mutedColor}; font-size: 14px; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            ${data.senderName || 'Your team manager'} wanted to remind you:
+          </p>
+
+          <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid ${brandStyles.warningColor}; padding: 25px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+            <div style="color: ${brandStyles.textColor}; font-size: 16px; line-height: 1.8; font-family: ${brandStyles.fontFamily};">
+              ${data.message || data.reminderMessage || ''}
+            </div>
+          </div>
+
+          ${data.dueDate ? `
+          <p style="color: ${brandStyles.warningColor}; font-size: 14px; margin: 20px 0; font-family: ${brandStyles.fontFamily}; text-align: center;">
+            📅 <strong>Due:</strong> ${data.dueDate}
+          </p>
+          ` : ''}
+
+          ${data.actionUrl ? ctaButton(data.actionLabel || 'Take Action', data.actionUrl) : ctaButton('Open Dashboard', `${siteUrl}/dashboard`)}
+
+          <p style="color: ${brandStyles.mutedColor}; font-size: 13px; line-height: 1.6; margin: 25px 0 0 0; font-family: ${brandStyles.fontFamily};">
+            Sent from ${data.teamName || 'your team'}.
+            <a href="${siteUrl}/settings/notifications" style="color: ${brandStyles.primaryColor}; text-decoration: none;">Manage preferences</a>
+          </p>
+        `, siteUrl, 'Team Reminder')
+      };
+
+    // ===== MANAGER DIRECT MESSAGE =====
+    case 'manager_direct_message':
+      return {
+        subject: data.subject || `Message from ${data.senderName || 'Your Manager'}`,
+        html: emailWrapper(`
+          <h2 style="color: ${brandStyles.textColor}; font-size: 24px; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            Message from ${data.senderName || 'Your Manager'} 💬
+          </h2>
+          <p style="color: ${brandStyles.textColor}; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            Hi ${name},
+          </p>
+          <p style="color: ${brandStyles.mutedColor}; font-size: 14px; margin: 0 0 20px 0; font-family: ${brandStyles.fontFamily};">
+            ${data.senderName || 'Your manager'} from <strong style="color: ${brandStyles.primaryColor};">${data.teamName || 'your team'}</strong> sent you a message:
+          </p>
+
+          <div style="background: rgba(212, 175, 55, 0.1); border-left: 4px solid ${brandStyles.primaryColor}; padding: 25px; margin: 25px 0; border-radius: 0 8px 8px 0;">
+            <div style="color: ${brandStyles.textColor}; font-size: 16px; line-height: 1.8; font-family: ${brandStyles.fontFamily};">
+              ${data.message || data.body_html || ''}
+            </div>
+          </div>
+
+          ${data.actionUrl ? ctaButton(data.actionLabel || 'Respond', data.actionUrl) : ctaButton('Open Dashboard', `${siteUrl}/dashboard`)}
+
+          <p style="color: ${brandStyles.mutedColor}; font-size: 13px; line-height: 1.6; margin: 25px 0 0 0; font-family: ${brandStyles.fontFamily};">
+            This is a direct message from your team manager.
+            <a href="${siteUrl}/settings/notifications" style="color: ${brandStyles.primaryColor}; text-decoration: none;">Manage notification preferences</a>
+          </p>
+        `, siteUrl, 'Direct Message')
       };
 
     // ===== GENERIC EMAIL =====
