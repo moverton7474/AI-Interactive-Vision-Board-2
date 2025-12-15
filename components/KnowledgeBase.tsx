@@ -153,15 +153,48 @@ const KnowledgeBase: React.FC<Props> = ({ onBack }) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Check file type - only plain text files are supported
+    const fileName = file.name.toLowerCase();
+    const unsupportedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
+    const isUnsupported = unsupportedExtensions.some(ext => fileName.endsWith(ext));
+
+    if (isUnsupported) {
+      setError(
+        `PDF and Office documents cannot be uploaded directly. Please copy the text content from your document and paste it in the Content field below.`
+      );
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
     try {
-      // Read file content
+      // Read file content - only works for plain text files
       const text = await file.text();
+
+      // Check if content looks like binary/garbled data
+      const nonPrintableCount = (text.match(/[^\x20-\x7E\n\r\t]/g) || []).length;
+      const binaryRatio = nonPrintableCount / text.length;
+
+      if (binaryRatio > 0.1) {
+        // More than 10% non-printable characters suggests binary file
+        setError(
+          `This file appears to be a binary format (PDF, Word, etc.) that cannot be read directly. Please copy the text content from your document and paste it in the Content field below.`
+        );
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+
       setContent(text);
       setSourceName(file.name.replace(/\.[^/.]+$/, '')); // Remove extension
       setSelectedType('document');
+      setError(null);
     } catch (err) {
       console.error('Error reading file:', err);
-      setError('Failed to read file. Please try a text-based file.');
+      setError('Failed to read file. Please use a plain text file (.txt, .md) or paste your content directly.');
     }
   };
 
@@ -491,7 +524,9 @@ const KnowledgeBase: React.FC<Props> = ({ onBack }) => {
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-navy-900 hover:text-navy-900 transition-colors"
                   >
-                    Click to upload a text file (.txt, .md)
+                    Click to upload a plain text file (.txt, .md)
+                    <br />
+                    <span className="text-xs text-gray-400">PDF/Word not supported - paste content below instead</span>
                   </button>
                 </div>
               )}
