@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Visionary - AI Retirement Planning</title>
+    <title>Visionary AI - Transform Your Vision Into Reality</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script>
@@ -12,19 +12,46 @@
         theme: {
           extend: {
             colors: {
+              // Visionary AI Brand Colors
               gold: {
-                400: '#FACC15',
-                500: '#EAB308',
-                600: '#CA8A04',
+                50: '#FBF8F1',
+                100: '#F5EED9',
+                200: '#E9DDB8',
+                300: '#E5D4A1',
+                400: '#D4C08A',
+                500: '#C5A572',  // Primary brand gold
+                600: '#A88B5C',
+                700: '#8B7149',
+                800: '#6E5A3A',
+                900: '#52432C',
               },
               navy: {
-                800: '#1e293b',
-                900: '#0f172a',
+                700: '#2D2D44',
+                800: '#252538',
+                900: '#1A1A2E',  // Primary dark background
+                950: '#12121F',
+              },
+              charcoal: {
+                700: '#2D2D44',
+                800: '#252538',
+                900: '#1A1A2E',
+                950: '#12121F',
+              },
+              // Status colors
+              status: {
+                success: '#10B981',
+                warning: '#F59E0B',
+                error: '#EF4444',
+                info: '#3B82F6',
               }
             },
             fontFamily: {
               serif: ['"Playfair Display"', 'serif'],
               sans: ['"Inter"', 'sans-serif'],
+            },
+            backgroundImage: {
+              'gold-gradient': 'linear-gradient(135deg, #D4C08A 0%, #C5A572 50%, #A88B5C 100%)',
+              'dark-gradient': 'linear-gradient(135deg, #1A1A2E 0%, #252538 100%)',
             }
           }
         }
@@ -36,15 +63,78 @@
         width: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f1f1; 
+        background: #f1f1f1;
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
+        background: #cbd5e1;
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; 
+        background: #94a3b8;
       }
+
+      /* Entrance animations */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(30px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes scaleIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      .animate-fade-up {
+        animation: fadeUp 0.6s ease-out forwards;
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+      }
+      .animate-slide-right {
+        animation: slideInRight 0.7s ease-out forwards;
+      }
+      .animate-scale-in {
+        animation: scaleIn 0.5s ease-out forwards;
+      }
+
+      /* Animation delays */
+      .delay-100 { animation-delay: 100ms; }
+      .delay-200 { animation-delay: 200ms; }
+      .delay-300 { animation-delay: 300ms; }
+      .delay-400 { animation-delay: 400ms; }
+      .delay-500 { animation-delay: 500ms; }
+      .delay-600 { animation-delay: 600ms; }
+
+      /* Initial state for animated elements */
+      .animate-fade-up, .animate-fade-in, .animate-slide-right, .animate-scale-in {
+        opacity: 0;
+      }
+
+      /* Scroll-triggered animations */
+      .scroll-animate {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+      }
+      .scroll-animate.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* Stagger delays for scroll animations */
+      .scroll-delay-0 { transition-delay: 0ms; }
+      .scroll-delay-1 { transition-delay: 100ms; }
+      .scroll-delay-2 { transition-delay: 200ms; }
+      .scroll-delay-3 { transition-delay: 300ms; }
+      .scroll-delay-4 { transition-delay: 400ms; }
+      .scroll-delay-5 { transition-delay: 500ms; }
     </style>
     <script type="importmap">
 {

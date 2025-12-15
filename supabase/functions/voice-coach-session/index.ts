@@ -55,10 +55,6 @@ serve(async (req) => {
 
     const userId = user.id
 
-    // Get action from query params
-    const url = new URL(req.url)
-    const action = url.searchParams.get('action') || 'list'
-
     let body: any = {}
     if (req.method === 'POST') {
       try {
@@ -66,6 +62,21 @@ serve(async (req) => {
       } catch {
         body = {}
       }
+    }
+
+    // Get action from query params OR body (body takes precedence for supabase.functions.invoke compatibility)
+    const url = new URL(req.url)
+    let action = url.searchParams.get('action') || 'list'
+
+    // Infer action from body content if not explicitly set
+    if (body.sessionType && !body.sessionId) {
+      action = 'start'
+    } else if (body.sessionId && body.transcript) {
+      action = 'process'
+    } else if (body.sessionId && !body.transcript) {
+      action = 'end'
+    } else if (body.action) {
+      action = body.action
     }
 
     // Route to appropriate handler

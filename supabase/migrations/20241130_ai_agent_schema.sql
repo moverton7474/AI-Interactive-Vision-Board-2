@@ -1,6 +1,6 @@
 -- ============================================
 -- AI AGENT ASSISTANT DATABASE SCHEMA
--- Migration: 20241129_ai_agent_schema
+-- Migration: 20241130_ai_agent_schema
 -- Description: Adds tables for AI Agent features including
 --              habits, streaks, check-ins, and agent conversations
 -- ============================================

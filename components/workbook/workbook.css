@@ -1,19 +1,35 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:wght@400;700&display=swap');
 
 :root {
+    /* Visionary AI Brand Colors */
     --color-bg: #f9fafb;
     --color-text: #111827;
-    --color-primary: #111111;
-    --color-accent: #C7B37A;
-    --color-cognac: #B5835A;
+    --color-primary: #1A1A2E;
+    --color-accent: #C5A572;
+    --color-gold: #C5A572;
+    --color-gold-light: #D4C08A;
+    --color-gold-dark: #A88B5C;
+    --color-cognac: #8B7149;
     --color-white: #ffffff;
+    --color-charcoal: #1A1A2E;
+    --color-charcoal-light: #252538;
+
+    /* Gray scale */
+    --color-gray-50: #f9fafb;
     --color-gray-100: #f3f4f6;
     --color-gray-200: #e5e7eb;
+    --color-gray-300: #d1d5db;
     --color-gray-500: #6b7280;
+    --color-gray-700: #374151;
     --color-gray-800: #1f2937;
+    --color-gray-900: #111827;
 
+    /* Typography */
     --font-sans: 'Inter', sans-serif;
     --font-serif: 'Playfair Display', serif;
+
+    /* Brand name */
+    --brand-name: 'VISIONARY AI';
 }
 
 /* Page Renderer Internal Styles */

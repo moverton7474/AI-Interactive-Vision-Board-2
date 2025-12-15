@@ -3,10 +3,41 @@ import { supabase } from '../../lib/supabase';
 import { UserCommPreferences } from '../../types';
 import { ClockIcon, SaveIcon, SparklesIcon } from '../Icons';
 
+interface EmailPreferences {
+    weekly_review_emails: boolean;
+    milestone_emails: boolean;
+    habit_reminder_emails: boolean;
+    streak_emails: boolean;
+    pace_warning_emails: boolean;
+    digest_frequency: 'daily' | 'weekly' | 'monthly' | 'never';
+    digest_day: string;
+    digest_time: string;
+}
+
+const DAYS_OF_WEEK = [
+    { value: 'sunday', label: 'Sunday' },
+    { value: 'monday', label: 'Monday' },
+    { value: 'tuesday', label: 'Tuesday' },
+    { value: 'wednesday', label: 'Wednesday' },
+    { value: 'thursday', label: 'Thursday' },
+    { value: 'friday', label: 'Friday' },
+    { value: 'saturday', label: 'Saturday' },
+];
+
 export default function NotificationSettings() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [prefs, setPrefs] = useState<UserCommPreferences | null>(null);
+    const [emailPrefs, setEmailPrefs] = useState<EmailPreferences>({
+        weekly_review_emails: true,
+        milestone_emails: true,
+        habit_reminder_emails: false,
+        streak_emails: true,
+        pace_warning_emails: true,
+        digest_frequency: 'weekly',
+        digest_day: 'sunday',
+        digest_time: '09:00',
+    });
     const [peakHour, setPeakHour] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -20,7 +51,7 @@ export default function NotificationSettings() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Fetch Preferences
+            // Fetch Communication Preferences
             const { data: prefData, error: prefError } = await supabase
                 .from('user_comm_preferences')
                 .select('*')
@@ -42,6 +73,26 @@ export default function NotificationSettings() {
                 };
                 // @ts-ignore
                 setPrefs(defaultPrefs);
+            }
+
+            // Fetch Email Preferences
+            const { data: emailPrefData, error: emailPrefError } = await supabase
+                .from('email_preferences')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+            if (emailPrefData) {
+                setEmailPrefs({
+                    weekly_review_emails: emailPrefData.weekly_review_emails ?? true,
+                    milestone_emails: emailPrefData.milestone_emails ?? true,
+                    habit_reminder_emails: emailPrefData.habit_reminder_emails ?? false,
+                    streak_emails: emailPrefData.streak_emails ?? true,
+                    pace_warning_emails: emailPrefData.pace_warning_emails ?? true,
+                    digest_frequency: emailPrefData.digest_frequency || 'weekly',
+                    digest_day: emailPrefData.digest_day || 'sunday',
+                    digest_time: emailPrefData.digest_time || '09:00',
+                });
             }
 
             // Fetch Peak Activity Hour (Smart Logic)
@@ -68,17 +119,41 @@ export default function NotificationSettings() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user || !prefs) return;
 
-            const updates = {
+            // Save communication preferences
+            const commUpdates = {
                 user_id: user.id,
                 ...prefs,
                 updated_at: new Date().toISOString()
             };
 
-            const { error } = await supabase
+            // Use onConflict to handle existing user_id (unique constraint)
+            const { error: commError } = await supabase
                 .from('user_comm_preferences')
-                .upsert(updates);
+                .upsert(commUpdates, { onConflict: 'user_id' });
 
-            if (error) throw error;
+            if (commError) throw commError;
+
+            // Save email preferences
+            const emailUpdates = {
+                user_id: user.id,
+                weekly_review_emails: emailPrefs.weekly_review_emails,
+                milestone_emails: emailPrefs.milestone_emails,
+                habit_reminder_emails: emailPrefs.habit_reminder_emails,
+                streak_emails: emailPrefs.streak_emails,
+                pace_warning_emails: emailPrefs.pace_warning_emails,
+                digest_frequency: emailPrefs.digest_frequency,
+                digest_day: emailPrefs.digest_day,
+                digest_time: emailPrefs.digest_time,
+                updated_at: new Date().toISOString()
+            };
+
+            // Use onConflict to handle existing user_id (unique constraint)
+            const { error: emailError } = await supabase
+                .from('email_preferences')
+                .upsert(emailUpdates, { onConflict: 'user_id' });
+
+            if (emailError) throw emailError;
+
             setSuccess('Settings saved successfully');
 
             // Refresh to ensure sync
@@ -218,8 +293,151 @@ export default function NotificationSettings() {
                             </select>
                         </div>
 
+                        <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500/20 rounded-full text-blue-400">
+                                    📧
+                                </div>
+                                <div>
+                                    <div className="text-sm font-medium text-white">Email</div>
+                                    <div className="text-xs text-slate-400">Receive weekly reviews and milestone celebrations</div>
+                                </div>
+                            </div>
+                            <select
+                                value={prefs?.preferred_channel === 'email' ? 'primary' : 'secondary'}
+                                onChange={(e) => {
+                                    if (e.target.value === 'primary') setPrefs(prev => prev ? ({ ...prev, preferred_channel: 'email' }) : null)
+                                }}
+                                className="bg-slate-800 border border-slate-600 rounded text-sm text-white px-2 py-1"
+                            >
+                                <option value="primary">Primary</option>
+                                <option value="secondary">Secondary</option>
+                            </select>
+                        </div>
+
                         <div className="text-xs text-slate-500 mt-2 flex items-center gap-1">
                             ℹ️ Updates to phone number must be done in Account Settings.
+                        </div>
+                    </div>
+                </div>
+
+                {/* AI COACH EMAIL SCHEDULE */}
+                <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 md:col-span-2">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+                        📅 AI Coach Email Schedule
+                    </h3>
+                    <p className="text-slate-400 text-sm mb-6">
+                        Choose when you'd like to receive your weekly review and AI coach emails.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label className="block text-xs font-medium text-slate-500 mb-2">Frequency</label>
+                            <select
+                                value={emailPrefs.digest_frequency}
+                                onChange={(e) => setEmailPrefs(prev => ({ ...prev, digest_frequency: e.target.value as any }))}
+                                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                            >
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="never">Never</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-slate-500 mb-2">Day of Week</label>
+                            <select
+                                value={emailPrefs.digest_day}
+                                onChange={(e) => setEmailPrefs(prev => ({ ...prev, digest_day: e.target.value }))}
+                                disabled={emailPrefs.digest_frequency === 'daily' || emailPrefs.digest_frequency === 'never'}
+                                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-amber-500 outline-none disabled:opacity-50"
+                            >
+                                {DAYS_OF_WEEK.map(day => (
+                                    <option key={day.value} value={day.value}>{day.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-slate-500 mb-2">Preferred Time</label>
+                            <input
+                                type="time"
+                                value={emailPrefs.digest_time}
+                                onChange={(e) => setEmailPrefs(prev => ({ ...prev, digest_time: e.target.value }))}
+                                disabled={emailPrefs.digest_frequency === 'never'}
+                                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-amber-500 outline-none disabled:opacity-50"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="border-t border-slate-700 pt-4">
+                        <h4 className="text-sm font-medium text-white mb-3">Email Types</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <label className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-lg cursor-pointer hover:bg-slate-900/70 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={emailPrefs.weekly_review_emails}
+                                    onChange={(e) => setEmailPrefs(prev => ({ ...prev, weekly_review_emails: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-amber-500"
+                                />
+                                <div>
+                                    <div className="text-sm font-medium text-white">Weekly Review</div>
+                                    <div className="text-xs text-slate-400">Progress summary and insights</div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-lg cursor-pointer hover:bg-slate-900/70 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={emailPrefs.milestone_emails}
+                                    onChange={(e) => setEmailPrefs(prev => ({ ...prev, milestone_emails: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-amber-500"
+                                />
+                                <div>
+                                    <div className="text-sm font-medium text-white">Milestone Celebrations</div>
+                                    <div className="text-xs text-slate-400">Goal and milestone achievements</div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-lg cursor-pointer hover:bg-slate-900/70 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={emailPrefs.streak_emails}
+                                    onChange={(e) => setEmailPrefs(prev => ({ ...prev, streak_emails: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-amber-500"
+                                />
+                                <div>
+                                    <div className="text-sm font-medium text-white">Streak Milestones</div>
+                                    <div className="text-xs text-slate-400">7, 30, 100 day streak achievements</div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-lg cursor-pointer hover:bg-slate-900/70 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={emailPrefs.habit_reminder_emails}
+                                    onChange={(e) => setEmailPrefs(prev => ({ ...prev, habit_reminder_emails: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-amber-500"
+                                />
+                                <div>
+                                    <div className="text-sm font-medium text-white">Habit Reminders</div>
+                                    <div className="text-xs text-slate-400">Daily habit completion reminders</div>
+                                </div>
+                            </label>
+
+                            <label className="flex items-center gap-3 p-3 bg-slate-900/50 rounded-lg cursor-pointer hover:bg-slate-900/70 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={emailPrefs.pace_warning_emails}
+                                    onChange={(e) => setEmailPrefs(prev => ({ ...prev, pace_warning_emails: e.target.checked }))}
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-amber-500"
+                                />
+                                <div>
+                                    <div className="text-sm font-medium text-white">Pace Warnings</div>
+                                    <div className="text-xs text-slate-400">Alerts when goals need attention</div>
+                                </div>
+                            </label>
                         </div>
                     </div>
                 </div>

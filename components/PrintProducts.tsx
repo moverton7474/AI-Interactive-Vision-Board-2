@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import WorkbookWizard from './workbook/WorkbookWizard';
+import { WorkbookMockupSimple } from './workbook/WorkbookMockup';
+import VisionBoardSelector from './print/VisionBoardSelector';
+import ProductMockup from './print/ProductMockup';
+import PrintOrderModal from './PrintOrderModal';
+import { VisionImage } from '../types';
+import { getVisionGallery } from '../services/storageService';
 
 interface Props {
   onBack?: () => void;
+  onNavigateToVisualize?: () => void;
 }
 
 interface Product {
@@ -47,7 +54,7 @@ interface ShippingAddress {
  * print products. Integrates with user's vision boards, habits,
  * and AMIE profile for customization.
  */
-const PrintProducts: React.FC<Props> = ({ onBack }) => {
+const PrintProducts: React.FC<Props> = ({ onBack, onNavigateToVisualize }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -79,10 +86,41 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
   // User subscription
   const [isElite, setIsElite] = useState(false);
 
+  // PRINT SHOP v1.5: Vision board print flow state
+  const [showVisionSelector, setShowVisionSelector] = useState(false);
+  const [showPrintOrderModal, setShowPrintOrderModal] = useState(false);
+  const [selectedVisionForPrint, setSelectedVisionForPrint] = useState<VisionImage | null>(null);
+  const [userVisions, setUserVisions] = useState<VisionImage[]>([]);
+  const [primaryVisionUrl, setPrimaryVisionUrl] = useState<string | null>(null);
+
   useEffect(() => {
     fetchCatalog();
     checkSubscription();
+    loadUserVisions();
   }, []);
+
+  // PRINT SHOP v1.5: Load user's vision boards for mockups
+  const loadUserVisions = async () => {
+    try {
+      const visions = await getVisionGallery();
+      const realVisions = visions.filter(v => !v.url.startsWith('data:image/svg'));
+      setUserVisions(realVisions);
+      if (realVisions.length > 0) {
+        // Use the first (most recent) or favorite vision for mockups
+        const primary = realVisions.find(v => v.isFavorite) || realVisions[0];
+        setPrimaryVisionUrl(primary.url);
+      }
+    } catch (err) {
+      console.error('Error loading visions:', err);
+    }
+  };
+
+  // PRINT SHOP v1.5: Handle vision board selection for printing
+  const handleVisionSelected = (vision: VisionImage) => {
+    setSelectedVisionForPrint(vision);
+    setShowVisionSelector(false);
+    setShowPrintOrderModal(true);
+  };
 
   const fetchCatalog = async () => {
     try {
@@ -122,7 +160,7 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
 
   const handleCustomize = async (product: Product) => {
     // Intercept Workbook products to use the new Wizard
-    if (product.product_type === 'workbook' || product.name.toLowerCase().includes('workbook')) {
+    if (product.product_type === 'workbook' || product.name?.toLowerCase().includes('workbook')) {
       setShowWorkbookWizard(true);
       return;
     }
@@ -200,18 +238,6 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
     ? products.filter(p => p.product_type === selectedCategory)
     : products;
 
-  const getProductIcon = (type: string) => {
-    switch (type) {
-      case 'pad': return '📝';
-      case 'cards': return '🃏';
-      case 'sticker': return '⭐';
-      case 'canvas': return '🖼️';
-      case 'bundle': return '🎁';
-      case 'workbook': return '📘';
-      default: return '📦';
-    }
-  };
-
   // Order Success Screen
   if (orderSuccess) {
     return (
@@ -281,6 +307,147 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
+      {/* PRINT SHOP v1.5: Dual Hero Section - Vision Boards Primary, Workbook Secondary */}
+      <div className="mb-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* PRIMARY HERO: Vision Board Prints */}
+        <div className="bg-gradient-to-br from-navy-900 via-navy-800 to-indigo-900 rounded-2xl overflow-hidden shadow-xl">
+          <div className="p-8 lg:p-10 h-full flex flex-col">
+            <span className="text-gold-400 text-xs font-bold tracking-wider mb-2">
+              MOST POPULAR
+            </span>
+            <h2 className="text-2xl lg:text-3xl font-serif font-bold text-white mb-3">
+              Vision Board Prints
+            </h2>
+            <p className="text-gray-300 mb-6 leading-relaxed text-sm flex-grow">
+              Turn your AI-generated vision boards into stunning wall art.
+              Available as high-quality posters or gallery-wrapped canvas prints.
+            </p>
+
+            {/* Preview mockup with user's vision */}
+            <div className="relative mb-6 bg-navy-950/50 rounded-xl p-4 flex items-center justify-center">
+              {primaryVisionUrl ? (
+                <div className="relative">
+                  <div className="w-48 h-36 bg-gray-800 rounded shadow-2xl p-1">
+                    <img
+                      src={primaryVisionUrl}
+                      alt="Your vision board"
+                      className="w-full h-full object-cover rounded"
+                    />
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 bg-gold-500 text-navy-900 text-xs font-bold px-2 py-1 rounded">
+                    From $24
+                  </div>
+                </div>
+              ) : (
+                <div className="w-48 h-36 bg-gradient-to-br from-navy-700 to-navy-800 rounded flex items-center justify-center">
+                  <span className="text-5xl">🖼️</span>
+                </div>
+              )}
+            </div>
+
+            <ul className="space-y-1.5 mb-6 text-sm">
+              <li className="flex items-center gap-2 text-gray-300">
+                <svg className="w-4 h-4 text-gold-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Museum-quality prints on premium paper
+              </li>
+              <li className="flex items-center gap-2 text-gray-300">
+                <svg className="w-4 h-4 text-gold-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                3 sizes: 12×18", 18×24", 24×36"
+              </li>
+              <li className="flex items-center gap-2 text-gray-300">
+                <svg className="w-4 h-4 text-gold-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Canvas option with gallery wrap
+              </li>
+            </ul>
+
+            <button
+              onClick={() => setShowVisionSelector(true)}
+              className="w-full bg-gold-500 hover:bg-gold-400 text-navy-900 font-bold px-6 py-3.5 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print My Vision Board
+            </button>
+          </div>
+        </div>
+
+        {/* SECONDARY HERO: Executive Vision Workbook */}
+        <div className="bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="p-8 lg:p-10 h-full flex flex-col">
+            <span className="text-amber-400 text-xs font-bold tracking-wider mb-2">
+              PREMIUM COLLECTION
+            </span>
+            <h2 className="text-2xl lg:text-3xl font-serif font-bold text-white mb-3">
+              Executive Vision Workbook
+            </h2>
+            <p className="text-gray-300 mb-6 leading-relaxed text-sm flex-grow">
+              Transform your visions into a printed workbook with goal planning pages,
+              habit trackers, and an AI-written foreword.
+            </p>
+
+            {/* Workbook mockup */}
+            <div className="relative mb-6 flex items-center justify-center">
+              <div className="transform hover:scale-105 transition-transform duration-300 scale-90">
+                <WorkbookMockupSimple
+                  title="My Vision"
+                  subtitle="2025"
+                  coverTheme="executive_dark"
+                  coverImageUrl={primaryVisionUrl || undefined}
+                />
+              </div>
+            </div>
+
+            <ul className="space-y-1.5 mb-6 text-sm">
+              <li className="flex items-center gap-2 text-gray-300">
+                <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Premium hardcover with gold foil
+              </li>
+              <li className="flex items-center gap-2 text-gray-300">
+                <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Your vision boards in vivid color
+              </li>
+              <li className="flex items-center gap-2 text-gray-300">
+                <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                AI foreword from your "future self"
+              </li>
+            </ul>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowWorkbookWizard(true)}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-6 py-3.5 rounded-xl transition-colors shadow-lg"
+              >
+                Create Your Workbook
+              </button>
+              <span className="text-white font-bold text-xl">$89</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Info Banner */}
+      <div className="mb-8 bg-navy-50 border border-navy-100 rounded-xl p-4 flex items-center gap-3">
+        <div className="w-10 h-10 bg-navy-100 rounded-full flex items-center justify-center flex-shrink-0">
+          <span className="text-xl">✨</span>
+        </div>
+        <p className="text-sm text-navy-700">
+          <strong>Personalized previews:</strong> Your vision boards are automatically applied to product mockups so you can see how they'll look in real life.
+        </p>
+      </div>
+
       {/* Category Filters */}
       <div className="flex flex-wrap gap-2 mb-8">
         <button
@@ -319,16 +486,20 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
               className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-lg transition-shadow ${product.elite_exclusive && !isElite ? 'opacity-75' : ''
                 }`}
             >
-              {/* Product Image */}
-              <div className="h-48 bg-gradient-to-br from-navy-50 to-gold-50 flex items-center justify-center relative">
-                <span className="text-6xl">{getProductIcon(product.product_type)}</span>
+              {/* PRINT SHOP v1.5: Product Mockup with user's vision board */}
+              <div className="h-48 relative overflow-hidden">
+                <ProductMockup
+                  productType={product.product_type}
+                  imageUrl={primaryVisionUrl || undefined}
+                  className="w-full h-full"
+                />
                 {product.elite_exclusive && (
-                  <span className="absolute top-3 right-3 bg-gold-500 text-navy-900 text-xs font-bold px-2 py-1 rounded">
+                  <span className="absolute top-3 right-3 bg-gold-500 text-navy-900 text-xs font-bold px-2 py-1 rounded shadow">
                     ELITE
                   </span>
                 )}
                 {product.product_type === 'bundle' && (
-                  <span className="absolute top-3 left-3 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">
+                  <span className="absolute top-3 left-3 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded shadow">
                     SAVE 20%
                   </span>
                 )}
@@ -384,9 +555,34 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
         </div>
       )}
 
-      {/* NEW: Workbook Wizard */}
+      {/* Workbook Wizard */}
       {showWorkbookWizard && (
         <WorkbookWizard onClose={() => setShowWorkbookWizard(false)} />
+      )}
+
+      {/* PRINT SHOP v1.5: Vision Board Selector Modal */}
+      {showVisionSelector && (
+        <VisionBoardSelector
+          onSelect={handleVisionSelected}
+          onClose={() => setShowVisionSelector(false)}
+          onCreateNew={() => {
+            setShowVisionSelector(false);
+            if (onNavigateToVisualize) {
+              onNavigateToVisualize();
+            }
+          }}
+        />
+      )}
+
+      {/* PRINT SHOP v1.5: Print Order Modal for poster/canvas */}
+      {showPrintOrderModal && (
+        <PrintOrderModal
+          image={selectedVisionForPrint}
+          onClose={() => {
+            setShowPrintOrderModal(false);
+            setSelectedVisionForPrint(null);
+          }}
+        />
       )}
 
       {/* Customization Modal */}
@@ -417,11 +613,15 @@ const PrintProducts: React.FC<Props> = ({ onBack }) => {
                 </div>
               ) : (
                 <>
-                  {/* Product Summary */}
+                  {/* Product Summary with Mockup */}
                   <div className="bg-gray-50 rounded-xl p-4 mb-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-navy-100 rounded-lg flex items-center justify-center">
-                        <span className="text-3xl">{getProductIcon(selectedProduct.product_type)}</span>
+                      <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                        <ProductMockup
+                          productType={selectedProduct.product_type}
+                          imageUrl={primaryVisionUrl || undefined}
+                          className="w-full h-full"
+                        />
                       </div>
                       <div className="flex-1">
                         <h3 className="font-bold text-navy-900">{selectedProduct.name}</h3>

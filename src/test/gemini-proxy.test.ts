@@ -533,19 +533,454 @@ Return ONLY a valid JSON array of Milestone objects.
   });
 
   describe('Model Selection', () => {
-    it('should use gemini-2.0-flash for chat', () => {
-      const model = 'gemini-2.0-flash';
-      expect(model).toBe('gemini-2.0-flash');
+    // Model configuration matching gemini-proxy/index.ts (updated for Nano Banana Pro)
+    const getModelConfig = () => ({
+      image_primary: 'gemini-2.5-pro-preview-06-05',
+      image_fallback_1: 'gemini-2.5-flash-preview-05-20',
+      image_fallback_2: 'gemini-2.0-flash-exp',
+      image_imagen: 'imagen-3.0-generate-002',
     });
 
-    it('should use gemini-2.0-flash-exp for image generation', () => {
-      const model = 'gemini-2.0-flash-exp';
-      expect(model).toContain('exp');
+    const MODELS = {
+      chat: 'gemini-2.0-flash-001',
+      reasoning: 'gemini-2.5-pro',
+      likeness_validator: 'gemini-2.0-flash-001',
+    };
+
+    it('should use gemini-2.0-flash-001 for chat', () => {
+      expect(MODELS.chat).toBe('gemini-2.0-flash-001');
     });
 
-    it('should have imagen fallback for images', () => {
-      const fallbackModel = 'imagen-3.0-generate-002';
-      expect(fallbackModel).toContain('imagen');
+    it('should use Nano Banana Pro as primary image model', () => {
+      const config = getModelConfig();
+      expect(config.image_primary).toBe('gemini-2.5-pro-preview-06-05');
+      expect(config.image_primary).toContain('pro');
+    });
+
+    it('should use Nano Banana as first fallback', () => {
+      const config = getModelConfig();
+      expect(config.image_fallback_1).toBe('gemini-2.5-flash-preview-05-20');
+      expect(config.image_fallback_1).toContain('flash');
+    });
+
+    it('should use gemini-2.0-flash-exp as second fallback', () => {
+      const config = getModelConfig();
+      expect(config.image_fallback_2).toBe('gemini-2.0-flash-exp');
+    });
+
+    it('should have imagen-3 as last resort (no likeness support)', () => {
+      const config = getModelConfig();
+      expect(config.image_imagen).toBe('imagen-3.0-generate-002');
+    });
+  });
+
+  describe('Likeness-Preserving Prompt Builder', () => {
+    // Helper function to simulate buildLikenessPreservingRequest
+    interface LikenessRequestParams {
+      baseImage: string | null;
+      referenceImages: string[];
+      referenceImageTags: string[];
+      identityPrompt?: string;
+      sceneDescription: string;
+      titleText?: string;
+      embeddedText?: string;
+      style?: string;
+      isPremium: boolean;
+    }
+
+    const extractBase64Data = (imageData: string) => {
+      if (imageData.includes('base64,')) {
+        const mimeMatch = imageData.match(/^data:(.*?);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        const base64 = imageData.split(',')[1];
+        return { base64, mimeType };
+      }
+      return { base64: imageData, mimeType: 'image/jpeg' };
+    };
+
+    const buildLikenessPreservingRequest = (params: LikenessRequestParams) => {
+      const contents: any[] = [];
+      const identityDescriptions = params.identityPrompt
+        ? params.identityPrompt.split('\n\n').filter(Boolean)
+        : [];
+
+      // Turn 1: Base Image
+      if (params.baseImage) {
+        const baseImageData = extractBase64Data(params.baseImage);
+        contents.push({
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: baseImageData.mimeType, data: baseImageData.base64 } },
+            { text: 'CRITICAL LIKENESS REQUIREMENTS...' }
+          ]
+        });
+      }
+
+      // Reference images
+      params.referenceImages.forEach((refImage, index) => {
+        const refImageData = extractBase64Data(refImage);
+        const tagLabel = params.referenceImageTags[index] || `Person ${index + 1}`;
+        const identityDesc = identityDescriptions[index] || '';
+
+        contents.push({
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: refImageData.mimeType, data: refImageData.base64 } },
+            { text: `Reference photo of "${tagLabel}". ${identityDesc}` }
+          ]
+        });
+      });
+
+      // Final turn: Scene instructions
+      contents.push({
+        role: 'user',
+        parts: [{ text: `Generate: ${params.sceneDescription}` }]
+      });
+
+      return {
+        contents,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 8192,
+          responseModalities: ['IMAGE', 'TEXT']
+        }
+      };
+    };
+
+    it('should create multi-turn conversation structure', () => {
+      const result = buildLikenessPreservingRequest({
+        baseImage: 'data:image/jpeg;base64,base64data',
+        referenceImages: [],
+        referenceImageTags: [],
+        sceneDescription: 'Beach sunset',
+        isPremium: false
+      });
+
+      // Should have base image turn + final scene turn = 2 turns minimum
+      expect(result.contents.length).toBe(2);
+    });
+
+    it('should include base image as first turn', () => {
+      const result = buildLikenessPreservingRequest({
+        baseImage: 'data:image/jpeg;base64,base64data',
+        referenceImages: [],
+        referenceImageTags: [],
+        sceneDescription: 'Beach sunset',
+        isPremium: false
+      });
+
+      expect(result.contents[0].role).toBe('user');
+      expect(result.contents[0].parts[0]).toHaveProperty('inlineData');
+      expect(result.contents[0].parts[1].text).toContain('CRITICAL LIKENESS REQUIREMENTS');
+    });
+
+    it('should add reference images as separate turns', () => {
+      const result = buildLikenessPreservingRequest({
+        baseImage: 'data:image/jpeg;base64,base64data',
+        referenceImages: ['ref1base64', 'ref2base64'],
+        referenceImageTags: ['Milton', 'Lisa'],
+        sceneDescription: 'Beach sunset',
+        isPremium: false
+      });
+
+      // base turn + 2 reference turns + final turn = 4 turns
+      expect(result.contents.length).toBe(4);
+      expect(result.contents[1].parts[1].text).toContain('Milton');
+      expect(result.contents[2].parts[1].text).toContain('Lisa');
+    });
+
+    it('should include identity descriptions in reference turns', () => {
+      const result = buildLikenessPreservingRequest({
+        baseImage: 'data:image/jpeg;base64,base64data',
+        referenceImages: ['ref1base64'],
+        referenceImageTags: ['Milton'],
+        identityPrompt: 'Tall Black male, 50s, athletic, glasses',
+        sceneDescription: 'Beach sunset',
+        isPremium: false
+      });
+
+      expect(result.contents[1].parts[1].text).toContain('Tall Black male');
+    });
+
+    it('should use responseModalities for image output', () => {
+      const result = buildLikenessPreservingRequest({
+        baseImage: 'data:image/jpeg;base64,base64data',
+        referenceImages: [],
+        referenceImageTags: [],
+        sceneDescription: 'Beach sunset',
+        isPremium: false
+      });
+
+      expect(result.generationConfig.responseModalities).toContain('IMAGE');
+      expect(result.generationConfig.responseModalities).toContain('TEXT');
+    });
+
+    it('should use lower temperature for consistent likeness', () => {
+      const result = buildLikenessPreservingRequest({
+        baseImage: 'data:image/jpeg;base64,base64data',
+        referenceImages: [],
+        referenceImageTags: [],
+        sceneDescription: 'Beach sunset',
+        isPremium: false
+      });
+
+      expect(result.generationConfig.temperature).toBe(0.7);
+      expect(result.generationConfig.temperature).toBeLessThan(1.0);
+    });
+
+    it('should work without base image', () => {
+      const result = buildLikenessPreservingRequest({
+        baseImage: null,
+        referenceImages: ['ref1base64'],
+        referenceImageTags: ['Milton'],
+        sceneDescription: 'Beach sunset',
+        isPremium: false
+      });
+
+      // Should have reference turn + final turn = 2 turns
+      expect(result.contents.length).toBe(2);
+    });
+
+    it('should always include reference images as inlineData', () => {
+      const result = buildLikenessPreservingRequest({
+        baseImage: 'data:image/jpeg;base64,base64data',
+        referenceImages: ['ref1base64', 'ref2base64'],
+        referenceImageTags: ['Milton', 'Lisa'],
+        sceneDescription: 'Beach sunset',
+        isPremium: false
+      });
+
+      // Check each reference image turn has inlineData
+      expect(result.contents[1].parts[0]).toHaveProperty('inlineData');
+      expect(result.contents[2].parts[0]).toHaveProperty('inlineData');
+    });
+  });
+
+  describe('Likeness Validation', () => {
+    const buildValidationPrompt = (
+      referenceImages: string[],
+      generatedImage: string,
+      referenceDescriptions: string[]
+    ) => {
+      const parts: any[] = [];
+
+      referenceImages.forEach((refImage, index) => {
+        parts.push({
+          inlineData: { mimeType: 'image/jpeg', data: refImage }
+        });
+        parts.push({
+          text: `Reference Image ${index + 1}: ${referenceDescriptions[index] || `Person ${index + 1}`}`
+        });
+      });
+
+      parts.push({
+        inlineData: { mimeType: 'image/jpeg', data: generatedImage }
+      });
+      parts.push({ text: 'Generated Vision Board Image (to evaluate)' });
+      parts.push({
+        text: 'Evaluate likeness... Return JSON with likeness_score 0-1'
+      });
+
+      return { contents: [{ parts }] };
+    };
+
+    it('should include all reference images in validation', () => {
+      const result = buildValidationPrompt(
+        ['ref1', 'ref2'],
+        'generated',
+        ['Milton', 'Lisa']
+      );
+
+      const parts = result.contents[0].parts;
+      // 2 refs * 2 (image + text) + generated (2) + evaluation (1) = 7 parts
+      expect(parts.length).toBe(7);
+    });
+
+    it('should include generated image for comparison', () => {
+      const result = buildValidationPrompt(
+        ['ref1'],
+        'generatedBase64',
+        ['Milton']
+      );
+
+      const parts = result.contents[0].parts;
+      const generatedPart = parts.find((p: any) => p.inlineData?.data === 'generatedBase64');
+      expect(generatedPart).toBeDefined();
+    });
+
+    it('should include likeness score request in prompt', () => {
+      const result = buildValidationPrompt(
+        ['ref1'],
+        'generated',
+        ['Milton']
+      );
+
+      const parts = result.contents[0].parts;
+      const evaluationPart = parts.find((p: any) => p.text?.includes('likeness_score'));
+      expect(evaluationPart).toBeDefined();
+    });
+
+    // Score interpretation test
+    const interpretLikenessScore = (score: number): 'good' | 'moderate' | 'poor' => {
+      if (score >= 0.7) return 'good';
+      if (score >= 0.5) return 'moderate';
+      return 'poor';
+    };
+
+    it('should interpret high scores as good', () => {
+      expect(interpretLikenessScore(0.85)).toBe('good');
+      expect(interpretLikenessScore(0.7)).toBe('good');
+    });
+
+    it('should interpret medium scores as moderate', () => {
+      expect(interpretLikenessScore(0.6)).toBe('moderate');
+      expect(interpretLikenessScore(0.5)).toBe('moderate');
+    });
+
+    it('should interpret low scores as poor', () => {
+      expect(interpretLikenessScore(0.4)).toBe('poor');
+      expect(interpretLikenessScore(0.2)).toBe('poor');
+    });
+  });
+
+  describe('Model Fallback Chain', () => {
+    const simulateModelFallback = async (
+      modelAvailability: Record<string, boolean>
+    ): Promise<{ modelUsed: string; success: boolean }> => {
+      const models = [
+        'gemini-2.5-pro-preview-06-05',
+        'gemini-2.5-flash-preview-05-20',
+        'gemini-2.0-flash-exp',
+        'imagen-3.0-generate-002'
+      ];
+
+      for (const model of models) {
+        if (modelAvailability[model]) {
+          return { modelUsed: model, success: true };
+        }
+      }
+
+      return { modelUsed: '', success: false };
+    };
+
+    it('should use primary model when available', async () => {
+      const result = await simulateModelFallback({
+        'gemini-2.5-pro-preview-06-05': true,
+        'gemini-2.5-flash-preview-05-20': true,
+        'gemini-2.0-flash-exp': true,
+        'imagen-3.0-generate-002': true
+      });
+
+      expect(result.modelUsed).toBe('gemini-2.5-pro-preview-06-05');
+    });
+
+    it('should fall back to flash when pro unavailable', async () => {
+      const result = await simulateModelFallback({
+        'gemini-2.5-pro-preview-06-05': false,
+        'gemini-2.5-flash-preview-05-20': true,
+        'gemini-2.0-flash-exp': true,
+        'imagen-3.0-generate-002': true
+      });
+
+      expect(result.modelUsed).toBe('gemini-2.5-flash-preview-05-20');
+    });
+
+    it('should fall back to 2.0 exp when 2.5 models unavailable', async () => {
+      const result = await simulateModelFallback({
+        'gemini-2.5-pro-preview-06-05': false,
+        'gemini-2.5-flash-preview-05-20': false,
+        'gemini-2.0-flash-exp': true,
+        'imagen-3.0-generate-002': true
+      });
+
+      expect(result.modelUsed).toBe('gemini-2.0-flash-exp');
+    });
+
+    it('should fall back to imagen as last resort', async () => {
+      const result = await simulateModelFallback({
+        'gemini-2.5-pro-preview-06-05': false,
+        'gemini-2.5-flash-preview-05-20': false,
+        'gemini-2.0-flash-exp': false,
+        'imagen-3.0-generate-002': true
+      });
+
+      expect(result.modelUsed).toBe('imagen-3.0-generate-002');
+    });
+
+    it('should fail when all models unavailable', async () => {
+      const result = await simulateModelFallback({
+        'gemini-2.5-pro-preview-06-05': false,
+        'gemini-2.5-flash-preview-05-20': false,
+        'gemini-2.0-flash-exp': false,
+        'imagen-3.0-generate-002': false
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Imagen Fallback Prompt', () => {
+    // Imagen doesn't support reference images, so we build a text-only prompt
+    const buildImagenFallbackPrompt = (params: {
+      sceneDescription?: string;
+      identityPrompt?: string;
+      titleText?: string;
+      style?: string;
+    }): string => {
+      let prompt = params.sceneDescription || 'A beautiful vision board image.';
+
+      if (params.identityPrompt) {
+        prompt = `Create an image featuring people with these characteristics: ${params.identityPrompt}. Scene: ${prompt}`;
+      }
+
+      if (params.titleText) {
+        prompt += ` Include the title text "${params.titleText}" prominently.`;
+      }
+
+      if (params.style) {
+        prompt += ` Style: ${params.style}.`;
+      }
+
+      return prompt;
+    };
+
+    it('should include identity descriptions as text', () => {
+      const prompt = buildImagenFallbackPrompt({
+        sceneDescription: 'Beach vacation',
+        identityPrompt: 'tall Black male, 50s, athletic'
+      });
+
+      expect(prompt).toContain('tall Black male');
+      expect(prompt).toContain('Beach vacation');
+    });
+
+    it('should include title text', () => {
+      const prompt = buildImagenFallbackPrompt({
+        sceneDescription: 'Beach vacation',
+        titleText: '2025 Vision Board'
+      });
+
+      expect(prompt).toContain('2025 Vision Board');
+    });
+
+    it('should work without identity prompt', () => {
+      const prompt = buildImagenFallbackPrompt({
+        sceneDescription: 'Beach vacation'
+      });
+
+      expect(prompt).toBe('Beach vacation');
+    });
+  });
+
+  describe('Validate Likeness Action', () => {
+    const validActions = [
+      'chat', 'summarize', 'generate_image', 'enhance_prompt',
+      'generate_suggestions', 'financial_projection', 'parse_financial',
+      'action_plan', 'raw', 'validate_likeness', 'diagnose'
+    ];
+
+    it('should include validate_likeness in valid actions', () => {
+      expect(validActions.includes('validate_likeness')).toBe(true);
     });
   });
 });

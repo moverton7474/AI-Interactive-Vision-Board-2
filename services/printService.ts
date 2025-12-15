@@ -7,24 +7,64 @@ import { PosterOrder, ShippingAddress, PrintConfig } from '../types';
  * Integrates with Supabase to store orders and prepare payloads for Prodigi API.
  */
 
-// Mock Pricing Table (In production, this would fetch from Prodigi Catalog API)
-const PRICING_TABLE = {
-  '12x18': { price: 29.00, sku: 'GLOBAL-CAN-12X18' },
-  '18x24': { price: 39.00, sku: 'GLOBAL-CAN-18X24' },
-  '24x36': { price: 49.00, sku: 'GLOBAL-CAN-24X36' },
+export type ProductType = 'poster' | 'canvas';
+
+// Pricing Tables by product type (In production, this would fetch from Prodigi Catalog API)
+const POSTER_PRICING = {
+  '12x18': { price: 24.00, sku: 'GLOBAL-PHO-12X18' },
+  '18x24': { price: 34.00, sku: 'GLOBAL-PHO-18X24' },
+  '24x36': { price: 44.00, sku: 'GLOBAL-PHO-24X36' },
 };
 
-export const calculatePrice = (size: string, finish: string): { subtotal: number, sku: string } => {
-  const base = (PRICING_TABLE as any)[size] || PRICING_TABLE['18x24'];
+const CANVAS_PRICING = {
+  '12x18': { price: 49.00, sku: 'GLOBAL-CAN-12X18' },
+  '18x24': { price: 69.00, sku: 'GLOBAL-CAN-18X24' },
+  '24x36': { price: 89.00, sku: 'GLOBAL-CAN-24X36' },
+};
+
+// Legacy pricing table for backward compatibility
+const PRICING_TABLE = POSTER_PRICING;
+
+// Product configuration
+export const PRODUCT_CONFIG = {
+  poster: {
+    name: 'Premium Poster',
+    description: 'High-quality matte or gloss finish poster print',
+    sizes: ['12x18', '18x24', '24x36'],
+    finishes: ['matte', 'gloss'],
+    glossUpcharge: 5.00,
+  },
+  canvas: {
+    name: 'Gallery Canvas',
+    description: 'Museum-quality canvas with gallery wrap',
+    sizes: ['12x18', '18x24', '24x36'],
+    finishes: ['standard'], // Canvas doesn't have finish options
+    glossUpcharge: 0,
+  },
+};
+
+export const calculatePrice = (
+  size: string,
+  finish: string,
+  productType: ProductType = 'poster'
+): { subtotal: number; sku: string } => {
+  const pricingTable = productType === 'canvas' ? CANVAS_PRICING : POSTER_PRICING;
+  const base = (pricingTable as any)[size] || pricingTable['18x24'];
   let price = base.price;
-  // Gloss finish adds $5
-  if (finish === 'gloss') price += 5.00;
-  
+
+  // Gloss finish adds $5 for posters only
+  if (productType === 'poster' && finish === 'gloss') {
+    price += PRODUCT_CONFIG.poster.glossUpcharge;
+  }
+
   return {
     subtotal: price,
-    sku: base.sku
+    sku: base.sku,
   };
 };
+
+// Legacy function for backward compatibility
+export const calculatePriceByProduct = calculatePrice;
 
 export const checkFirstTimeDiscount = async (): Promise<boolean> => {
   try {
@@ -54,7 +94,8 @@ export const createPosterOrder = async (
   shipping: ShippingAddress,
   config: PrintConfig,
   totalPrice: number,
-  discountApplied: boolean
+  discountApplied: boolean,
+  productType: ProductType = 'poster' // Default to poster for backward compatibility
 ): Promise<PosterOrder | null> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -67,9 +108,10 @@ export const createPosterOrder = async (
         user_id: user.id,
         vision_board_id: visionBoardId,
         shipping_address: shipping,
-        print_config: config,
+        print_config: { ...config, productType }, // Include productType in config
         total_price: totalPrice,
         discount_applied: discountApplied,
+        product_type: productType, // Save to dedicated column
         status: 'pending', // Start as pending until Prodigi confirms
         vendor_order_id: null
       }])

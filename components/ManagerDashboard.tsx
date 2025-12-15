@@ -9,6 +9,10 @@ import {
   RefreshIcon,
   PlusIcon
 } from './Icons';
+import SiteSettingsManager from './admin/SiteSettingsManager';
+import TeamMemberAdmin from './admin/TeamMemberAdmin';
+import TeamCommunications from './admin/TeamCommunications';
+import TeamKnowledgeView from './admin/TeamKnowledgeView';
 
 interface Props {
   onBack?: () => void;
@@ -56,7 +60,7 @@ interface Team {
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'knowledge' | 'team_admin' | 'site_settings'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
@@ -68,6 +72,9 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
+
+  // Platform admin state
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -85,6 +92,17 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         return;
       }
 
+      // Check if user is a platform admin (bypasses team requirement)
+      const { data: platformRole } = await supabase
+        .from('platform_roles')
+        .select('role, is_active')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      const isAdmin = platformRole?.role === 'platform_admin';
+      setIsPlatformAdmin(isAdmin);
+
       // Check if user is a team member/manager
       const { data: memberData, error: memberError } = await supabase
         .from('team_members')
@@ -93,31 +111,63 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
           teams (*)
         `)
         .eq('user_id', user.id)
+        .eq('is_active', true)
         .single();
 
-      if (memberError || !memberData) {
+      if ((memberError || !memberData) && !isAdmin) {
         setError('You are not part of any team. Create or join a team to access this dashboard.');
         setLoading(false);
         return;
       }
 
-      setIsManager(memberData.role === 'admin' || memberData.role === 'manager');
-      setTeam(memberData.teams);
+      // Platform admins are always managers
+      setIsManager(isAdmin || memberData?.role === 'admin' || memberData?.role === 'manager' || memberData?.role === 'owner');
 
-      // Load team members
-      const { data: teamMembers, error: membersError } = await supabase
-        .from('team_members')
-        .select(`
-          *,
-          profiles:user_id (
-            names,
-            email,
-            avatar_url
-          )
-        `)
-        .eq('team_id', memberData.team_id);
+      // Set team - platform admins without a team see "All Teams"
+      if (memberData?.teams) {
+        setTeam(memberData.teams);
+      } else if (isAdmin) {
+        setTeam({ id: 'all', name: 'All Teams (Platform Admin)', description: 'Platform-wide view', created_at: new Date().toISOString() });
+      }
 
-      if (membersError) throw membersError;
+      // Load team members - platform admins can see all, others see their team only
+      let teamMembers: any[] = [];
+
+      // Only query team members if user has a team OR is platform admin viewing all
+      if (memberData?.team_id || isAdmin) {
+        let teamMembersQuery = supabase
+          .from('team_members')
+          .select(`
+            *,
+            profiles:user_id (
+              email
+            ),
+            teams (name)
+          `);
+
+        // If not platform admin, filter to their team
+        if (!isAdmin && memberData?.team_id) {
+          teamMembersQuery = teamMembersQuery.eq('team_id', memberData.team_id);
+        }
+
+        // For platform admins, limit the query to avoid overwhelming results
+        if (isAdmin && !memberData?.team_id) {
+          teamMembersQuery = teamMembersQuery.limit(100);
+        }
+
+        // Only show active members
+        teamMembersQuery = teamMembersQuery.eq('is_active', true);
+
+        const { data, error: membersError } = await teamMembersQuery;
+
+        // Don't throw on error for platform admins - they can still access site settings
+        if (membersError) {
+          console.warn('Could not load team members:', membersError);
+          if (!isAdmin) throw membersError;
+        } else {
+          teamMembers = data || [];
+        }
+      }
 
       // Transform member data
       const transformedMembers: TeamMember[] = (teamMembers || []).map((member: any) => {
@@ -131,12 +181,16 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         if (daysSinceActive > 7) status = 'inactive';
         else if (daysSinceActive > 3) status = 'at_risk';
 
+        // Extract name from email (before @) as display name
+        const email = member.profiles?.email || '';
+        const displayName = email ? email.split('@')[0] : 'Team Member';
+
         return {
           id: member.id,
           user_id: member.user_id,
-          name: member.profiles?.names || 'Team Member',
-          email: member.profiles?.email || '',
-          avatar_url: member.profiles?.avatar_url,
+          name: displayName,
+          email: email,
+          avatar_url: null,
           role: member.role,
           joined_at: member.created_at,
           current_streak: member.current_streak || 0,
@@ -265,6 +319,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
               <h1 className="text-3xl font-bold text-white flex items-center gap-3">
                 <ChartBarIcon className="w-8 h-8 text-indigo-400" />
                 Manager Dashboard
+                {isPlatformAdmin && (
+                  <span className="px-2 py-1 text-xs rounded-full bg-purple-500/30 text-purple-300 border border-purple-500/50">
+                    Platform Admin
+                  </span>
+                )}
               </h1>
               <p className="text-indigo-200 mt-1">
                 {team?.name || 'Team Overview'}
@@ -298,12 +357,18 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         )}
 
         {/* View Navigation */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 flex-wrap">
           {[
-            { id: 'overview', label: 'Overview' },
-            { id: 'members', label: 'Team Members' },
-            { id: 'reports', label: 'Reports' },
-          ].map((view) => (
+            { id: 'overview', label: 'Overview', adminOnly: false },
+            { id: 'members', label: 'Team Members', adminOnly: false },
+            { id: 'reports', label: 'Reports', adminOnly: false },
+            { id: 'communications', label: 'Communications', adminOnly: false, managerOnly: true },
+            { id: 'knowledge', label: 'Knowledge Base', adminOnly: true },
+            { id: 'team_admin', label: 'Manage Members', adminOnly: true },
+            { id: 'site_settings', label: 'Site Settings', adminOnly: true },
+          ]
+            .filter(view => !view.adminOnly || isPlatformAdmin)
+            .map((view) => (
             <button
               key={view.id}
               onClick={() => setActiveView(view.id as any)}
@@ -311,9 +376,15 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
                 activeView === view.id
                   ? 'bg-white text-purple-900'
                   : 'bg-white/10 text-white hover:bg-white/20'
-              }`}
+              } ${view.adminOnly ? 'flex items-center gap-2' : ''}`}
             >
               {view.label}
+              {view.adminOnly && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
             </button>
           ))}
         </div>
@@ -533,6 +604,30 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Communications View - Managers and Platform Admins */}
+        {activeView === 'communications' && team && (
+          <TeamCommunications
+            teamId={team.id}
+            teamName={team.name}
+            isPlatformAdmin={isPlatformAdmin}
+          />
+        )}
+
+        {/* Knowledge Base View - Platform Admin Only */}
+        {activeView === 'knowledge' && isPlatformAdmin && (
+          <TeamKnowledgeView />
+        )}
+
+        {/* Team Admin View - Platform Admin Only */}
+        {activeView === 'team_admin' && isPlatformAdmin && (
+          <TeamMemberAdmin />
+        )}
+
+        {/* Site Settings View - Platform Admin Only */}
+        {activeView === 'site_settings' && isPlatformAdmin && (
+          <SiteSettingsManager />
         )}
 
         {/* Invite Modal */}

@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- User Identity Profiles Theme Selection)
+-- User Identity Profiles (Theme Selection)
 CREATE TABLE IF NOT EXISTS public.user_identity_profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -73,6 +73,21 @@ CREATE TABLE IF NOT EXISTS public.user_identity_profiles (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+-- User Vision Profiles (Onboarding summary for scene prompt generation)
+CREATE TABLE IF NOT EXISTS public.user_vision_profiles (
+  user_id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  vision_text TEXT,
+  financial_target NUMERIC,
+  financial_target_label TEXT,
+  primary_vision_url TEXT,
+  primary_vision_id UUID,
+  domain TEXT  -- e.g. 'RETIREMENT', 'CAREER', 'TRAVEL', 'HEALTH'
+);
+
+-- Migration for existing databases:
+-- ALTER TABLE public.user_vision_profiles ADD COLUMN IF NOT EXISTS domain TEXT;
 
 -- Vision Boards
 CREATE TABLE IF NOT EXISTS public.vision_boards (
@@ -90,8 +105,12 @@ CREATE TABLE IF NOT EXISTS public.reference_images (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     image_url TEXT NOT NULL,
     tags TEXT[] DEFAULT '{}',
-    user_id UUID REFERENCES auth.users ON DELETE CASCADE
+    user_id UUID REFERENCES auth.users ON DELETE CASCADE,
+    identity_description TEXT  -- Neutral physical description for identity preservation
 );
+
+-- Migration for existing databases:
+-- ALTER TABLE public.reference_images ADD COLUMN IF NOT EXISTS identity_description TEXT;
 
 -- Financial Documents (Knowledge Base)
 CREATE TABLE IF NOT EXISTS public.documents (
@@ -259,6 +278,7 @@ ALTER TABLE public.workbook_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workbook_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_identity_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_vision_profiles ENABLE ROW LEVEL SECURITY;
 
 -- ========================================
 -- 6. CREATE POLICIES
@@ -354,8 +374,14 @@ USING (auth.uid() = id);
 
 -- User Identity Profiles
 DROP POLICY IF EXISTS "Users can manage own identity" ON public.user_identity_profiles;
-CREATE POLICY "Users can manage own identity" 
-ON public.user_identity_profiles 
+CREATE POLICY "Users can manage own identity"
+ON public.user_identity_profiles
+FOR ALL USING (auth.uid() = user_id);
+
+-- User Vision Profiles
+DROP POLICY IF EXISTS "Users can manage own vision profile" ON public.user_vision_profiles;
+CREATE POLICY "Users can manage own vision profile"
+ON public.user_vision_profiles
 FOR ALL USING (auth.uid() = user_id);
 
 -- ========================================

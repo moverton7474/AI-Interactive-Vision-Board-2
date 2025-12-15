@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MotivationalTheme } from '../types';
 import { supabase } from '../lib/supabase';
-import { SparklesIcon, CheckIcon } from './Icons';
+import { SparklesIcon, CheckIcon, VisionaryIcon } from './Icons';
 
 interface Props {
   onSelect: (theme: MotivationalTheme) => void;
@@ -10,10 +10,10 @@ interface Props {
 }
 
 /**
- * ThemeSelector - AMIE Identity Engine Theme Selection
+ * ThemeSelector - Visionary AI Coaching Style Selection
  *
  * Displays motivational themes as cards and allows users to select
- * their preferred coaching style for the AI assistant.
+ * their preferred coaching style for their ascension journey.
  */
 const ThemeSelector: React.FC<Props> = ({ onSelect, onSkip, selectedThemeId }) => {
   const [themes, setThemes] = useState<MotivationalTheme[]>([]);
@@ -116,36 +116,36 @@ const ThemeSelector: React.FC<Props> = ({ onSelect, onSkip, selectedThemeId }) =
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="min-h-[60vh] flex items-center justify-center bg-gradient-to-br from-navy-950 via-navy-900 to-charcoal-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-500 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading coaching themes...</p>
+          <p className="text-gray-400">Loading coaching styles...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 animate-fade-in">
+    <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 animate-fade-in bg-gradient-to-br from-navy-950 via-navy-900 to-charcoal-900">
       <div className="w-full max-w-5xl">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 bg-gold-100 text-gold-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
-            <SparklesIcon className="w-4 h-4" />
-            AMIE Identity Engine
+          <div className="inline-flex items-center gap-2 bg-gold-500/10 border border-gold-500/30 text-gold-400 px-4 py-2 rounded-full text-sm font-medium mb-4">
+            <VisionaryIcon size={16} color="#C5A572" />
+            Visionary AI Coach
           </div>
-          <h1 className="text-4xl font-serif font-bold text-navy-900 mb-4">
-            Choose Your Coaching Style
+          <h1 className="text-4xl font-serif font-bold text-white mb-4">
+            Choose Your Ascension Style
           </h1>
-          <p className="text-gray-500 max-w-2xl mx-auto">
+          <p className="text-gray-400 max-w-2xl mx-auto">
             Your AI coach will adapt its personality, language, and motivation techniques
-            based on your selection. This creates a truly personalized experience.
+            based on your selection. This creates a truly personalized ascension journey.
           </p>
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-center">
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg mb-6 text-center">
             {error}
           </div>
         )}
@@ -162,8 +162,8 @@ const ThemeSelector: React.FC<Props> = ({ onSelect, onSkip, selectedThemeId }) =
                 onClick={() => handleSelect(theme)}
                 disabled={isSelecting}
                 className={`
-                  relative bg-white rounded-2xl shadow-md border-2 transition-all text-left overflow-hidden
-                  ${isSelected ? 'border-gold-500 ring-2 ring-gold-200' : 'border-transparent hover:border-gold-300'}
+                  relative bg-charcoal-800 rounded-2xl shadow-md border-2 transition-all text-left overflow-hidden
+                  ${isSelected ? 'border-gold-500 ring-2 ring-gold-500/20' : 'border-gold-500/10 hover:border-gold-500/40'}
                   ${isSelecting ? 'opacity-75' : 'hover:shadow-xl hover:-translate-y-1'}
                 `}
               >
@@ -174,43 +174,43 @@ const ThemeSelector: React.FC<Props> = ({ onSelect, onSkip, selectedThemeId }) =
 
                 {/* Content */}
                 <div className="p-6">
-                  <h3 className="font-bold text-xl text-navy-900 mb-2">
+                  <h3 className="font-bold text-xl text-white mb-2">
                     {theme.display_name}
                   </h3>
-                  <p className="text-gray-500 text-sm mb-4 line-clamp-3">
+                  <p className="text-gray-400 text-sm mb-4 line-clamp-3">
                     {theme.description}
                   </p>
 
                   {/* Feature Tags */}
                   <div className="flex flex-wrap gap-2">
                     {theme.include_scripture && (
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                      <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-full border border-amber-500/30">
                         Scripture
                       </span>
                     )}
                     {theme.include_metrics && (
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                      <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-full border border-blue-500/30">
                         Metrics
                       </span>
                     )}
                     {theme.include_wellness && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full border border-green-500/30">
                         Wellness
                       </span>
                     )}
                     {theme.include_legacy && (
-                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                      <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full border border-purple-500/30">
                         Legacy
                       </span>
                     )}
                   </div>
 
                   {/* Coaching Style Badge */}
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <span className="text-xs text-gray-400 uppercase tracking-wide">
-                      Coaching Style
+                  <div className="mt-4 pt-4 border-t border-gold-500/10">
+                    <span className="text-xs text-gray-500 uppercase tracking-wide">
+                      Ascension Style
                     </span>
-                    <p className="text-sm font-medium text-navy-900 capitalize mt-1">
+                    <p className="text-sm font-medium text-gold-400 capitalize mt-1">
                       {theme.motivation_style}
                     </p>
                   </div>
@@ -218,14 +218,14 @@ const ThemeSelector: React.FC<Props> = ({ onSelect, onSkip, selectedThemeId }) =
 
                 {/* Selected Indicator */}
                 {isSelected && (
-                  <div className="absolute top-3 right-3 bg-gold-500 text-white p-1 rounded-full">
+                  <div className="absolute top-3 right-3 bg-gold-500 text-navy-900 p-1 rounded-full">
                     <CheckIcon className="w-4 h-4" />
                   </div>
                 )}
 
                 {/* Loading Indicator */}
                 {isSelecting && (
-                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-charcoal-800/80 flex items-center justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500"></div>
                   </div>
                 )}
@@ -239,7 +239,7 @@ const ThemeSelector: React.FC<Props> = ({ onSelect, onSkip, selectedThemeId }) =
           <div className="mt-10 text-center">
             <button
               onClick={onSkip}
-              className="text-gray-400 hover:text-navy-900 text-sm font-medium transition-colors"
+              className="text-gray-500 hover:text-gold-400 text-sm font-medium transition-colors"
             >
               Skip for now, I'll choose later
             </button>
@@ -247,8 +247,8 @@ const ThemeSelector: React.FC<Props> = ({ onSelect, onSkip, selectedThemeId }) =
         )}
 
         {/* Info Footer */}
-        <div className="mt-10 text-center text-sm text-gray-400">
-          <p>You can change your coaching theme anytime in Settings.</p>
+        <div className="mt-10 text-center text-sm text-gray-500">
+          <p>You can change your ascension style anytime in Settings.</p>
         </div>
       </div>
     </div>

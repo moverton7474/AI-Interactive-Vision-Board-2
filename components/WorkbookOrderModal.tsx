@@ -169,6 +169,15 @@ const WorkbookOrderModal: React.FC<Props> = ({
           ...prev,
           includedSections: metadata.recommendedSections
         }));
+      } else {
+        // Fallback: If no metadata match, provide default sections
+        console.log('No metadata found for template:', selectedTemplate.name, '- using default sections');
+        setWizardState(prev => ({
+          ...prev,
+          includedSections: prev.includedSections.length > 0
+            ? prev.includedSections
+            : ['vision_gallery', 'habit_tracker', 'weekly_journal'] // Default sections
+        }));
       }
     }
   }, [selectedTemplate]);
@@ -392,7 +401,7 @@ const WorkbookOrderModal: React.FC<Props> = ({
     return pages;
   }, [selectedTemplate, wizardState]);
 
-  const isExecutiveEdition = selectedTemplate?.name.toLowerCase().includes('executive');
+  const isExecutiveEdition = selectedTemplate?.name?.toLowerCase().includes('executive');
 
   // ============================================
   // RENDER HELPERS
@@ -421,7 +430,7 @@ const WorkbookOrderModal: React.FC<Props> = ({
   const renderTemplateStep = () => {
     const isRecommended = (template: WorkbookTemplate) => {
       return (defaultEdition || hasActionPlan) &&
-        template.name.toLowerCase().includes('executive');
+        template.name?.toLowerCase().includes('executive');
     };
 
     return (

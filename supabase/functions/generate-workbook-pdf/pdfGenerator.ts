@@ -1,4 +1,25 @@
+/**
+ * WORKBOOK V2 PDF Generator
+ *
+ * Generates real PDF documents from WorkbookPage[] data.
+ * Uses pdf-lib for Deno-compatible PDF generation.
+ *
+ * Supported page types:
+ * - COVER_FRONT: Cover with optional background image
+ * - TITLE_PAGE: Title and subtitle
+ * - VISION_BOARD_SPREAD: Vision board images with captions
+ * - MONTHLY_PLANNER: Calendar grid
+ * - HABIT_TRACKER: Habit tracking grid
+ * - GOAL_OVERVIEW, WEEKLY_PLANNER, REFLECTION_MONTH, NOTES_LINED: Generic layouts
+ */
+
 import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'https://cdn.skypack.dev/pdf-lib';
+
+// Color palette matching the executive theme
+const NAVY = rgb(0.118, 0.141, 0.235);  // #1E243C
+const GOLD = rgb(0.851, 0.467, 0.024);  // #D97706
+const SLATE = rgb(0.4, 0.4, 0.4);
+const WHITE = rgb(1, 1, 1);
 
 export async function generatePdf(pages: any[]): Promise<Uint8Array> {
     const pdfDoc = await PDFDocument.create();
@@ -6,31 +27,500 @@ export async function generatePdf(pages: any[]): Promise<Uint8Array> {
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    for (const pageData of pages) {
-        // Default to 6x9 inch (Trade) if not specified
-        // 6x9 inch = 432 x 648 points (72 dpi)
-        // But our layout uses 300dpi pixels. We need to scale.
-        // PDF points are 1/72 inch.
-        // 6 inch = 432 points.
-        // 9 inch = 648 points.
+    console.log(`[PDF Generator] Processing ${pages.length} pages...`);
 
+    for (let i = 0; i < pages.length; i++) {
+        const pageData = pages[i];
+        const pageType = pageData.type || 'GENERIC';
+
+        // Default to 6x9 inch (Trade) = 432 x 648 points
         const width = 432;
         const height = 648;
 
         const page = pdfDoc.addPage([width, height]);
 
-        // Draw Content based on Type
-        if (pageData.type === 'MONTHLY_PLANNER' && pageData.monthlyData) {
-            await drawMonthlyPlanner(page, pageData.monthlyData, timesRomanFont, helveticaFont, helveticaBold);
-        } else if (pageData.type === 'HABIT_TRACKER' && pageData.habitTracker) {
-            await drawHabitTracker(page, pageData.habitTracker, timesRomanFont, helveticaFont);
-        } else {
-            // Generic Renderer
-            await drawGenericPage(page, pageData, timesRomanFont, helveticaFont);
+        try {
+            // Draw Content based on Type
+            switch (pageType) {
+                case 'COVER_FRONT':
+                    await drawCoverPage(pdfDoc, page, pageData, timesRomanFont, helveticaFont, helveticaBold);
+                    break;
+                case 'TITLE_PAGE':
+                    await drawTitlePage(page, pageData, timesRomanFont, helveticaFont);
+                    break;
+                case 'VISION_BOARD_SPREAD':
+                    await drawVisionBoardPage(pdfDoc, page, pageData, timesRomanFont, helveticaFont);
+                    break;
+                case 'MONTHLY_PLANNER':
+                    await drawMonthlyPlanner(page, pageData.monthlyData || pageData, timesRomanFont, helveticaFont, helveticaBold);
+                    break;
+                case 'HABIT_TRACKER':
+                    await drawHabitTracker(page, pageData.habitTracker || pageData, timesRomanFont, helveticaFont);
+                    break;
+                case 'GOAL_OVERVIEW':
+                    await drawGoalOverviewPage(page, pageData, timesRomanFont, helveticaFont);
+                    break;
+                case 'WEEKLY_PLANNER':
+                    await drawWeeklyPlannerPage(page, pageData, timesRomanFont, helveticaFont);
+                    break;
+                case 'REFLECTION_MONTH':
+                    await drawReflectionPage(page, pageData, timesRomanFont, helveticaFont);
+                    break;
+                case 'NOTES_LINED':
+                    await drawNotesPage(page, pageData, timesRomanFont, helveticaFont);
+                    break;
+                case 'DEDICATION':
+                    await drawDedicationPage(page, pageData, timesRomanFont, helveticaFont);
+                    break;
+                default:
+                    await drawGenericPage(page, pageData, timesRomanFont, helveticaFont);
+            }
+        } catch (e) {
+            console.error(`[PDF Generator] Error on page ${i + 1} (${pageType}):`, e);
+            // Draw error placeholder
+            page.drawText(`Page ${i + 1}: ${pageType}`, {
+                x: 36,
+                y: height - 50,
+                size: 14,
+                font: helveticaFont,
+                color: SLATE
+            });
         }
     }
 
+    console.log(`[PDF Generator] PDF generation complete`);
     return await pdfDoc.save();
+}
+
+/**
+ * Draw cover page with optional background image
+ */
+async function drawCoverPage(
+    pdfDoc: PDFDocument,
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    sansBold: PDFFont
+) {
+    const { width, height } = page.getSize();
+
+    // Draw background color (executive dark theme)
+    page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: NAVY
+    });
+
+    // If there's a cover image, try to embed it
+    if (data.imageBlocks && data.imageBlocks.length > 0) {
+        const imageBlock = data.imageBlocks[0];
+        if (imageBlock.url) {
+            try {
+                const imageBytes = await fetchImageBytes(imageBlock.url);
+                if (imageBytes) {
+                    let image;
+                    if (imageBlock.url.toLowerCase().includes('.png')) {
+                        image = await pdfDoc.embedPng(imageBytes);
+                    } else {
+                        image = await pdfDoc.embedJpg(imageBytes);
+                    }
+
+                    // Draw image as full bleed background
+                    const dims = image.scaleToFit(width, height);
+                    page.drawImage(image, {
+                        x: (width - dims.width) / 2,
+                        y: (height - dims.height) / 2,
+                        width: dims.width,
+                        height: dims.height,
+                        opacity: 0.9
+                    });
+
+                    // Add overlay for text readability
+                    page.drawRectangle({
+                        x: 0,
+                        y: 0,
+                        width,
+                        height,
+                        color: rgb(0, 0, 0),
+                        opacity: 0.4
+                    });
+                }
+            } catch (e) {
+                console.error('[PDF Generator] Failed to embed cover image:', e);
+            }
+        }
+    }
+
+    // Draw title
+    const title = data.title || 'My Vision Workbook';
+    const titleSize = 28;
+    const titleWidth = serif.widthOfTextAtSize(title, titleSize);
+    page.drawText(title, {
+        x: (width - titleWidth) / 2,
+        y: height / 2 + 30,
+        size: titleSize,
+        font: serif,
+        color: WHITE
+    });
+
+    // Draw subtitle
+    const subtitle = data.subtitle || new Date().getFullYear().toString();
+    const subtitleSize = 16;
+    const subtitleWidth = sans.widthOfTextAtSize(subtitle, subtitleSize);
+    page.drawText(subtitle, {
+        x: (width - subtitleWidth) / 2,
+        y: height / 2 - 10,
+        size: subtitleSize,
+        font: sans,
+        color: GOLD
+    });
+}
+
+/**
+ * Draw title page
+ */
+async function drawTitlePage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+    const { width, height } = page.getSize();
+
+    // Title
+    const title = data.title || 'My Vision Workbook';
+    const titleSize = 32;
+    const titleWidth = serif.widthOfTextAtSize(title, titleSize);
+    page.drawText(title, {
+        x: (width - titleWidth) / 2,
+        y: height - 200,
+        size: titleSize,
+        font: serif,
+        color: NAVY
+    });
+
+    // Subtitle
+    const subtitle = data.subtitle || '';
+    if (subtitle) {
+        const subtitleSize = 18;
+        const subtitleWidth = sans.widthOfTextAtSize(subtitle, subtitleSize);
+        page.drawText(subtitle, {
+            x: (width - subtitleWidth) / 2,
+            y: height - 240,
+            size: subtitleSize,
+            font: sans,
+            color: SLATE
+        });
+    }
+
+    // Decorative line
+    page.drawLine({
+        start: { x: width / 3, y: height - 260 },
+        end: { x: 2 * width / 3, y: height - 260 },
+        thickness: 2,
+        color: GOLD
+    });
+}
+
+/**
+ * Draw vision board page with embedded image
+ */
+async function drawVisionBoardPage(
+    pdfDoc: PDFDocument,
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont
+) {
+    const { width, height } = page.getSize();
+    const margin = 36;
+
+    // Title
+    page.drawText('Vision Board', {
+        x: margin,
+        y: height - margin - 20,
+        size: 20,
+        font: serif,
+        color: NAVY
+    });
+
+    // Try to embed the vision board image
+    if (data.imageBlocks && data.imageBlocks.length > 0) {
+        const imageBlock = data.imageBlocks[0];
+        if (imageBlock.url) {
+            try {
+                const imageBytes = await fetchImageBytes(imageBlock.url);
+                if (imageBytes) {
+                    let image;
+                    if (imageBlock.url.toLowerCase().includes('.png')) {
+                        image = await pdfDoc.embedPng(imageBytes);
+                    } else {
+                        image = await pdfDoc.embedJpg(imageBytes);
+                    }
+
+                    // Calculate dimensions to fit in content area
+                    const imageAreaWidth = width - (margin * 2);
+                    const imageAreaHeight = height * 0.6;
+                    const dims = image.scaleToFit(imageAreaWidth, imageAreaHeight);
+
+                    page.drawImage(image, {
+                        x: (width - dims.width) / 2,
+                        y: height - margin - 60 - dims.height,
+                        width: dims.width,
+                        height: dims.height
+                    });
+                }
+            } catch (e) {
+                console.error('[PDF Generator] Failed to embed vision board image:', e);
+                // Draw placeholder rectangle
+                page.drawRectangle({
+                    x: margin,
+                    y: height - margin - 60 - (height * 0.5),
+                    width: width - (margin * 2),
+                    height: height * 0.5,
+                    borderColor: SLATE,
+                    borderWidth: 1
+                });
+                page.drawText('[Vision Board Image]', {
+                    x: width / 2 - 60,
+                    y: height / 2,
+                    size: 12,
+                    font: sans,
+                    color: SLATE
+                });
+            }
+        }
+    }
+
+    // Caption
+    const caption = data.aiContext?.sourceVisionPrompt || data.textBlocks?.[0]?.content || '';
+    if (caption) {
+        const captionSize = 11;
+        // Wrap caption text if needed
+        const maxWidth = width - (margin * 2);
+        const words = caption.split(' ');
+        let line = '';
+        let yPos = margin + 80;
+
+        for (const word of words) {
+            const testLine = line + (line ? ' ' : '') + word;
+            if (sans.widthOfTextAtSize(testLine, captionSize) > maxWidth) {
+                page.drawText(line, {
+                    x: margin,
+                    y: yPos,
+                    size: captionSize,
+                    font: sans,
+                    color: SLATE
+                });
+                yPos -= 15;
+                line = word;
+            } else {
+                line = testLine;
+            }
+        }
+        if (line) {
+            page.drawText(line, {
+                x: margin,
+                y: yPos,
+                size: captionSize,
+                font: sans,
+                color: SLATE
+            });
+        }
+    }
+}
+
+/**
+ * Draw goal overview page
+ */
+async function drawGoalOverviewPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+    const { width, height } = page.getSize();
+    const margin = 36;
+
+    page.drawText('Annual Goals', {
+        x: margin,
+        y: height - margin - 24,
+        size: 24,
+        font: serif,
+        color: NAVY
+    });
+
+    // Decorative line
+    page.drawLine({
+        start: { x: margin, y: height - margin - 40 },
+        end: { x: width - margin, y: height - margin - 40 },
+        thickness: 1,
+        color: GOLD
+    });
+
+    // Goal lines for writing
+    let yPos = height - margin - 80;
+    for (let i = 0; i < 10; i++) {
+        page.drawLine({
+            start: { x: margin + 20, y: yPos },
+            end: { x: width - margin, y: yPos },
+            thickness: 0.5,
+            color: rgb(0.85, 0.85, 0.85)
+        });
+        page.drawText(`${i + 1}.`, {
+            x: margin,
+            y: yPos + 2,
+            size: 10,
+            font: sans,
+            color: SLATE
+        });
+        yPos -= 45;
+    }
+}
+
+/**
+ * Draw weekly planner page
+ */
+async function drawWeeklyPlannerPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+    const { width, height } = page.getSize();
+    const margin = 36;
+
+    page.drawText('Weekly Planner', {
+        x: margin,
+        y: height - margin - 24,
+        size: 24,
+        font: serif,
+        color: NAVY
+    });
+
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    let yPos = height - margin - 60;
+    const dayHeight = 70;
+
+    for (const day of days) {
+        // Day label
+        page.drawText(day, {
+            x: margin,
+            y: yPos,
+            size: 11,
+            font: sans,
+            color: NAVY
+        });
+
+        // Box for notes
+        page.drawRectangle({
+            x: margin + 80,
+            y: yPos - dayHeight + 20,
+            width: width - margin - 80 - margin,
+            height: dayHeight - 5,
+            borderColor: rgb(0.9, 0.9, 0.9),
+            borderWidth: 0.5
+        });
+
+        yPos -= dayHeight;
+    }
+}
+
+/**
+ * Draw reflection page
+ */
+async function drawReflectionPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+    const { width, height } = page.getSize();
+    const margin = 36;
+
+    page.drawText('Monthly Reflection', {
+        x: margin,
+        y: height - margin - 24,
+        size: 24,
+        font: serif,
+        color: NAVY
+    });
+
+    const prompts = [
+        'Wins this month:',
+        'Challenges faced:',
+        'Lessons learned:',
+        'Focus for next month:'
+    ];
+
+    let yPos = height - margin - 80;
+    for (const prompt of prompts) {
+        page.drawText(prompt, {
+            x: margin,
+            y: yPos,
+            size: 11,
+            font: sans,
+            color: NAVY
+        });
+
+        // Lines for writing
+        for (let i = 0; i < 3; i++) {
+            yPos -= 25;
+            page.drawLine({
+                start: { x: margin, y: yPos },
+                end: { x: width - margin, y: yPos },
+                thickness: 0.5,
+                color: rgb(0.85, 0.85, 0.85)
+            });
+        }
+        yPos -= 30;
+    }
+}
+
+/**
+ * Draw notes page with lines
+ */
+async function drawNotesPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+    const { width, height } = page.getSize();
+    const margin = 36;
+
+    page.drawText('Notes', {
+        x: margin,
+        y: height - margin - 24,
+        size: 20,
+        font: serif,
+        color: NAVY
+    });
+
+    // Draw lines
+    let yPos = height - margin - 60;
+    while (yPos > margin + 20) {
+        page.drawLine({
+            start: { x: margin, y: yPos },
+            end: { x: width - margin, y: yPos },
+            thickness: 0.5,
+            color: rgb(0.9, 0.9, 0.9)
+        });
+        yPos -= 25;
+    }
+}
+
+/**
+ * Draw dedication page
+ */
+async function drawDedicationPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+    const { width, height } = page.getSize();
+
+    page.drawText('Dedication', {
+        x: width / 2 - 40,
+        y: height - 150,
+        size: 20,
+        font: serif,
+        color: NAVY
+    });
+
+    // Decorative line
+    page.drawLine({
+        start: { x: width / 3, y: height - 170 },
+        end: { x: 2 * width / 3, y: height - 170 },
+        thickness: 1,
+        color: GOLD
+    });
+
+    // Dedication text would go here
+    const text = data.textBlocks?.find((b: any) => b.role === 'BODY')?.content || '';
+    if (text) {
+        page.drawText(text.substring(0, 200), {
+            x: 60,
+            y: height / 2,
+            size: 12,
+            font: serif,
+            color: SLATE
+        });
+    }
 }
 
 async function drawGenericPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
@@ -177,18 +667,28 @@ async function drawHabitTracker(page: PDFPage, data: any, serif: PDFFont, sans: 
         y: height - margin - 24,
         size: 24,
         font: serif,
-        color: rgb(0.1, 0.15, 0.3),
+        color: NAVY,
+    });
+
+    // Decorative line
+    page.drawLine({
+        start: { x: margin, y: height - margin - 40 },
+        end: { x: width - margin, y: height - margin - 40 },
+        thickness: 1,
+        color: GOLD
     });
 
     const startY = height - margin - 80;
-    const rowHeight = 25;
+    const rowHeight = 30;
+    const maxHabits = Math.min((data.habits || []).length, 15);
 
     if (data.habits) {
-        data.habits.forEach((habit: any, idx: number) => {
+        data.habits.slice(0, maxHabits).forEach((habit: any, idx: number) => {
             const y = startY - (idx * rowHeight);
 
             // Habit Name
-            page.drawText(habit.name, {
+            const habitName = habit.name || habit.title || `Habit ${idx + 1}`;
+            page.drawText(habitName.substring(0, 30), {
                 x: margin,
                 y: y,
                 size: 10,
@@ -197,19 +697,60 @@ async function drawHabitTracker(page: PDFPage, data: any, serif: PDFFont, sans: 
             });
 
             // Grid for 31 days
-            const gridLeft = margin + 150;
-            const dayWidth = 12;
+            const gridLeft = margin + 140;
+            const dayWidth = 8;
 
             for (let d = 0; d < 31; d++) {
                 page.drawRectangle({
                     x: gridLeft + (d * dayWidth),
-                    y: y - 2,
-                    width: 10,
-                    height: 10,
-                    borderColor: rgb(0.8, 0.8, 0.8),
-                    borderWidth: 1,
+                    y: y - 4,
+                    width: 7,
+                    height: 7,
+                    borderColor: rgb(0.85, 0.85, 0.85),
+                    borderWidth: 0.5,
                 });
             }
         });
+    }
+
+    // Day numbers header
+    const gridLeft = margin + 140;
+    const dayWidth = 8;
+    for (let d = 1; d <= 31; d++) {
+        if (d % 5 === 1 || d === 31) {
+            page.drawText(String(d), {
+                x: gridLeft + ((d - 1) * dayWidth),
+                y: startY + 15,
+                size: 6,
+                font: sans,
+                color: SLATE
+            });
+        }
+    }
+}
+
+/**
+ * Fetch image bytes from URL
+ * Used to embed vision board images into the PDF
+ */
+async function fetchImageBytes(url: string): Promise<Uint8Array | null> {
+    try {
+        console.log(`[PDF Generator] Fetching image: ${url.substring(0, 50)}...`);
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'image/*'
+            }
+        });
+
+        if (!response.ok) {
+            console.error(`[PDF Generator] Failed to fetch image: ${response.status}`);
+            return null;
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        return new Uint8Array(arrayBuffer);
+    } catch (e) {
+        console.error(`[PDF Generator] Error fetching image:`, e);
+        return null;
     }
 }

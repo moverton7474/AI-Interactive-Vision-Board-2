@@ -8,6 +8,7 @@ interface Props {
   children: React.ReactNode;
   showBack?: boolean;
   onBack?: () => void;
+  onSkip?: () => void;
 }
 
 const OnboardingLayout: React.FC<Props> = ({
@@ -17,12 +18,13 @@ const OnboardingLayout: React.FC<Props> = ({
   subtitle,
   children,
   showBack = false,
-  onBack
+  onBack,
+  onSkip
 }) => {
   const progress = (step / totalSteps) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cream-50 via-white to-gold-50">
+    <div className="min-h-screen bg-gradient-to-br from-cream-50 via-white to-gold-50 relative">
       {/* Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-gray-200 z-50">
         <div
@@ -30,6 +32,19 @@ const OnboardingLayout: React.FC<Props> = ({
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {/* Skip Link - Always visible in top right */}
+      {onSkip && (
+        <button
+          onClick={onSkip}
+          className="fixed top-4 right-4 text-sm text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1 z-50"
+        >
+          Skip for now
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
 
       {/* Header */}
       <div className="pt-8 pb-4 px-6">

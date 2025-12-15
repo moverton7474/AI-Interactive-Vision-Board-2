@@ -27,17 +27,20 @@ import TeamLeaderboards from './components/TeamLeaderboards';
 import ManagerDashboard from './components/ManagerDashboard';
 import MdalsTestPanel from './components/mdals/MdalsTestPanel';
 import { GuidedOnboarding } from './components/onboarding';
-import { Dashboard } from './components/dashboard';
-import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon } from './components/Icons';
+import { Dashboard, DashboardV2 } from './components/dashboard';
+import { LandingPage } from './components/landing';
+import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon, VisionaryLogo, VisionaryIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 import { ToastProvider } from './components/ToastContext';
 import NotificationSettings from './components/settings/NotificationSettings';
+import { useSubscriptionPolling } from './hooks/useSubscriptionPolling';
 
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showLoginForm, setShowLoginForm] = useState(false);
 
   const [view, setView] = useState<AppView>(AppView.LANDING);
   const [chatInput, setChatInput] = useState('');
@@ -80,11 +83,36 @@ const App = () => {
   const [userName, setUserName] = useState<string>('');
   const [primaryVisionUrl, setPrimaryVisionUrl] = useState<string | undefined>();
   const [primaryVisionTitle, setPrimaryVisionTitle] = useState<string | undefined>();
+  const [primaryVisionId, setPrimaryVisionId] = useState<string | undefined>();
   const [dashboardTasks, setDashboardTasks] = useState<ActionTask[]>([]);
   const [dashboardHabits, setDashboardHabits] = useState<{ id: string; name: string; icon: string; completedToday: boolean; streak: number }[]>([]);
   const [financialTarget, setFinancialTarget] = useState<number | undefined>();
   const [todayFocus, setTodayFocus] = useState<string | undefined>();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // Profile loading guard to prevent duplicate fetches
+  const [profileLoadingInProgress, setProfileLoadingInProgress] = useState(false);
+  const [lastLoadedUserId, setLastLoadedUserId] = useState<string | null>(null);
+
+  // P0-B: Subscription polling after Stripe checkout
+  // Detects session_id in URL and polls for tier update
+  const { isPolling: isSubscriptionPolling, message: pollingMessage } = useSubscriptionPolling({
+    userId: session?.user?.id,
+    currentTier: subscriptionTier,
+    onTierUpdate: (newTier, newCredits) => {
+      console.log('Subscription upgraded via polling!', { newTier, newCredits });
+      setSubscriptionTier(newTier);
+      if (newCredits !== undefined) {
+        setCredits(newCredits);
+      }
+      // Force refresh of user profile to ensure all state is synced
+      setLastLoadedUserId(null);
+    },
+    onCreditsUpdate: (newCredits) => {
+      setCredits(newCredits);
+    }
+  });
 
   useEffect(() => {
     // 1. Check DB Connection
@@ -122,11 +150,25 @@ const App = () => {
   useEffect(() => {
     if (!session?.user) {
       setOnboardingCompleted(null);
+      setLastLoadedUserId(null);
+      return;
+    }
+
+    // Guard: Skip if already loading or if we've already loaded this user's profile
+    if (profileLoadingInProgress) {
+      return;
+    }
+
+    if (lastLoadedUserId === session.user.id) {
       return;
     }
 
     const loadUserProfile = async (retryCount = 0) => {
       const MAX_RETRIES = 1;
+
+      // Set loading guard
+      setProfileLoadingInProgress(true);
+
       console.log('🔍 Loading user profile...', { userId: session.user.id, email: session.user.email, attempt: retryCount + 1 });
 
       try {
@@ -195,6 +237,7 @@ const App = () => {
           // Load primary vision if exists
           if (profile.primary_vision_id) {
             console.log('🔍 Loading primary vision...', { visionId: profile.primary_vision_id });
+            setPrimaryVisionId(profile.primary_vision_id);
 
             const { data: vision, error: visionError } = await supabase
               .from('vision_boards')
@@ -216,51 +259,36 @@ const App = () => {
           setOnboardingCompleted(false);
         }
 
-        // Get user identity for theme name
-        const { data: identity, error: identityError } = await supabase
-          .from('user_identity_profiles')
-          .select(`
-            theme_id,
-            theme:motivational_themes (
-              name,
-              display_name,
-              motivation_style
-            )
-          `)
-          .eq('user_id', session.user.id)
-          .single();
+        // Get user identity for theme - using simpler query to avoid JOIN issues
+        try {
+          const { data: identity, error: identityError } = await supabase
+            .from('user_identity_profiles')
+            .select('theme_id')
+            .eq('user_id', session.user.id)
+            .maybeSingle(); // Use maybeSingle to avoid error when not found
 
-        if (identityError) {
-          // Only log if it's not a "not found" error
-          if (identityError.code !== 'PGRST116') {
-            console.error('❌ Identity profile fetch error:', {
-              code: identityError.code,
-              message: identityError.message,
-              timestamp: new Date().toISOString()
-            });
-          } else {
-            console.log('ℹ️ No identity profile found (user has not selected theme yet)');
-          }
-
-          // Create identity profile if it doesn't exist
-          if (identityError.code === 'PGRST116' && retryCount < MAX_RETRIES) {
-            console.log('📝 Creating identity profile...');
-            await supabase
-              .from('user_identity_profiles')
-              .insert({
-                user_id: session.user.id,
-                created_at: new Date().toISOString()
-              })
-              .select()
+          if (identityError) {
+            console.warn('⚠️ Identity profile query warning:', identityError.message);
+          } else if (identity?.theme_id) {
+            // Fetch theme details separately to avoid JOIN issues
+            const { data: theme, error: themeError } = await supabase
+              .from('motivational_themes')
+              .select('name, display_name, motivation_style')
+              .eq('id', identity.theme_id)
               .single();
+
+            if (!themeError && theme) {
+              console.log('✅ Theme loaded:', { theme: theme.display_name });
+              setSelectedThemeId(identity.theme_id);
+              setSelectedThemeName(theme.display_name);
+              setMotivationStyle(theme.motivation_style as any);
+            }
+          } else {
+            console.log('ℹ️ No theme selected yet (user will choose during onboarding)');
           }
-        } else if (identity?.theme) {
-          console.log('✅ Theme loaded:', { theme: identity.theme });
-          setSelectedThemeId(identity.theme_id);
-          // @ts-ignore
-          setSelectedThemeName(identity.theme.display_name);
-          // @ts-ignore
-          setMotivationStyle(identity.theme.motivation_style);
+        } catch (identityErr) {
+          // Non-blocking error - identity profile is optional until onboarding
+          console.warn('⚠️ Could not load identity profile:', identityErr);
         }
 
         // Set user name from email
@@ -268,16 +296,50 @@ const App = () => {
         setUserName(displayName);
         console.log('✅ User name set:', { displayName });
 
+        // Check if user has ANY vision boards (not just primary)
+        let hasAnyVisions = false;
+        try {
+          const { data: visionData, error: countError } = await supabase
+            .from('vision_boards')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .limit(1);
+
+          if (!countError && visionData && visionData.length > 0) {
+            hasAnyVisions = true;
+            console.log('✅ User has vision boards:', visionData.length);
+          }
+        } catch (e) {
+          console.warn('Could not check vision boards:', e);
+        }
+
         // Route to appropriate view
-        if (profile?.onboarding_completed) {
-          console.log('🏠 Routing to Dashboard (onboarding complete)');
+        // User goes to Dashboard if:
+        // 1. onboarding_completed is true, OR
+        // 2. They have a primary vision, OR
+        // 3. They have ANY vision boards
+        const shouldGoToDashboard = profile?.onboarding_completed || profile?.primary_vision_id || hasAnyVisions;
+
+        if (shouldGoToDashboard) {
+          console.log('🏠 Routing to Dashboard', {
+            onboardingCompleted: profile?.onboarding_completed,
+            hasPrimaryVision: !!profile?.primary_vision_id,
+            hasAnyVisions
+          });
           setView(AppView.DASHBOARD);
+          // Also mark onboarding as complete if they have content
+          if (!profile?.onboarding_completed && (profile?.primary_vision_id || hasAnyVisions)) {
+            setOnboardingCompleted(true);
+          }
         } else {
-          console.log('📋 Routing to Onboarding (not yet complete)');
+          console.log('📋 Routing to Onboarding (new user)');
           setView(AppView.GUIDED_ONBOARDING);
         }
 
         console.log('✅ Profile load complete');
+
+        // Mark this user as loaded to prevent duplicate fetches
+        setLastLoadedUserId(session.user.id);
       } catch (err) {
         console.error('❌ Unexpected error loading profile:', {
           error: err,
@@ -292,11 +354,17 @@ const App = () => {
         setSubscriptionTier('FREE');
         setUserName(session.user.email?.split('@')[0] || 'Friend');
         setView(AppView.GUIDED_ONBOARDING);
+
+        // Still mark as loaded to prevent retry loops
+        setLastLoadedUserId(session.user.id);
+      } finally {
+        // Clear loading guard
+        setProfileLoadingInProgress(false);
       }
     };
 
     loadUserProfile();
-  }, [session]);
+  }, [session, profileLoadingInProgress, lastLoadedUserId]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -386,12 +454,83 @@ const App = () => {
           });
       }
 
+      // Save generated tasks to action_tasks table
+      if (state.generatedTasks && state.generatedTasks.length > 0) {
+        const taskRecords = state.generatedTasks.map(task => ({
+          user_id: session.user.id,
+          title: task.title,
+          description: task.description || '',
+          type: task.type || 'ADMIN',
+          due_date: task.dueDate,
+          is_completed: false,
+          ai_metadata: task.aiMetadata || null
+        }));
+
+        const { error: tasksError } = await supabase
+          .from('action_tasks')
+          .insert(taskRecords);
+
+        if (tasksError) {
+          console.error('Error saving tasks:', tasksError);
+        } else {
+          console.log(`Saved ${taskRecords.length} tasks from onboarding`);
+        }
+      }
+
+      // Save selected habits to habits table
+      if (state.selectedHabits && state.selectedHabits.length > 0) {
+        const habitRecords = state.selectedHabits.map((habit: any) => ({
+          user_id: session.user.id,
+          title: typeof habit === 'string' ? habit : habit.name,
+          description: '',
+          frequency: 'daily',
+          is_active: true,
+          current_streak: 0
+        }));
+
+        const { error: habitsError } = await supabase
+          .from('habits')
+          .insert(habitRecords);
+
+        if (habitsError) {
+          console.error('Error saving habits:', habitsError);
+        } else {
+          console.log(`Saved ${habitRecords.length} habits from onboarding`);
+        }
+      }
+
+      // Ingest onboarding data into Knowledge Base
+      try {
+        const onboardingContent = buildOnboardingKBContent(state);
+        if (onboardingContent) {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession) {
+            await supabase.functions.invoke('knowledge-ingest?action=ingest', {
+              body: {
+                sourceType: 'notes',
+                sourceName: 'Vision & Goals (Onboarding)',
+                content: onboardingContent
+              },
+              headers: {
+                Authorization: `Bearer ${currentSession.access_token}`
+              }
+            });
+            console.log('Onboarding data ingested into Knowledge Base');
+          }
+        }
+      } catch (kbError) {
+        console.error('Error ingesting onboarding to KB:', kbError);
+      }
+
       // Update local state
       setOnboardingCompleted(true);
       setFinancialTarget(state.financialTarget);
       setPrimaryVisionUrl(state.primaryVisionUrl);
       setSelectedThemeId(state.themeId || null);
       setSelectedThemeName(state.themeName || null);
+      if (state.generatedTasks) {
+        setDashboardTasks(state.generatedTasks);
+      }
 
       // Navigate to dashboard
       setView(AppView.DASHBOARD);
@@ -399,6 +538,54 @@ const App = () => {
       console.error('Error saving onboarding:', err);
     }
   }, [session]);
+
+  // Helper function to build Knowledge Base content from onboarding
+  const buildOnboardingKBContent = (state: OnboardingState): string => {
+    const sections: string[] = [];
+
+    sections.push('# My Vision & Goals');
+    sections.push(`Created: ${new Date().toLocaleDateString()}`);
+    sections.push('');
+
+    if (state.themeName) {
+      sections.push(`## Coaching Theme: ${state.themeName}`);
+      sections.push('');
+    }
+
+    if (state.visionText) {
+      sections.push('## My Vision Statement');
+      sections.push(state.visionText);
+      sections.push('');
+    }
+
+    if (state.financialTarget !== undefined && state.financialTargetLabel) {
+      sections.push('## Financial Goal');
+      sections.push(`Target: $${state.financialTarget.toLocaleString()}`);
+      sections.push(`Description: ${state.financialTargetLabel}`);
+      sections.push('');
+    }
+
+    if (state.generatedTasks && state.generatedTasks.length > 0) {
+      sections.push('## Action Plan Tasks');
+      state.generatedTasks.forEach((task, i) => {
+        sections.push(`${i + 1}. **${task.title}**`);
+        if (task.description) sections.push(`   ${task.description}`);
+        sections.push(`   Type: ${task.type}`);
+      });
+      sections.push('');
+    }
+
+    if (state.selectedHabits && state.selectedHabits.length > 0) {
+      sections.push('## Selected Habits');
+      state.selectedHabits.forEach((habit: any) => {
+        const habitName = typeof habit === 'string' ? habit : habit.name;
+        sections.push(`- ${habitName}`);
+      });
+      sections.push('');
+    }
+
+    return sections.join('\n');
+  };
 
   // Dashboard Task Toggle
   const handleToggleTask = useCallback(async (taskId: string) => {
@@ -412,6 +599,34 @@ const App = () => {
     setDashboardHabits(prev =>
       prev.map(h => h.id === habitId ? { ...h, completedToday: !h.completedToday } : h)
     );
+  }, []);
+
+  // Set a vision as the primary (displayed on dashboard)
+  const handleSetPrimaryVision = useCallback(async (image: { id: string; url: string; prompt: string }) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    try {
+      // Update profile with new primary vision ID
+      const { error } = await supabase
+        .from('profiles')
+        .update({ primary_vision_id: image.id })
+        .eq('id', session.user.id);
+
+      if (error) {
+        console.error('Failed to set primary vision:', error);
+        return;
+      }
+
+      // Update local state
+      setPrimaryVisionId(image.id);
+      setPrimaryVisionUrl(image.url);
+      setPrimaryVisionTitle(image.prompt?.slice(0, 50));
+
+      console.log('✅ Primary vision updated successfully:', image.id);
+    } catch (err) {
+      console.error('Error setting primary vision:', err);
+    }
   }, []);
 
   // Generate vision image using Gemini API
@@ -441,13 +656,13 @@ const App = () => {
         images: []
       };
 
-      // If photo reference provided, fetch it and include
+      // If photo reference provided, fetch it and include with identity description
       if (photoRef) {
         try {
           if (onStatusChange) onStatusChange('Processing reference photo...');
           const { data: refData } = await supabase
             .from('reference_images')
-            .select('image_url')
+            .select('image_url, identity_description')
             .eq('id', photoRef)
             .single();
 
@@ -460,6 +675,13 @@ const App = () => {
               reader.readAsDataURL(blob);
             });
             requestBody.images.push(base64);
+
+            // Include identity description in prompt if available
+            if (refData.identity_description) {
+              requestBody.identityDescription = refData.identity_description;
+              // Append identity preservation instruction to prompt
+              requestBody.prompt = `${prompt}\n\nIMPORTANT: The reference photo shows the person who should appear in this vision. Their appearance: ${refData.identity_description}. Preserve their exact likeness, facial features, skin tone, and distinguishing characteristics in the generated image. The person in the output MUST look like the same person in the reference photo.`;
+            }
           }
         } catch (refError) {
           console.warn('Could not load reference image:', refError);
@@ -664,8 +886,52 @@ const App = () => {
   }, []);
 
   const saveOnboardingState = useCallback(async (state: Partial<OnboardingState>) => {
-    // Can be used for saving intermediate state
-    console.log('Saving onboarding state:', state);
+    // Save onboarding state to user_vision_profiles for scene prompt generation
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('No user authenticated, skipping vision profile save');
+        return;
+      }
+
+      const payload: Record<string, any> = {
+        user_id: user.id,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Map OnboardingState fields to user_vision_profiles columns
+      if (state.visionText !== undefined) payload.vision_text = state.visionText;
+      if (state.financialTarget !== undefined) payload.financial_target = state.financialTarget;
+      if (state.financialTargetLabel !== undefined) payload.financial_target_label = state.financialTargetLabel;
+      if (state.primaryVisionUrl !== undefined) payload.primary_vision_url = state.primaryVisionUrl;
+      if (state.primaryVisionId !== undefined) payload.primary_vision_id = state.primaryVisionId;
+
+      // Infer domain from theme name if available
+      if (state.themeName) {
+        const themeLower = state.themeName.toLowerCase();
+        if (themeLower.includes('retire') || themeLower.includes('legacy')) {
+          payload.domain = 'RETIREMENT';
+        } else if (themeLower.includes('career') || themeLower.includes('business')) {
+          payload.domain = 'CAREER';
+        } else if (themeLower.includes('travel') || themeLower.includes('adventure')) {
+          payload.domain = 'TRAVEL';
+        } else if (themeLower.includes('health') || themeLower.includes('wellness')) {
+          payload.domain = 'HEALTH';
+        }
+      }
+
+      const { error } = await supabase
+        .from('user_vision_profiles')
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if (error) {
+        console.error('Error saving to user_vision_profiles:', error);
+      } else {
+        console.log('Vision profile saved successfully:', payload);
+      }
+    } catch (err) {
+      console.error('Error saving onboarding state to user_vision_profiles:', err);
+    }
   }, []);
 
   const downloadGuide = () => {
@@ -725,26 +991,30 @@ const App = () => {
   const renderContent = () => {
     switch (view) {
       case AppView.DASHBOARD:
-        return (
-          <Dashboard
+        return session?.user ? (
+          <DashboardV2
+            userId={session.user.id}
+            userEmail={session.user.email}
             userName={userName}
-            themeName={selectedThemeName || undefined}
-            motivationStyle={motivationStyle}
-            themeInsight="Every step forward is progress toward your vision."
-            todayFocus={todayFocus}
-            primaryVisionUrl={primaryVisionUrl}
-            primaryVisionTitle={primaryVisionTitle}
-            tasks={dashboardTasks}
-            habits={dashboardHabits}
-            financialTarget={financialTarget}
-            financialCurrent={0}
-            financialTargetLabel="3-Year Goal"
             onNavigate={setView}
-            onToggleTask={handleToggleTask}
-            onToggleHabit={handleToggleHabit}
-            onPlayBriefing={handlePlayBriefing}
+            onRefineVision={(vision) => {
+              // Set the vision as the selected image for the VisionBoard editor
+              setSelectedGalleryImage({
+                id: vision.id,
+                url: vision.imageUrl || '',
+                prompt: vision.title || '',
+                createdAt: Date.now()
+              });
+              setView(AppView.VISION_BOARD);
+            }}
+            primaryVision={primaryVisionId && primaryVisionUrl ? {
+              id: primaryVisionId,
+              url: primaryVisionUrl,
+              title: primaryVisionTitle || ''
+            } : undefined}
+            onboardingCompleted={onboardingCompleted ?? undefined}
           />
-        );
+        ) : null;
 
       case AppView.SETTINGS:
         return (
@@ -941,10 +1211,18 @@ const App = () => {
         );
       case AppView.GALLERY:
         return (
-          <Gallery onSelect={(img) => {
-            setSelectedGalleryImage(img);
-            setView(AppView.VISION_BOARD);
-          }} />
+          <Gallery
+            onSelect={(img) => {
+              setSelectedGalleryImage(img);
+              setView(AppView.VISION_BOARD);
+            }}
+            onSetPrimary={handleSetPrimaryVision}
+            primaryVisionId={primaryVisionId}
+            onNavigateToVisionBoard={() => {
+              setSelectedGalleryImage(null);
+              setView(AppView.VISION_BOARD);
+            }}
+          />
         );
       case AppView.ACTION_PLAN:
         return (
@@ -959,23 +1237,23 @@ const App = () => {
       case AppView.ORDER_HISTORY:
         return <OrderHistory />;
       case AppView.HABITS:
-        return <HabitTracker onBack={() => setView(AppView.LANDING)} />;
+        return <HabitTracker onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.WEEKLY_REVIEWS:
-        return <WeeklyReviews onBack={() => setView(AppView.LANDING)} />;
+        return <WeeklyReviews onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.KNOWLEDGE_BASE:
-        return <KnowledgeBase onBack={() => setView(AppView.LANDING)} />;
+        return <KnowledgeBase onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.VOICE_COACH:
-        return <VoiceCoach onBack={() => setView(AppView.LANDING)} />;
+        return <VoiceCoach onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.PRINT_PRODUCTS:
-        return <PrintProducts onBack={() => setView(AppView.LANDING)} />;
+        return <PrintProducts onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.PARTNER:
-        return <PartnerDashboard onBack={() => setView(AppView.LANDING)} />;
+        return <PartnerDashboard onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.INTEGRATIONS:
-        return <SlackIntegration onBack={() => setView(AppView.LANDING)} />;
+        return <SlackIntegration onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.TEAM_LEADERBOARDS:
-        return <TeamLeaderboards onBack={() => setView(AppView.LANDING)} />;
+        return <TeamLeaderboards onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.MANAGER_DASHBOARD:
-        return <ManagerDashboard onBack={() => setView(AppView.LANDING)} />;
+        return <ManagerDashboard onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.MDALS_LAB:
         return session?.user?.id ? (
           <MdalsTestPanel
@@ -1199,12 +1477,62 @@ const App = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view]);
 
+  // Safety check: Redirect logged-in users appropriately if they're on an unexpected view
+  useEffect(() => {
+    // Only run this check if user is logged in and we've finished loading profile
+    if (session && onboardingCompleted !== null) {
+      // If user has completed onboarding but is on LANDING, redirect to Dashboard
+      if (onboardingCompleted === true && view === AppView.LANDING) {
+        console.log('🔄 Safety redirect: Moving logged-in user from LANDING to DASHBOARD');
+        setView(AppView.DASHBOARD);
+      }
+      // If user has NOT completed onboarding and is on LANDING, redirect to onboarding
+      // This bypasses the internal landing page for new users after signup
+      if (onboardingCompleted === false && view === AppView.LANDING) {
+        console.log('🔄 Safety redirect: Moving new user from LANDING to GUIDED_ONBOARDING');
+        setView(AppView.GUIDED_ONBOARDING);
+      }
+    }
+  }, [session, onboardingCompleted, view]);
+
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div></div>;
   }
 
   if (!session) {
-    return <Login />;
+    // Show either the marketing landing page or login form
+    if (showLoginForm) {
+      return (
+        <div className="min-h-screen bg-slate-50">
+          {/* Back to Landing button */}
+          <div className="absolute top-4 left-4 z-50">
+            <button
+              onClick={() => setShowLoginForm(false)}
+              className="flex items-center gap-2 text-gray-500 hover:text-navy-900 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span className="text-sm font-medium">Back</span>
+            </button>
+          </div>
+          <Login />
+        </div>
+      );
+    }
+
+    // Show the marketing landing page
+    return (
+      <LandingPage
+        onGetStarted={() => setShowLoginForm(true)}
+        onLogin={() => setShowLoginForm(true)}
+      />
+    );
+  }
+
+  // Show loading while profile is being loaded for logged-in users
+  if (onboardingCompleted === null) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div></div>;
   }
 
 
@@ -1212,46 +1540,62 @@ const App = () => {
   return (
     <ToastProvider>
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        {/* Navbar - Simplified v1.6 */}
-        <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        {/* Navbar - Mobile Optimized v1.7 - Visionary AI Branded */}
+        <nav className="bg-navy-900 border-b border-gold-500/20 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
+            <div className="flex justify-between h-14 md:h-16">
+              {/* Logo */}
               <div className="flex items-center cursor-pointer" onClick={() => setView(onboardingCompleted ? AppView.DASHBOARD : AppView.LANDING)}>
-                <div className="w-8 h-8 bg-navy-900 rounded-lg flex items-center justify-center mr-2">
-                  <span className="text-gold-500 font-serif font-bold text-xl">V</span>
-                </div>
-                <span className="text-xl font-serif font-bold text-navy-900">Visionary</span>
+                <VisionaryLogo variant="full" size="sm" theme="light" />
               </div>
 
-              <div className="flex items-center gap-4">
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="md:hidden flex items-center p-2 text-gold-400 hover:text-gold-300"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {showMobileMenu ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
+
+              {/* Desktop Navigation */}
+              <div className="hidden md:flex items-center gap-4">
                 {/* Primary Navigation - v1.6 Simplified */}
-                <button onClick={() => setView(AppView.DASHBOARD)} className={`text-sm font-medium transition-colors ${view === AppView.DASHBOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
-                  Dashboard
+                <button onClick={() => setView(AppView.DASHBOARD)} className={`text-sm font-medium transition-colors ${view === AppView.DASHBOARD ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
+                  Ascension
                 </button>
-                <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Visualize
                 </button>
-                <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.GALLERY)} className={`text-sm font-medium transition-colors ${view === AppView.GALLERY ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Gallery
                 </button>
-                <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Execute
                 </button>
-                <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   <FireIcon className="w-4 h-4" /> Habits
                 </button>
-                <button onClick={() => setView(AppView.VOICE_COACH)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.VOICE_COACH ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.VOICE_COACH)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.VOICE_COACH ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   <MicIcon className="w-4 h-4" /> Coach
                 </button>
-                <button onClick={() => setView(AppView.PRINT_PRODUCTS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PRINT_PRODUCTS ? 'text-navy-900' : 'text-gray-500 hover:text-navy-900'}`}>
+                <button onClick={() => setView(AppView.PRINT_PRODUCTS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.PRINT_PRODUCTS ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   <PrinterIcon className="w-4 h-4" /> Print
+                </button>
+                <button onClick={() => setShowWorkbookModal(true)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${showWorkbookModal ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
+                  <BookOpenIcon className="w-4 h-4" /> Workbook
                 </button>
 
                 {/* More Dropdown */}
                 <div className="relative">
                   <button
                     onClick={() => setShowMoreMenu(!showMoreMenu)}
-                    className="text-sm font-medium text-gray-500 hover:text-navy-900 transition-colors flex items-center gap-1"
+                    className="text-sm font-medium text-gray-400 hover:text-gold-400 transition-colors flex items-center gap-1"
                   >
                     More
                     <svg className={`w-4 h-4 transition-transform ${showMoreMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1260,52 +1604,117 @@ const App = () => {
                   </button>
 
                   {showMoreMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-50">
-                      <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                    <div className="absolute right-0 mt-2 w-48 bg-charcoal-800 rounded-lg shadow-xl border border-gold-500/20 py-2 z-50">
+                      <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <CalendarIcon className="w-4 h-4" /> Reviews
                       </button>
-                      <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <FolderIcon className="w-4 h-4" /> Knowledge
                       </button>
-                      <button onClick={() => { setView(AppView.PARTNER); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.PARTNER); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <HeartIcon className="w-4 h-4" /> Partner
                       </button>
-                      <button onClick={() => { setView(AppView.INTEGRATIONS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.INTEGRATIONS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <GlobeIcon className="w-4 h-4" /> Apps
                       </button>
-                      <button onClick={() => { setView(AppView.TEAM_LEADERBOARDS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.TEAM_LEADERBOARDS); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <TrophyIcon className="w-4 h-4" /> Teams
                       </button>
-                      <button onClick={() => { setView(AppView.MANAGER_DASHBOARD); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.MANAGER_DASHBOARD); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <ChartBarIcon className="w-4 h-4" /> Manager
                       </button>
-                      <button onClick={() => { setView(AppView.MDALS_LAB); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2">
+                      <button onClick={() => { setView(AppView.MDALS_LAB); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gold-400 hover:bg-navy-800 flex items-center gap-2">
                         <MusicNoteIcon className="w-4 h-4" /> MDALS Lab
                       </button>
-                      <div className="border-t border-gray-100 my-1" />
-                      <button onClick={() => { setShowWorkbookModal(true); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <BookOpenIcon className="w-4 h-4" /> Workbook
-                      </button>
-                      <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                      <div className="border-t border-gold-500/20 my-1" />
+                      <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMoreMenu(false); }} className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-navy-800 hover:text-gold-400 flex items-center gap-2">
                         <ReceiptIcon className="w-4 h-4" /> Orders
                       </button>
                     </div>
                   )}
                 </div>
 
-                <div className="h-6 w-px bg-gray-200 mx-2"></div>
+                <div className="h-6 w-px bg-gold-500/20 mx-2"></div>
 
                 {/* User Menu */}
-                <span className="text-xs text-gray-400 hidden md:block">{session.user.email}</span>
-                <button onClick={handleSignOut} className="text-xs font-bold text-navy-900 hover:text-red-500 transition-colors">Sign Out</button>
+                <span className="text-xs text-gray-500 hidden lg:block">{session.user.email}</span>
+                <button onClick={handleSignOut} className="text-xs font-bold text-gold-400 hover:text-red-400 transition-colors">Sign Out</button>
               </div>
             </div>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          {showMobileMenu && (
+            <div className="md:hidden bg-charcoal-800 border-t border-gold-500/20 shadow-lg">
+              <div className="px-4 py-3 space-y-1">
+                {/* Primary Nav Items */}
+                <button onClick={() => { setView(AppView.DASHBOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.DASHBOARD ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <VisionaryIcon size={16} color={view === AppView.DASHBOARD ? '#C5A572' : '#9CA3AF'} /> Ascension
+                </button>
+                <button onClick={() => { setView(AppView.VISION_BOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VISION_BOARD ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <SparklesIcon className="w-4 h-4" /> Visualize
+                </button>
+                <button onClick={() => { setView(AppView.GALLERY); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.GALLERY ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <SparklesIcon className="w-4 h-4" /> Gallery
+                </button>
+                <button onClick={() => { setView(AppView.ACTION_PLAN); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.ACTION_PLAN ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <SparklesIcon className="w-4 h-4" /> Execute
+                </button>
+
+                <div className="border-t border-gold-500/20 my-2" />
+
+                {/* Secondary Nav */}
+                <button onClick={() => { setView(AppView.HABITS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.HABITS ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <FireIcon className="w-4 h-4" /> Habits
+                </button>
+                <button onClick={() => { setView(AppView.VOICE_COACH); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VOICE_COACH ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <MicIcon className="w-4 h-4" /> Voice Coach
+                </button>
+                <button onClick={() => { setView(AppView.PRINT_PRODUCTS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.PRINT_PRODUCTS ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <PrinterIcon className="w-4 h-4" /> Print Products
+                </button>
+                <button onClick={() => { setShowWorkbookModal(true); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-300 hover:bg-navy-800">
+                  <BookOpenIcon className="w-4 h-4" /> Workbook
+                </button>
+
+                <div className="border-t border-gold-500/20 my-2" />
+
+                {/* More Items */}
+                <button onClick={() => { setView(AppView.WEEKLY_REVIEWS); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-300 hover:bg-navy-800">
+                  <CalendarIcon className="w-4 h-4" /> Reviews
+                </button>
+                <button onClick={() => { setView(AppView.KNOWLEDGE_BASE); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-300 hover:bg-navy-800">
+                  <FolderIcon className="w-4 h-4" /> Knowledge Base
+                </button>
+                <button onClick={() => { setView(AppView.ORDER_HISTORY); setShowMobileMenu(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 text-gray-300 hover:bg-navy-800">
+                  <ReceiptIcon className="w-4 h-4" /> Order History
+                </button>
+
+                <div className="border-t border-gold-500/20 my-2" />
+
+                {/* User Section */}
+                <div className="px-3 py-2">
+                  <p className="text-xs text-gray-500 mb-2">{session.user.email}</p>
+                  <button onClick={() => { handleSignOut(); setShowMobileMenu(false); }} className="text-sm font-bold text-red-400 hover:text-red-300">
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
 
-        {/* Click outside to close dropdown */}
-        {showMoreMenu && (
-          <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+        {/* Click outside to close dropdowns */}
+        {(showMoreMenu || showMobileMenu) && (
+          <div className="fixed inset-0 z-40" onClick={() => { setShowMoreMenu(false); setShowMobileMenu(false); }} />
+        )}
+
+        {/* Subscription Polling Status Banner */}
+        {isSubscriptionPolling && pollingMessage && (
+          <div className="bg-gold-500 text-navy-900 px-4 py-2 text-center text-sm font-medium flex items-center justify-center gap-2">
+            <div className="w-4 h-4 border-2 border-navy-900/30 border-t-navy-900 rounded-full animate-spin" />
+            {pollingMessage}
+          </div>
         )}
 
         {/* Main Content */}

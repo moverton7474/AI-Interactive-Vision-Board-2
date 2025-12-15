@@ -91,16 +91,46 @@ export const generateVisionSummary = async (history: { role: string, text: strin
 };
 
 /**
- * Edit User Image(s) - Upgraded to Gemini 2.5 Pro with Retry
+ * Edit User Image(s) - Gemini 3 Pro Image (Nano Banana Pro) with Likeness Preservation
+ *
+ * UPDATED: December 2025 - Optimized for Gemini 3 Pro Image
+ *
+ * Uses 3-turn conversation structure for better character consistency:
+ * 1. Identity establishment with all reference images
+ * 2. Simulated model acknowledgment
+ * 3. Scene generation with identity reminders
+ *
+ * Supports up to 14 reference images with up to 5 human subjects.
+ * Lower temperature (0.4) for more consistent likeness.
+ *
+ * @param images - Base image + optional reference images
+ * @param prompt - Scene description
+ * @param embeddedText - Optional text to embed in the image
+ * @param titleText - Optional title text for the vision board
+ * @param style - Artistic style (photorealistic, cinematic, etc.)
+ * @param aspectRatio - Image aspect ratio
+ * @param identityPrompt - Identity descriptions for likeness preservation
+ * @param referenceImageTags - Tags for each reference image (e.g., ["Milton", "Lisa"])
+ *
+ * @returns Object with image data and metadata, or null on failure
  */
+export interface VisionGenerationResult {
+  image: string;
+  model_used?: string;
+  likeness_optimized?: boolean;
+  warning?: string;
+}
+
 export const editVisionImage = async (
   images: string | string[],
   prompt: string,
   embeddedText?: string,
   titleText?: string,
   style?: string,
-  aspectRatio?: string
-): Promise<string | null> => {
+  aspectRatio?: string,
+  identityPrompt?: string,
+  referenceImageTags?: string[]
+): Promise<VisionGenerationResult | null> => {
   const rawImageList = Array.isArray(images) ? images : [images];
   const processedImages: string[] = [];
 
@@ -132,7 +162,9 @@ export const editVisionImage = async (
         embeddedText,
         titleText,
         style,
-        aspectRatio
+        aspectRatio,
+        identityPrompt,
+        referenceImageTags: referenceImageTags || []
       }
     });
 
@@ -146,8 +178,69 @@ export const editVisionImage = async (
       throw new Error(data?.error || "Generation failed");
     }
 
-    return data.image;
+    // Return full result with metadata
+    return {
+      image: data.image,
+      model_used: data.model_used,
+      likeness_optimized: data.likeness_optimized,
+      warning: data.warning
+    };
   });
+};
+
+/**
+ * Validate likeness between reference images and generated image
+ *
+ * @param referenceImages - Array of reference image base64 data
+ * @param generatedImage - The generated vision board image
+ * @param referenceDescriptions - Optional descriptions for each reference
+ *
+ * @returns Validation result with likeness score and feedback
+ */
+export interface LikenessValidationResult {
+  likeness_score: number | null;
+  face_match?: boolean;
+  skin_tone_match?: boolean;
+  age_match?: boolean;
+  body_type_match?: boolean;
+  overall_recognizable?: boolean;
+  explanation?: string;
+  issues?: string[];
+  suggestions?: string[];
+  skipped?: boolean;
+  reason?: string;
+}
+
+export const validateLikeness = async (
+  referenceImages: string[],
+  generatedImage: string,
+  referenceDescriptions?: string[]
+): Promise<LikenessValidationResult | null> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('gemini-proxy', {
+      body: {
+        action: 'validate_likeness',
+        referenceImages,
+        generatedImage,
+        referenceDescriptions: referenceDescriptions || []
+      }
+    });
+
+    if (error) {
+      console.error("Likeness validation error:", error);
+      return null;
+    }
+
+    if (!data?.success) {
+      console.error("Likeness validation failed:", data?.error);
+      return null;
+    }
+
+    return data.validation || { likeness_score: null, skipped: true, reason: data.reason };
+  } catch (e) {
+    console.error("Error validating likeness:", e);
+    return null;
+  }
 };
 
 /**
@@ -319,7 +412,7 @@ Return JSON matching the WorkbookPage model.`;
     const { data, error } = await supabase.functions.invoke('gemini-proxy', {
       body: {
         action: 'raw',
-        model: 'gemini-1.5-flash', // Fallback to 1.5 Flash for stability
+        model: 'gemini-2.0-flash', // Use 2.0 Flash for stability
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: [{ parts: [{ text: userMessage }] }],
         generationConfig: { responseMimeType: "application/json" }
@@ -354,6 +447,96 @@ Return JSON matching the WorkbookPage model.`;
 };
 
 /**
+ * Fetch Vision Scene Prompt from user's onboarding profile
+ * Pre-fills VisionBoard with personalized prompts based on user's vision profile
+ */
+export const fetchVisionScenePrompt = async (): Promise<{
+  scenePrompt: string;
+  goalText?: string;
+  headerText?: string;
+} | null> => {
+  try {
+    const { data, error } = await supabase.functions.invoke('vision-scene-prompt', {
+      body: {} // No body needed; auth identifies user
+    });
+
+    if (error) {
+      console.error("Failed to fetch vision scene prompt:", error);
+      return null;
+    }
+
+    if (!data?.success) {
+      console.warn("Vision scene prompt returned unsuccessful:", data?.error);
+      return null;
+    }
+
+    return {
+      scenePrompt: data.scenePrompt,
+      goalText: data.goalText,
+      headerText: data.headerText
+    };
+  } catch (err) {
+    console.error("Error fetching vision scene prompt:", err);
+    return null;
+  }
+};
+
+/**
+ * Fetch user's goals and vision profile from the database
+ * Returns stored goals, vision text, and financial targets for display in VisionBoard
+ */
+export const fetchUserGoalsAndVision = async (): Promise<{
+  visionText?: string;
+  financialTarget?: number;
+  financialTargetLabel?: string;
+  domain?: string;
+  tasks: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    type: string;
+    isCompleted: boolean;
+  }>;
+} | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Fetch vision profile
+    const { data: visionProfile } = await supabase
+      .from('user_vision_profiles')
+      .select('vision_text, financial_target, financial_target_label, domain')
+      .eq('user_id', user.id)
+      .single();
+
+    // Fetch action tasks
+    const { data: tasks } = await supabase
+      .from('action_tasks')
+      .select('id, title, description, type, is_completed')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(10);
+
+    return {
+      visionText: visionProfile?.vision_text,
+      financialTarget: visionProfile?.financial_target,
+      financialTargetLabel: visionProfile?.financial_target_label,
+      domain: visionProfile?.domain,
+      tasks: (tasks || []).map(t => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        type: t.type,
+        isCompleted: t.is_completed
+      }))
+    };
+  } catch (err) {
+    console.error('Error fetching user goals:', err);
+    return null;
+  }
+};
+
+/**
  * Generate AI Image Prompt for a Workbook Page
  */
 export const generatePageImagePrompt = async (
@@ -379,7 +562,7 @@ Return only the image description prompt.`;
     const { data, error } = await supabase.functions.invoke('gemini-proxy', {
       body: {
         action: 'raw',
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash',
         contents: [{ parts: [{ text: promptTemplate }] }]
       }
     });

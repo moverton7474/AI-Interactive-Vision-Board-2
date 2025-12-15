@@ -10,7 +10,7 @@ import VisionGenerationStep from './VisionGenerationStep';
 import ActionPlanPreviewStep from './ActionPlanPreviewStep';
 import DraftPlanReviewStep from './DraftPlanReviewStep';
 import HabitsSetupStep from './HabitsSetupStep';
-import PrintOfferStep from './PrintOfferStep';
+// PrintOfferStep removed - users can access print from Dashboard
 import CompletionStep from './CompletionStep';
 
 // Feature flag for draft plan review (v1.7)
@@ -39,7 +39,7 @@ const STEPS: OnboardingStep[] = [
   'VISION_GENERATION',
   ENABLE_DRAFT_PLAN_REVIEW ? 'DRAFT_PLAN_REVIEW' : 'ACTION_PLAN_PREVIEW',
   'HABITS_SETUP',
-  'PRINT_OFFER',
+  // 'PRINT_OFFER', // Removed - users can access print from Dashboard
   'COMPLETION'
 ];
 
@@ -183,8 +183,6 @@ const GuidedOnboarding: React.FC<Props> = ({
           state.generatedTasks!.every(t => t.title && t.title.trim().length > 0);
       case 'HABITS_SETUP':
         return (state.selectedHabits?.length ?? 0) > 0;
-      case 'PRINT_OFFER':
-        return true;
       case 'COMPLETION':
         return true;
       default:
@@ -202,13 +200,6 @@ const GuidedOnboarding: React.FC<Props> = ({
     await saveOnboardingState(state);
     onComplete(state);
   }, [state, saveOnboardingState, onComplete, userId]);
-
-  const handleViewPrintOptions = useCallback(() => {
-    // Save state first
-    saveOnboardingState(state);
-    // Navigate to print shop
-    onNavigate(AppView.PRINT_PRODUCTS);
-  }, [state, saveOnboardingState, onNavigate]);
 
   // Auto-advance from VISION_GENERATION when primaryVisionUrl is available
   useEffect(() => {
@@ -254,7 +245,9 @@ const GuidedOnboarding: React.FC<Props> = ({
         return (
           <PhotoUploadStep
             photoRefId={state.photoRefId}
-            onPhotoUploaded={(photoId, url) => updateState({ photoRefId: photoId })}
+            onPhotoUploaded={(photoId, url, identityDescription) => {
+              updateState({ photoRefId: photoId, identityDescription });
+            }}
             onSkip={goNext}
           />
         );
@@ -317,15 +310,6 @@ const GuidedOnboarding: React.FC<Props> = ({
           />
         );
 
-      case 'PRINT_OFFER':
-        return (
-          <PrintOfferStep
-            visionImageUrl={state.primaryVisionUrl}
-            onViewPrintOptions={handleViewPrintOptions}
-            onSkip={goNext}
-          />
-        );
-
       case 'COMPLETION':
         return (
           <CompletionStep
@@ -345,17 +329,25 @@ const GuidedOnboarding: React.FC<Props> = ({
   // Determine if we should show navigation buttons
   const showBackButton = currentStepIndex > 0 && state.currentStep !== 'COMPLETION';
   const showNextButton = state.currentStep !== 'VISION_GENERATION' &&
-    state.currentStep !== 'PRINT_OFFER' &&
     state.currentStep !== 'COMPLETION';
+
+  // Handler for skip - navigate to VisionBoard WITHOUT marking onboarding complete
+  const handleSkip = () => {
+    onNavigate(AppView.VISION_BOARD);
+  };
+
+  // Only show skip option on the first 5 steps (before AI generation)
+  const showSkipOption = currentStepIndex < 5 && state.currentStep !== 'COMPLETION';
 
   return (
     <OnboardingLayout
-      currentStep={currentStepIndex + 1}
+      step={currentStepIndex + 1}
       totalSteps={STEPS.length}
       title={stepConfig.title}
       subtitle={stepConfig.subtitle}
       showBack={showBackButton}
       onBack={goBack}
+      onSkip={showSkipOption ? handleSkip : undefined}
     >
       {renderStep()}
 

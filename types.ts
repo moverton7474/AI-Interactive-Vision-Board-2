@@ -47,6 +47,7 @@ export interface OnboardingState {
   themeName?: string;
   visionText?: string;
   photoRefId?: string;
+  identityDescription?: string; // Description of user's appearance for AI image generation
   financialTarget?: number;
   financialTargetLabel?: string;
   primaryVisionId?: string;
@@ -83,6 +84,7 @@ export interface ReferenceImage {
   url: string;
   tags: string[];
   createdAt: number;
+  identityDescription?: string; // Neutral physical description for identity preservation
 }
 
 export interface UserProfile {
@@ -201,6 +203,7 @@ export interface PrintConfig {
   size: string;
   finish: 'matte' | 'gloss';
   quantity: number;
+  productType?: 'poster' | 'canvas'; // Added for v1 - poster/canvas support
 }
 
 export interface PosterOrder {
@@ -214,6 +217,7 @@ export interface PosterOrder {
   shippingAddress: ShippingAddress;
   config: PrintConfig;
   vendorOrderId?: string;
+  productType?: 'poster' | 'canvas'; // Added for v1 - poster/canvas support
 }
 
 // --- Templates ---
