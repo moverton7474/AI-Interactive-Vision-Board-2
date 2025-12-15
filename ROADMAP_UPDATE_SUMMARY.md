@@ -1,11 +1,56 @@
-# Roadmap Update Summary - December 14, 2025
+# Roadmap Update Summary - December 15, 2025
 
 ## Overview
-Updated all roadmap documentation to accurately reflect the current state of the Visionary AI platform (v2.2). This comprehensive update documents significant infrastructure work completed between v1.6 and v2.0, plus major security, admin, and email features added December 11-14, 2025.
+Updated all roadmap documentation to accurately reflect the current state of the Visionary AI platform (v2.3). This comprehensive update documents significant infrastructure work completed between v1.6 and v2.0, plus major security, admin, team management, and knowledge base features added December 11-15, 2025.
 
 ---
 
-## Latest Update: December 14, 2025
+## Latest Update: December 15, 2025
+
+### Major Additions Since Last Update (Dec 15, 2025)
+
+#### 1. Team Member Management System ✅ COMPLETED
+- **TeamMemberAdmin Component:** Full admin UI for managing team members
+  - Add members to teams by email
+  - Remove members from teams (soft delete)
+  - Change member roles (owner, admin, manager, member, viewer)
+  - Reactivate deactivated members
+  - Filter by team and active/inactive status
+- **Database Enhancements:**
+  - Added activity tracking columns (last_active_at, current_streak, weekly_completions, etc.)
+  - Created `get_user_team_ids()` helper function to avoid RLS recursion
+  - Fixed RLS policy to allow team members to view teammates
+  - Created `sync_team_member_activity()` function for dashboard stats
+
+#### 2. Team Knowledge Base View ✅ COMPLETED
+- **TeamKnowledgeView Component:** View team members' knowledge sources
+  - Aggregated knowledge statistics per team
+  - Expandable member details with source list
+  - Source type icons and status badges
+- **Database Enhancements:**
+  - Added `team_visible` column to `user_knowledge_sources`
+  - Created `is_team_manager_of()` function
+  - Added RLS policies for team managers to view knowledge
+  - Created `team_knowledge_summary` view
+
+#### 3. Manager Dashboard Enhancements ✅ COMPLETED
+- **New Tabs Added:**
+  - "Knowledge Base" tab for viewing team knowledge
+  - "Manage Members" tab for member administration
+  - Both tabs admin-only (platform_admin role)
+- **Activity Tracking:**
+  - Members now show Active/At Risk/Inactive status based on activity
+  - Streaks, completions, and completion rates displayed
+  - Last active timestamps tracked
+
+#### 4. RLS Security Fixes ✅ COMPLETED
+- **Fixed infinite recursion** in team_members policies
+- **Non-recursive helper functions** for team queries
+- **Updated all migration files** to prevent policy overwrites
+
+---
+
+## Previous Update: December 14, 2025
 
 ### Major Additions Since Last Update (Dec 11-14, 2025)
 
@@ -165,22 +210,32 @@ A comprehensive new section has been added to ROADMAP.md covering the **Visualiz
 - Full Apple Watch companion integration
 - Enterprise team collaboration features
 
-## Current State (v2.2)
+## Current State (v2.3)
 
 ### ✅ Backend Infrastructure (COMPLETE)
-- 33+ active edge functions deployed (including new email functions)
-- 35+ database tables operational
+- 35+ active edge functions deployed (including new email functions)
+- 40+ database tables operational
 - All v1.0-v2.0 features implemented
 - AMIE, Systems, and Enterprise features live
 - **NEW:** Enterprise-grade RBAC security system
 - **NEW:** Admin Control Center APIs
 - **NEW:** Email system with Resend integration
+- **NEW:** Team member management with activity tracking
+- **NEW:** Team knowledge base view for managers
 
-### ✅ Security & Admin (COMPLETE - Dec 14, 2025)
+### ✅ Security & Admin (COMPLETE - Dec 15, 2025)
 - Role-based access control (5 roles)
 - Vision board data isolation fixed
 - Admin Dashboard with Hero Video Manager
 - Platform admin access controls
+- **NEW:** Team member administration UI
+- **NEW:** Knowledge base visibility for managers
+
+### ✅ Team Management (COMPLETE - Dec 15, 2025)
+- Full team member CRUD operations
+- Activity tracking (streaks, completions, last active)
+- Role management (owner, admin, manager, member, viewer)
+- Non-recursive RLS policies
 
 ### ✅ Email System (COMPLETE - Dec 14, 2025)
 - Resend email provider integration
@@ -261,5 +316,5 @@ The documentation now correctly reflects the impressive amount of infrastructure
 ---
 
 **Updated by:** Claude Code Agent
-**Date:** December 14, 2025
-**Version:** v2.2
+**Date:** December 15, 2025
+**Version:** v2.3

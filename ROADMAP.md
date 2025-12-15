@@ -1,9 +1,9 @@
 # VISIONARY AI — MASTER PRODUCT & DEVELOPMENT ROADMAP
 
-**Version:** 2.2
+**Version:** 2.3
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 9, 2025
+**Last Updated:** December 15, 2025
 
 ---
 
@@ -100,7 +100,14 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ### 🎉 Recent Major Achievements (November-December 2025)
 
-**Backend Infrastructure (30 Edge Functions Deployed):**
+**Team Management & Admin (December 15, 2025):**
+- ✅ Team Member Management UI with add/remove/role change/reactivate
+- ✅ Team Knowledge Base View for managers to see member sources
+- ✅ Activity tracking with streaks, completions, and last active
+- ✅ Non-recursive RLS policies with helper functions
+- ✅ Database schema enhancements for activity metrics
+
+**Backend Infrastructure (35+ Edge Functions Deployed):**
 - ✅ Complete AMIE Identity Engine with theme selection and psychological coaching
 - ✅ Full Apple Watch integration with sync and notification functions
 - ✅ Enterprise team collaboration with Slack and Microsoft Teams bots
