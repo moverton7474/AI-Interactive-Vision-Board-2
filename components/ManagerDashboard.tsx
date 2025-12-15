@@ -10,6 +10,7 @@ import {
   PlusIcon
 } from './Icons';
 import SiteSettingsManager from './admin/SiteSettingsManager';
+import TeamMemberAdmin from './admin/TeamMemberAdmin';
 
 interface Props {
   onBack?: () => void;
@@ -57,7 +58,7 @@ interface Team {
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'site_settings'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'site_settings' | 'team_admin'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
@@ -151,6 +152,9 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         if (isAdmin && !memberData?.team_id) {
           teamMembersQuery = teamMembersQuery.limit(100);
         }
+
+        // Only show active members
+        teamMembersQuery = teamMembersQuery.eq('is_active', true);
 
         const { data, error: membersError } = await teamMembersQuery;
 
@@ -356,6 +360,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             { id: 'overview', label: 'Overview', adminOnly: false },
             { id: 'members', label: 'Team Members', adminOnly: false },
             { id: 'reports', label: 'Reports', adminOnly: false },
+            { id: 'team_admin', label: 'Manage Members', adminOnly: true },
             { id: 'site_settings', label: 'Site Settings', adminOnly: true },
           ]
             .filter(view => !view.adminOnly || isPlatformAdmin)
@@ -595,6 +600,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Team Admin View - Platform Admin Only */}
+        {activeView === 'team_admin' && isPlatformAdmin && (
+          <TeamMemberAdmin />
         )}
 
         {/* Site Settings View - Platform Admin Only */}
