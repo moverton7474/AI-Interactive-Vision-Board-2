@@ -54,26 +54,10 @@ interface Team {
  * Provides team overview, member management, progress tracking,
  * and engagement metrics for team managers and administrators.
  */
-// User account interface for admin view
-// Note: profiles table columns: id, email, credits, subscription_tier, stripe_customer_id,
-// is_beta_user, is_early_access, is_locked, created_at, updated_at
-interface UserAccount {
-  id: string;
-  email: string;
-  subscription_tier: string;
-  stripe_customer_id?: string;
-  is_beta_user?: boolean;
-  is_early_access?: boolean;
-  is_locked?: boolean;
-  credits: number;
-  created_at: string;
-  updated_at?: string;
-}
-
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'users' | 'reports' | 'site_settings'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'site_settings'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
@@ -81,18 +65,10 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [stats, setStats] = useState<TeamStats | null>(null);
   const [isManager, setIsManager] = useState(false);
 
-  // User accounts state (for platform admins)
-  const [users, setUsers] = useState<UserAccount[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [usersError, setUsersError] = useState<string | null>(null);
-  const [userSearchQuery, setUserSearchQuery] = useState('');
-
   // Modal states
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
-  const [deletingUser, setDeletingUser] = useState<string | null>(null);
 
   // Platform admin state
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
@@ -284,115 +260,6 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  // Load all user accounts (platform admin only)
-  const loadUsers = async (search?: string) => {
-    setUsersLoading(true);
-    setUsersError(null);
-
-    try {
-      // Direct query to profiles table - RLS policy allows platform admins to read all
-      // Only select columns that exist in profiles table
-      let query = supabase
-        .from('profiles')
-        .select('id, email, subscription_tier, stripe_customer_id, is_beta_user, is_early_access, is_locked, credits, created_at, updated_at')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      // Add search filter if provided (email only - no name column exists)
-      if (search && search.trim()) {
-        query = query.ilike('email', `%${search.trim()}%`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error loading users:', error);
-        throw error;
-      }
-
-      setUsers(data || []);
-    } catch (err) {
-      console.error('Error loading users:', err);
-      setUsersError('Failed to load users. Make sure you have platform admin permissions.');
-    } finally {
-      setUsersLoading(false);
-    }
-  };
-
-  // Send welcome email to a user
-  const sendWelcomeEmail = async (user: UserAccount) => {
-    setSendingEmail(user.id);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      const response = await fetch(
-        'https://edaigbnnofyxcfbpcvct.supabase.co/functions/v1/send-email',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            to: user.email,
-            template: 'welcome',
-            data: {
-              name: user.email.split('@')[0]
-            },
-            userId: user.id
-          })
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send email');
-      }
-
-      alert(`Welcome email sent to ${user.email}!`);
-    } catch (err) {
-      console.error('Error sending email:', err);
-      alert(`Failed to send email: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setSendingEmail(null);
-    }
-  };
-
-  // Delete a user account
-  const deleteUser = async (user: UserAccount) => {
-    if (!confirm(`Are you sure you want to delete ${user.email}? This action cannot be undone.`)) {
-      return;
-    }
-
-    setDeletingUser(user.id);
-    try {
-      // Delete from profiles table (auth.users deletion requires admin API)
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      // Remove from local state
-      setUsers(prev => prev.filter(u => u.id !== user.id));
-      alert(`User ${user.email} deleted. Note: They may need to be removed from Supabase Auth manually.`);
-    } catch (err) {
-      console.error('Error deleting user:', err);
-      alert('Failed to delete user. Check console for details.');
-    } finally {
-      setDeletingUser(null);
-    }
-  };
-
-  // Load users when switching to users view
-  useEffect(() => {
-    if (activeView === 'users' && isPlatformAdmin && users.length === 0) {
-      loadUsers();
-    }
-  }, [activeView, isPlatformAdmin]);
-
   const getStatusBadge = (status: 'active' | 'at_risk' | 'inactive') => {
     switch (status) {
       case 'active':
@@ -486,7 +353,6 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
           {[
             { id: 'overview', label: 'Overview', adminOnly: false },
             { id: 'members', label: 'Team Members', adminOnly: false },
-            { id: 'users', label: 'All Users', adminOnly: true },
             { id: 'reports', label: 'Reports', adminOnly: false },
             { id: 'site_settings', label: 'Site Settings', adminOnly: true },
           ]
@@ -725,138 +591,6 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
               <div className="h-48 flex items-center justify-center text-indigo-200">
                 <p>Chart visualization coming soon...</p>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Users View - Platform Admin Only */}
-        {activeView === 'users' && isPlatformAdmin && (
-          <div className="space-y-6">
-            {/* Search Bar */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-              <div className="flex gap-4 items-center">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    placeholder="Search by email..."
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && loadUsers(userSearchQuery)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <button
-                  onClick={() => loadUsers(userSearchQuery)}
-                  disabled={usersLoading}
-                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                >
-                  {usersLoading ? 'Searching...' : 'Search'}
-                </button>
-                <button
-                  onClick={() => { setUserSearchQuery(''); loadUsers(); }}
-                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-colors"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-
-            {usersError && (
-              <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 text-red-200">
-                {usersError}
-              </div>
-            )}
-
-            {/* Users Table */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl overflow-hidden border border-white/20">
-              <div className="p-4 border-b border-white/10">
-                <h2 className="text-xl font-semibold text-white">All User Accounts ({users.length})</h2>
-              </div>
-
-              {usersLoading ? (
-                <div className="p-8 text-center">
-                  <div className="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                  <p className="text-indigo-200">Loading users...</p>
-                </div>
-              ) : users.length === 0 ? (
-                <div className="p-8 text-center text-indigo-200">
-                  No users found
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-white/5">
-                      <tr>
-                        <th className="text-left p-4 text-indigo-200 font-medium">User</th>
-                        <th className="text-left p-4 text-indigo-200 font-medium">Tier</th>
-                        <th className="text-left p-4 text-indigo-200 font-medium">Credits</th>
-                        <th className="text-left p-4 text-indigo-200 font-medium">Created</th>
-                        <th className="text-center p-4 text-indigo-200 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {users.map((user) => (
-                        <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-semibold">
-                                {(user.email || 'U').charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="font-medium text-white">{user.email}</p>
-                                <p className="text-sm text-indigo-200">ID: {user.id.slice(0, 8)}...</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              user.subscription_tier === 'ELITE' ? 'bg-purple-500/20 text-purple-400' :
-                              user.subscription_tier === 'PRO' ? 'bg-blue-500/20 text-blue-400' :
-                              'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {user.subscription_tier || 'FREE'}
-                            </span>
-                          </td>
-                          <td className="p-4 text-white">{user.credits || 0}</td>
-                          <td className="p-4 text-indigo-200 text-sm">
-                            {user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
-                          </td>
-                          <td className="p-4">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => sendWelcomeEmail(user)}
-                                disabled={sendingEmail === user.id}
-                                className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                                title="Send Welcome Email"
-                              >
-                                {sendingEmail === user.id ? '...' : '📧 Send Email'}
-                              </button>
-                              <button
-                                onClick={() => deleteUser(user)}
-                                disabled={deletingUser === user.id}
-                                className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                                title="Delete User"
-                              >
-                                {deletingUser === user.id ? '...' : '🗑️ Delete'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Info Box */}
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-              <h3 className="text-blue-300 font-medium mb-2">💡 Admin Actions</h3>
-              <ul className="text-blue-200 text-sm space-y-1">
-                <li>• <strong>Send Email</strong> - Sends a welcome email to the user via Resend</li>
-                <li>• <strong>Delete</strong> - Removes user from profiles table (Supabase Auth requires manual deletion)</li>
-                <li>• To fully delete a user, go to Supabase Dashboard → Authentication → Users</li>
-              </ul>
             </div>
           </div>
         )}
