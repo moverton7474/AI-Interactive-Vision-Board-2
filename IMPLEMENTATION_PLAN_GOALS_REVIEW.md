@@ -502,10 +502,12 @@ export interface EditableMilestone extends Milestone {
 
 ---
 
-## Questions for Product Decision
+## Product Decisions (Confirmed)
 
-1. Should users be able to skip the review step entirely? (Quick approve all)
-2. Maximum number of goals per milestone? (Suggest 5)
-3. Should we track original AI suggestions vs user edits for analytics?
-4. Allow goal duplication across milestones?
-5. Should regenerate replace all goals or just add new suggestions?
+| Question | Decision |
+|----------|----------|
+| Should users be able to skip the review step entirely? | **YES** - Quick "Approve All" option available |
+| Maximum number of goals per milestone? | **YES** - Limit to 5 goals per milestone |
+| Should regenerate replace all goals or add new suggestions? | **ADD NEW** - Regenerate adds suggestions, doesn't replace |
+| Track original AI suggestions vs user edits? | TBD - Future analytics consideration |
+| Allow goal duplication across milestones? | TBD - Not a launch requirement |
