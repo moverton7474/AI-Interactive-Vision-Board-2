@@ -332,10 +332,27 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
       if (insertError) throw insertError;
 
       // Map template type to email template
-      const emailTemplate = templateType === 'announcement' ? 'team_announcement'
-        : templateType === 'recognition' ? 'team_recognition'
-        : templateType === 'reminder' ? 'team_reminder'
-        : 'manager_direct_message';
+      const emailTemplate = 'generic'; // Use generic for now as team templates may not be deployed
+
+      // Build HTML content for the email body
+      const emailHtmlContent = `
+        <h2 style="color: #F5F5F5; font-size: 22px; margin: 0 0 15px 0;">
+          ${templateType === 'announcement' ? '📢 Team Announcement' :
+            templateType === 'recognition' ? '🏆 Recognition' :
+            templateType === 'reminder' ? '⏰ Reminder' : '💬 Message'}
+        </h2>
+        <p style="color: #9CA3AF; font-size: 14px; margin: 0 0 20px 0;">
+          From: Team Manager at <strong style="color: #D4AF37;">${teamName}</strong>
+        </p>
+        <div style="background: rgba(30, 58, 95, 0.3); border-left: 4px solid #D4AF37; padding: 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <div style="color: #F5F5F5; font-size: 16px; line-height: 1.8;">
+            ${messageHtml}
+          </div>
+        </div>
+        <p style="color: #9CA3AF; font-size: 13px; margin-top: 20px;">
+          This message was sent to members of ${teamName}.
+        </p>
+      `;
 
       // Send emails to each recipient
       let sentCount = 0;
@@ -355,11 +372,9 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
               template: emailTemplate,
               subject: subject,
               data: {
-                teamName: teamName,
                 subject: subject,
-                message: messageHtml,
-                senderName: 'Team Manager',
-                recipientName: recipient.email.split('@')[0]
+                html: emailHtmlContent,
+                content: emailHtmlContent // fallback
               }
             }
           });
