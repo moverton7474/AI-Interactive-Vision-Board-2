@@ -1,6 +1,6 @@
 
 import { supabase } from '../lib/supabase';
-import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile, ShippingAddress, Habit, HabitCompletion, HabitFrequency, WorkbookTemplate, WorkbookOrder } from '../types';
+import { VisionImage, ReferenceImage, Document, ActionTask, UserProfile, ShippingAddress, Habit, HabitCompletion, HabitFrequency, WorkbookTemplate, WorkbookOrder, GoalPlan, GoalPlanStatus, GoalPlanSource } from '../types';
 
 /**
  * Service to handle persistence of Vision Board and Reference data using Supabase.
@@ -436,6 +436,405 @@ export const updateTaskStatus = async (id: string, isCompleted: boolean): Promis
     console.error("Failed to update task", error);
   }
 };
+
+/* --- GOAL PLANS (v1.7 Draft Plan Review) --- */
+
+/**
+ * Create a new draft goal plan for the user
+ */
+export const createDraftPlan = async (data: {
+  visionText?: string;
+  financialTarget?: number;
+  themeId?: string;
+  source?: GoalPlanSource;
+  aiInsights?: GoalPlan['aiInsights'];
+}): Promise<GoalPlan | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Get next version number for this user
+    const { data: existingPlans } = await supabase
+      .from('goal_plans')
+      .select('version')
+      .eq('user_id', user.id)
+      .order('version', { ascending: false })
+      .limit(1);
+
+    const nextVersion = (existingPlans?.[0]?.version || 0) + 1;
+
+    const { data: plan, error } = await supabase
+      .from('goal_plans')
+      .insert([{
+        user_id: user.id,
+        status: 'draft',
+        version: nextVersion,
+        source: data.source || 'onboarding',
+        vision_text: data.visionText,
+        financial_target: data.financialTarget,
+        theme_id: data.themeId,
+        ai_insights: data.aiInsights || {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return mapGoalPlanFromDb(plan);
+  } catch (error) {
+    console.error("Failed to create draft plan", error);
+    return null;
+  }
+};
+
+/**
+ * Get user's current draft plan (if exists)
+ */
+export const getDraftPlan = async (): Promise<GoalPlan | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: plan, error } = await supabase
+      .from('goal_plans')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'draft')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+    if (!plan) return null;
+
+    // Get associated tasks
+    const { data: tasks } = await supabase
+      .from('action_tasks')
+      .select('*')
+      .eq('plan_id', plan.id)
+      .order('display_order', { ascending: true });
+
+    return mapGoalPlanFromDb(plan, tasks);
+  } catch (error) {
+    console.error("Failed to get draft plan", error);
+    return null;
+  }
+};
+
+/**
+ * Get user's active (approved) plan
+ */
+export const getActivePlan = async (): Promise<GoalPlan | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: plan, error } = await supabase
+      .from('goal_plans')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!plan) return null;
+
+    // Get associated tasks
+    const { data: tasks } = await supabase
+      .from('action_tasks')
+      .select('*')
+      .eq('plan_id', plan.id)
+      .order('display_order', { ascending: true });
+
+    return mapGoalPlanFromDb(plan, tasks);
+  } catch (error) {
+    console.error("Failed to get active plan", error);
+    return null;
+  }
+};
+
+/**
+ * Save or update a task in a draft plan
+ */
+export const saveDraftTask = async (
+  planId: string,
+  task: Partial<ActionTask> & { id?: string }
+): Promise<ActionTask | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Verify plan belongs to user and is a draft
+    const { data: plan } = await supabase
+      .from('goal_plans')
+      .select('id, status')
+      .eq('id', planId)
+      .eq('user_id', user.id)
+      .eq('status', 'draft')
+      .single();
+
+    if (!plan) {
+      console.error("Plan not found or not a draft");
+      return null;
+    }
+
+    const taskData = {
+      plan_id: planId,
+      user_id: user.id,
+      title: task.title || '',
+      description: task.description || '',
+      due_date: task.dueDate,
+      type: task.type || 'ADMIN',
+      is_completed: task.isCompleted || false,
+      priority: task.priority || 'medium',
+      display_order: task.displayOrder || 0,
+      source: task.source || 'manual',
+      ai_metadata: task.aiMetadata || {},
+      updated_at: new Date().toISOString()
+    };
+
+    let result;
+    if (task.id) {
+      // Update existing task
+      const { data, error } = await supabase
+        .from('action_tasks')
+        .update(taskData)
+        .eq('id', task.id)
+        .eq('plan_id', planId)
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    } else {
+      // Insert new task
+      const { data, error } = await supabase
+        .from('action_tasks')
+        .insert([{
+          ...taskData,
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    }
+
+    return mapActionTaskFromDb(result);
+  } catch (error) {
+    console.error("Failed to save draft task", error);
+    return null;
+  }
+};
+
+/**
+ * Delete a task from a draft plan
+ */
+export const deleteDraftTask = async (planId: string, taskId: string): Promise<boolean> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // Verify plan belongs to user and is a draft
+    const { data: plan } = await supabase
+      .from('goal_plans')
+      .select('id')
+      .eq('id', planId)
+      .eq('user_id', user.id)
+      .eq('status', 'draft')
+      .single();
+
+    if (!plan) return false;
+
+    const { error } = await supabase
+      .from('action_tasks')
+      .delete()
+      .eq('id', taskId)
+      .eq('plan_id', planId);
+
+    return !error;
+  } catch (error) {
+    console.error("Failed to delete draft task", error);
+    return false;
+  }
+};
+
+/**
+ * Approve a draft plan (makes it active, archives previous active plan)
+ */
+export const approvePlan = async (planId: string): Promise<boolean> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // Use the database function for atomic operation
+    const { data, error } = await supabase.rpc('approve_goal_plan', {
+      p_plan_id: planId,
+      p_user_id: user.id
+    });
+
+    if (error) throw error;
+    return data === true;
+  } catch (error) {
+    console.error("Failed to approve plan", error);
+    return false;
+  }
+};
+
+/**
+ * Get plan history for the user (all versions)
+ */
+export const getPlanHistory = async (): Promise<GoalPlan[]> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data: plans, error } = await supabase
+      .from('goal_plans')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('version', { ascending: false });
+
+    if (error) throw error;
+
+    return (plans || []).map(plan => mapGoalPlanFromDb(plan));
+  } catch (error) {
+    console.error("Failed to get plan history", error);
+    return [];
+  }
+};
+
+/**
+ * Update a draft plan's metadata
+ */
+export const updateDraftPlan = async (
+  planId: string,
+  updates: {
+    visionText?: string;
+    financialTarget?: number;
+    themeId?: string;
+    aiInsights?: GoalPlan['aiInsights'];
+  }
+): Promise<boolean> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { error } = await supabase
+      .from('goal_plans')
+      .update({
+        vision_text: updates.visionText,
+        financial_target: updates.financialTarget,
+        theme_id: updates.themeId,
+        ai_insights: updates.aiInsights,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', planId)
+      .eq('user_id', user.id)
+      .eq('status', 'draft');
+
+    return !error;
+  } catch (error) {
+    console.error("Failed to update draft plan", error);
+    return false;
+  }
+};
+
+/**
+ * Bulk save tasks to a draft plan (for initial generation or regeneration)
+ */
+export const saveDraftTasks = async (
+  planId: string,
+  tasks: Omit<ActionTask, 'planId'>[]
+): Promise<ActionTask[]> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    // Verify plan belongs to user and is a draft
+    const { data: plan } = await supabase
+      .from('goal_plans')
+      .select('id')
+      .eq('id', planId)
+      .eq('user_id', user.id)
+      .eq('status', 'draft')
+      .single();
+
+    if (!plan) return [];
+
+    // Delete existing tasks for this plan
+    await supabase
+      .from('action_tasks')
+      .delete()
+      .eq('plan_id', planId);
+
+    // Insert new tasks
+    const taskRows = tasks.map((task, index) => ({
+      id: task.id || crypto.randomUUID(),
+      plan_id: planId,
+      user_id: user.id,
+      title: task.title,
+      description: task.description,
+      due_date: task.dueDate,
+      type: task.type,
+      is_completed: task.isCompleted || false,
+      priority: task.priority || 'medium',
+      display_order: task.displayOrder ?? index,
+      source: task.source || 'onboarding',
+      ai_metadata: task.aiMetadata || {},
+      created_at: new Date().toISOString()
+    }));
+
+    const { data, error } = await supabase
+      .from('action_tasks')
+      .insert(taskRows)
+      .select();
+
+    if (error) throw error;
+
+    return (data || []).map(mapActionTaskFromDb);
+  } catch (error) {
+    console.error("Failed to save draft tasks", error);
+    return [];
+  }
+};
+
+// Helper function to map database row to GoalPlan
+const mapGoalPlanFromDb = (row: any, tasks?: any[]): GoalPlan => ({
+  id: row.id,
+  userId: row.user_id,
+  status: row.status as GoalPlanStatus,
+  version: row.version,
+  source: row.source as GoalPlanSource,
+  aiInsights: row.ai_insights,
+  visionText: row.vision_text,
+  financialTarget: row.financial_target ? parseFloat(row.financial_target) : undefined,
+  themeId: row.theme_id,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  approvedAt: row.approved_at,
+  archivedAt: row.archived_at,
+  tasks: tasks ? tasks.map(mapActionTaskFromDb) : undefined
+});
+
+// Helper function to map database row to ActionTask
+const mapActionTaskFromDb = (row: any): ActionTask => ({
+  id: row.id,
+  title: row.title,
+  description: row.description,
+  dueDate: row.due_date,
+  type: row.type,
+  isCompleted: row.is_completed,
+  milestoneYear: row.milestone_year,
+  aiMetadata: row.ai_metadata,
+  planId: row.plan_id,
+  planVersion: row.plan_version,
+  displayOrder: row.display_order,
+  priority: row.priority,
+  source: row.source
+});
 
 /* --- HABIT TRACKING --- */
 

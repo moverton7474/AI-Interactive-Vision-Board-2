@@ -27,7 +27,7 @@ export enum AppView {
   SETTINGS = 'SETTINGS', // User Settings
 }
 
-// Guided Onboarding State (v1.6)
+// Guided Onboarding State (v1.7 - Draft Plan Review)
 export type OnboardingStep =
   | 'THEME'
   | 'COACH_INTRO'
@@ -35,7 +35,8 @@ export type OnboardingStep =
   | 'PHOTO_UPLOAD'
   | 'FINANCIAL_TARGET'
   | 'VISION_GENERATION'
-  | 'ACTION_PLAN_PREVIEW'
+  | 'ACTION_PLAN_PREVIEW'  // Legacy - read-only preview
+  | 'DRAFT_PLAN_REVIEW'    // New v1.7 - editable draft plan review
   | 'HABITS_SETUP'
   | 'PRINT_OFFER'
   | 'COMPLETION';
@@ -120,6 +121,38 @@ export interface ActionTask {
     sourceUrl?: string;
     suggestedTool?: 'GMAIL' | 'MAPS' | 'CALENDAR';
   };
+  // v1.7 Draft Plan Review fields
+  planId?: string;
+  planVersion?: number;
+  displayOrder?: number;
+  priority?: 'high' | 'medium' | 'low';
+  source?: 'onboarding' | 'manual' | 'ai_regenerate' | 'import';
+}
+
+// Goal Plan (v1.7 Draft Plan Review)
+export type GoalPlanStatus = 'draft' | 'active' | 'archived';
+export type GoalPlanSource = 'onboarding' | 'manual' | 'revision' | 'ai_regenerate';
+
+export interface GoalPlan {
+  id: string;
+  userId: string;
+  status: GoalPlanStatus;
+  version: number;
+  source: GoalPlanSource;
+  aiInsights?: {
+    summary?: string;
+    strengths?: string[];
+    suggestions?: string[];
+    focusAreas?: string[];
+  };
+  visionText?: string;
+  financialTarget?: number;
+  themeId?: string;
+  createdAt: string;
+  updatedAt?: string;
+  approvedAt?: string;
+  archivedAt?: string;
+  tasks?: ActionTask[];
 }
 
 export interface Milestone {

@@ -8,9 +8,13 @@ import PhotoUploadStep from './PhotoUploadStep';
 import FinancialTargetStep from './FinancialTargetStep';
 import VisionGenerationStep from './VisionGenerationStep';
 import ActionPlanPreviewStep from './ActionPlanPreviewStep';
+import DraftPlanReviewStep from './DraftPlanReviewStep';
 import HabitsSetupStep from './HabitsSetupStep';
 import PrintOfferStep from './PrintOfferStep';
 import CompletionStep from './CompletionStep';
+
+// Feature flag for draft plan review (v1.7)
+const ENABLE_DRAFT_PLAN_REVIEW = true;
 
 interface Props {
   userId: string;
@@ -25,6 +29,7 @@ interface Props {
   saveOnboardingState: (state: Partial<OnboardingState>) => Promise<void>;
 }
 
+// Steps array - use DRAFT_PLAN_REVIEW when feature flag is enabled
 const STEPS: OnboardingStep[] = [
   'THEME',
   'COACH_INTRO',
@@ -32,7 +37,7 @@ const STEPS: OnboardingStep[] = [
   'PHOTO_UPLOAD',
   'FINANCIAL_TARGET',
   'VISION_GENERATION',
-  'ACTION_PLAN_PREVIEW',
+  ENABLE_DRAFT_PLAN_REVIEW ? 'DRAFT_PLAN_REVIEW' : 'ACTION_PLAN_PREVIEW',
   'HABITS_SETUP',
   'PRINT_OFFER',
   'COMPLETION'
@@ -66,6 +71,10 @@ const STEP_CONFIG: Record<OnboardingStep, { title: string; subtitle: string }> =
   ACTION_PLAN_PREVIEW: {
     title: 'Your Action Plan',
     subtitle: 'Personalized steps to achieve your vision'
+  },
+  DRAFT_PLAN_REVIEW: {
+    title: 'Review Your Action Plan',
+    subtitle: 'Customize your tasks before getting started'
   },
   HABITS_SETUP: {
     title: 'Daily Habits',
@@ -168,6 +177,10 @@ const GuidedOnboarding: React.FC<Props> = ({
         return !!state.primaryVisionUrl;
       case 'ACTION_PLAN_PREVIEW':
         return (state.generatedTasks?.length ?? 0) > 0;
+      case 'DRAFT_PLAN_REVIEW':
+        // Require at least one task with a title
+        return (state.generatedTasks?.length ?? 0) > 0 &&
+          state.generatedTasks!.every(t => t.title && t.title.trim().length > 0);
       case 'HABITS_SETUP':
         return (state.selectedHabits?.length ?? 0) > 0;
       case 'PRINT_OFFER':
@@ -283,6 +296,18 @@ const GuidedOnboarding: React.FC<Props> = ({
           />
         );
 
+      case 'DRAFT_PLAN_REVIEW':
+        return (
+          <DraftPlanReviewStep
+            visionText={state.visionText || ''}
+            financialTarget={state.financialTarget}
+            themeName={state.themeName}
+            existingTasks={state.generatedTasks}
+            onTasksChanged={(tasks) => updateState({ generatedTasks: tasks })}
+            generateActionPlan={generateActionPlan}
+          />
+        );
+
       case 'HABITS_SETUP':
         return (
           <HabitsSetupStep
@@ -329,7 +354,8 @@ const GuidedOnboarding: React.FC<Props> = ({
       totalSteps={STEPS.length}
       title={stepConfig.title}
       subtitle={stepConfig.subtitle}
-      onBack={showBackButton ? goBack : undefined}
+      showBack={showBackButton}
+      onBack={goBack}
     >
       {renderStep()}
 
