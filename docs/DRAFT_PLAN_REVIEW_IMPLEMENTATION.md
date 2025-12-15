@@ -59,8 +59,8 @@ This implementation adds a user-controlled "Draft → Review → Approve" flow f
 ### Phase D: Knowledge Base Enhancements
 | Task | Status | Notes |
 |------|--------|-------|
-| View source content modal | Pending | |
-| Soft delete (archive) | Pending | |
+| View source content modal | **Complete** | Click eye icon to view full content |
+| Soft delete (archive) | **Complete** | Archive icon replaces delete, with fallback |
 | Edit manual sources | Pending | Phase 2 |
 
 ### Phase E: Testing

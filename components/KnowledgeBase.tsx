@@ -31,6 +31,11 @@ const KnowledgeBase: React.FC<Props> = ({ onBack }) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [stats, setStats] = useState<any>(null);
 
+  // View source modal state
+  const [viewingSource, setViewingSource] = useState<UserKnowledgeSource | null>(null);
+  const [sourceContent, setSourceContent] = useState<string>('');
+  const [loadingContent, setLoadingContent] = useState(false);
+
   // Upload form state
   const [selectedType, setSelectedType] = useState<SourceType>('manual_entry');
   const [sourceName, setSourceName] = useState('');
@@ -160,25 +165,70 @@ const KnowledgeBase: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  const handleDelete = async (sourceId: string) => {
-    if (!confirm('Are you sure you want to delete this source?')) return;
+  const handleArchive = async (sourceId: string) => {
+    if (!confirm('Are you sure you want to archive this source? It will be removed from your AI context.')) return;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      await supabase.functions.invoke('knowledge-ingest?action=delete', {
+      // Try archive action first, fall back to delete if not supported
+      const response = await supabase.functions.invoke('knowledge-ingest?action=archive', {
         body: { sourceId },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
 
+      // If archive action doesn't exist, use delete as fallback
+      if (response.error?.message?.includes('Unknown action')) {
+        await supabase.functions.invoke('knowledge-ingest?action=delete', {
+          body: { sourceId },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+      }
+
       await fetchSources();
       await fetchStats();
     } catch (err: any) {
-      console.error('Error deleting:', err);
-      setError(err.message || 'Failed to delete');
+      console.error('Error archiving:', err);
+      setError(err.message || 'Failed to archive');
+    }
+  };
+
+  const handleViewSource = async (source: UserKnowledgeSource) => {
+    setViewingSource(source);
+    setSourceContent('');
+    setLoadingContent(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await supabase.functions.invoke('knowledge-ingest?action=get', {
+        body: { sourceId: source.id },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.data?.content) {
+        setSourceContent(response.data.content);
+      } else if (response.data?.source?.content_summary) {
+        // Fallback to content summary if full content not available
+        setSourceContent(response.data.source.content_summary || 'Content not available');
+      } else {
+        // If no get action, show the content_summary from the source object
+        setSourceContent((source as any).content_summary || 'Full content not available. This source may have been processed into knowledge chunks.');
+      }
+    } catch (err: any) {
+      console.error('Error fetching content:', err);
+      // Show summary as fallback
+      setSourceContent((source as any).content_summary || 'Unable to load content.');
+    } finally {
+      setLoadingContent(false);
     }
   };
 
@@ -338,14 +388,26 @@ const KnowledgeBase: React.FC<Props> = ({ onBack }) => {
                     </div>
                   </label>
 
-                  {/* Delete button */}
+                  {/* View button */}
                   <button
-                    onClick={() => handleDelete(source.id)}
-                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                    title="Delete source"
+                    onClick={() => handleViewSource(source)}
+                    className="p-2 text-gray-400 hover:text-navy-900 transition-colors"
+                    title="View content"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </button>
+
+                  {/* Archive button */}
+                  <button
+                    onClick={() => handleArchive(source.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    title="Archive source"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                     </svg>
                   </button>
                 </div>
@@ -506,6 +568,77 @@ const KnowledgeBase: React.FC<Props> = ({ onBack }) => {
                   'Add to Knowledge Base'
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Source Modal */}
+      {viewingSource && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">{getSourceIcon(viewingSource.sourceType || (viewingSource as any).source_type)}</div>
+                  <div>
+                    <h2 className="text-xl font-bold text-navy-900">
+                      {viewingSource.sourceName || (viewingSource as any).source_name}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      {((viewingSource as any).source_type || viewingSource.sourceType || '').replace('_', ' ')} •
+                      {(viewingSource as any).word_count || 0} words
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingSource(null);
+                    setSourceContent('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                  title="Close modal"
+                  aria-label="Close modal"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              {loadingContent ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div>
+                  <p className="mt-4 text-gray-500">Loading content...</p>
+                </div>
+              ) : (
+                <div className="prose prose-sm max-w-none">
+                  <pre className="whitespace-pre-wrap font-sans text-gray-700 bg-gray-50 p-4 rounded-xl text-sm leading-relaxed">
+                    {sourceContent || 'No content available'}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">
+                  This content is used to personalize your AI coaching experience
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewingSource(null);
+                    setSourceContent('');
+                  }}
+                  className="px-4 py-2 bg-navy-900 text-white font-medium rounded-lg hover:bg-navy-800 transition-colors text-sm"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
