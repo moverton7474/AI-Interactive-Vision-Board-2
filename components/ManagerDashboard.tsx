@@ -11,6 +11,7 @@ import {
 } from './Icons';
 import SiteSettingsManager from './admin/SiteSettingsManager';
 import TeamMemberAdmin from './admin/TeamMemberAdmin';
+import TeamKnowledgeView from './admin/TeamKnowledgeView';
 
 interface Props {
   onBack?: () => void;
@@ -58,7 +59,7 @@ interface Team {
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'site_settings' | 'team_admin'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'knowledge' | 'team_admin' | 'site_settings'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
@@ -360,6 +361,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             { id: 'overview', label: 'Overview', adminOnly: false },
             { id: 'members', label: 'Team Members', adminOnly: false },
             { id: 'reports', label: 'Reports', adminOnly: false },
+            { id: 'knowledge', label: 'Knowledge Base', adminOnly: true },
             { id: 'team_admin', label: 'Manage Members', adminOnly: true },
             { id: 'site_settings', label: 'Site Settings', adminOnly: true },
           ]
@@ -600,6 +602,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Knowledge Base View - Platform Admin Only */}
+        {activeView === 'knowledge' && isPlatformAdmin && (
+          <TeamKnowledgeView />
         )}
 
         {/* Team Admin View - Platform Admin Only */}
