@@ -126,9 +126,10 @@ export default function NotificationSettings() {
                 updated_at: new Date().toISOString()
             };
 
+            // Use onConflict to handle existing user_id (unique constraint)
             const { error: commError } = await supabase
                 .from('user_comm_preferences')
-                .upsert(commUpdates);
+                .upsert(commUpdates, { onConflict: 'user_id' });
 
             if (commError) throw commError;
 
@@ -146,9 +147,10 @@ export default function NotificationSettings() {
                 updated_at: new Date().toISOString()
             };
 
+            // Use onConflict to handle existing user_id (unique constraint)
             const { error: emailError } = await supabase
                 .from('email_preferences')
-                .upsert(emailUpdates);
+                .upsert(emailUpdates, { onConflict: 'user_id' });
 
             if (emailError) throw emailError;
 
