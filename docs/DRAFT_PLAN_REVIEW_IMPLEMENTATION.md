@@ -66,10 +66,10 @@ This implementation adds a user-controlled "Draft → Review → Approve" flow f
 ### Phase E: Testing
 | Task | Status | Notes |
 |------|--------|-------|
-| Unit tests for storage service | Pending | |
-| Component tests for DraftPlanReviewStep | Pending | |
-| E2E: Onboarding with draft review | Pending | |
-| E2E: Knowledge base management | Pending | |
+| Unit tests for storage service | **Complete** | `goal-plan-service.test.ts` - 39 tests |
+| Component tests for DraftPlanReviewStep | **Complete** | `draft-plan-review.test.ts` - 45 tests |
+| E2E: Onboarding with draft review | **Complete** | `onboarding-draft-review.test.ts` - 41 tests |
+| E2E: Knowledge base management | **Complete** | `knowledge-base-management.test.ts` - 43 tests |
 
 ### Phase F: Rollout
 | Task | Status | Notes |
