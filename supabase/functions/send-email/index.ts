@@ -8,6 +8,18 @@
  * - RESEND_API_KEY: Your Resend API key
  * - FROM_EMAIL: Verified sender email (e.g., noreply@yourdomain.com)
  * - SITE_URL: Your application URL for email links
+ *
+ * IMPORTANT: Domain Verification Note
+ * ------------------------------------
+ * If your domain is managed by Wix, you may encounter DKIM verification failures
+ * because Wix doesn't support underscore subdomains (e.g., resend._domainkey).
+ * In this case, either:
+ * 1. Migrate DNS to a provider that supports underscore subdomains (Cloudflare, Route53, etc.)
+ * 2. Use Resend's shared domain (noreply@resend.dev) as a temporary workaround
+ * 3. Register a separate domain for email that isn't managed by Wix
+ *
+ * The fallback domain uses Resend's shared sending domain to ensure email
+ * delivery even when custom domain verification is incomplete.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -789,7 +801,9 @@ serve(async (req) => {
 
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    const fromEmail = Deno.env.get("FROM_EMAIL") || "Visionary <noreply@visionary.app>";
+    // Use Resend's shared domain as fallback for reliable delivery when custom domain
+    // has verification issues (e.g., Wix DNS doesn't support DKIM underscore subdomains)
+    const fromEmail = Deno.env.get("FROM_EMAIL") || "Visionary AI <noreply@resend.dev>";
     const siteUrl = Deno.env.get("SITE_URL") || "https://visionary.app";
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
