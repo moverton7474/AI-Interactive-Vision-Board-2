@@ -660,10 +660,11 @@ function buildLikenessPreservingRequest(params: LikenessRequestParams, requestId
   })
 
   // Build comprehensive identity description
+  // CRITICAL: Explicitly mention using people from the base/first image - this dramatically improves likeness
   let identityText = `IDENTITY LOCK PROTOCOL - READ CAREFULLY:
 
 These photos show the EXACT person(s) who MUST appear in all generated images.
-
+${baseImage ? `\nIMPORTANT: The FIRST image is the primary reference photo. Use the exact appearance of the people shown in this base image as the foundation for likeness.\n` : ''}
 `
 
   // Add tagged descriptions for each person
@@ -869,7 +870,16 @@ function buildSimpleLikenessRequest(params: LikenessRequestParams, requestId: st
   }
 
   // Build natural conversational prompt (like Gemini chat - avoids triggering safety filters)
-  let prompt = `Use the attached reference photos of ${identityNames} and generate an image of them ${sceneDescription}.
+  // CRITICAL: When base image contains people, explicitly instruct to use them for likeness
+  let baseImageInstruction = ''
+  if (baseImage) {
+    // Auto-detect: if a base image is provided, assume it contains the person(s) to match
+    // This is the key insight - explicitly telling the model to use people from the base image
+    // dramatically improves likeness preservation
+    baseImageInstruction = `IMPORTANT: The first attached image is the primary reference photo showing the person(s) to depict. Use the exact appearance of the people in this base image. `
+  }
+
+  let prompt = `${baseImageInstruction}Use the attached reference photos of ${identityNames} and generate an image of them ${sceneDescription}.
 
 Make sure the faces and body types match the reference photos exactly - same skin tone, same facial features, same build.${identityDesc}`
 

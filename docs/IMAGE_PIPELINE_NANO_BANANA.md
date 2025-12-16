@@ -315,6 +315,28 @@ validateLikeness(
 
 ## Changelog
 
+### v2.1.1 (2024-12-15) - Auto-Detect Base Image People
+
+**Enhancement**: Automatically detect when base image contains people and add explicit instruction to use their likeness.
+
+**Root Cause Discovered**: Users found that manually adding "use the base image of the two people in the image" dramatically improved likeness matching. Without this explicit instruction, the model wouldn't prioritize the people shown in the base image.
+
+**Fix Applied**:
+- **`buildSimpleLikenessRequest`**: Added automatic base image instruction:
+  ```
+  IMPORTANT: The first attached image is the primary reference photo showing the person(s) to depict.
+  Use the exact appearance of the people in this base image.
+  ```
+- **`buildLikenessPreservingRequest`**: Enhanced Identity Lock Protocol with:
+  ```
+  IMPORTANT: The FIRST image is the primary reference photo.
+  Use the exact appearance of the people shown in this base image as the foundation for likeness.
+  ```
+
+**Result**: When a base image is provided, the prompt now automatically tells the model to use the people in that image, eliminating the need for users to manually add this instruction.
+
+---
+
 ### v2.1.0 (2024-12-15) - Likeness Preservation Critical Fix
 
 **Problem Identified**: Users reported generated images not matching their uploaded reference photos. Direct Gemini chat produces perfect likeness, but our app falls back to Imagen 3 (which strips reference images).
