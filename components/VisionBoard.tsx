@@ -221,13 +221,24 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     setReferences(refs);
   };
 
+  // CRITICAL: Helper to clear all image generation state when base image changes
+  // This prevents stale data from persisting and causing truncation/corruption
+  const clearImageGenerationState = useCallback(() => {
+    setResultImage(null);
+    setLikenessValidation(null);
+    setModelUsed(null);
+    setLikenessOptimized(false);
+    setError(null);
+    console.log('Cleared image generation state');
+  }, []);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setBaseImage(reader.result as string);
-        setResultImage(null);
+        clearImageGenerationState(); // Clear all stale state
       };
       reader.readAsDataURL(file);
     }
@@ -278,7 +289,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   // IMPORTANT: Also deselect this reference to prevent duplicate image processing
   const useReferenceAsBase = (ref: ReferenceImage) => {
     setBaseImage(ref.url);
-    setResultImage(null);
+    clearImageGenerationState(); // Clear all stale state
     // Deselect this reference since it's now the base image (prevents duplication)
     setSelectedRefIds(prev => prev.filter(id => id !== ref.id));
     showToast(`Using "${ref.tags.join(', ')}" as base image`, 'success');
@@ -336,11 +347,11 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const useCapturedAsBase = useCallback(() => {
     if (capturedImage) {
       setBaseImage(capturedImage);
-      setResultImage(null);
+      clearImageGenerationState(); // Clear all stale state
       stopCamera();
       showToast('Photo set as base image!', 'success');
     }
-  }, [capturedImage, stopCamera, showToast]);
+  }, [capturedImage, stopCamera, showToast, clearImageGenerationState]);
 
   // Screenshot capture using Screen Capture API
   const captureScreenshot = useCallback(async () => {
@@ -362,7 +373,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         ctx.drawImage(video, 0, 0);
         const imageData = canvas.toDataURL('image/png');
         setBaseImage(imageData);
-        setResultImage(null);
+        clearImageGenerationState(); // Clear all stale state
         showToast('Screenshot captured as base image!', 'success');
       }
 
@@ -372,7 +383,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       console.error('Screenshot error:', err);
       showToast('Screenshot cancelled or not supported.', 'info');
     }
-  }, [showToast]);
+  }, [showToast, clearImageGenerationState]);
 
   // Save current base image to Reference Library
   const saveBaseToLibrary = useCallback(async () => {
@@ -609,10 +620,10 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
   const handleRefine = () => {
     if (resultImage) {
+      // Set the generated result as the new base image for refinement
       setBaseImage(resultImage);
-      setResultImage(null);
-      setBaseImage(resultImage);
-      setResultImage(null);
+      // Clear ALL result/validation state to prevent stale data
+      clearImageGenerationState();
       showToast("Image set as new base. Refine away!", 'info');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
