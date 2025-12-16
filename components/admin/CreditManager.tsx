@@ -59,9 +59,9 @@ const CreditManager: React.FC = () => {
     } else {
       const term = searchTerm.toLowerCase();
       setFilteredUsers(users.filter(u =>
-        u.email.toLowerCase().includes(term) ||
-        u.full_name?.toLowerCase().includes(term) ||
-        u.subscription_tier?.toLowerCase().includes(term)
+        (u.email || '').toLowerCase().includes(term) ||
+        (u.full_name || '').toLowerCase().includes(term) ||
+        (u.subscription_tier || '').toLowerCase().includes(term)
       ));
     }
   }, [searchTerm, users]);
@@ -70,14 +70,33 @@ const CreditManager: React.FC = () => {
     setLoading(true);
     try {
       // Fetch all users with their credit info from profiles
+      // Note: RLS policy "Platform admins can view all profiles" must be applied for this to work
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, credits, subscription_tier, subscription_status, created_at, full_name')
+        .select('id, email, credits, subscription_tier, subscription_status, created_at')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase query error:', error.message, error.details, error.hint);
+        // If RLS blocks the query, we'll get an error or empty results
+        // Show helpful message to admin
+        if (error.code === 'PGRST301' || error.message.includes('permission')) {
+          console.warn('RLS policy may not be applied. Run the admin credit management SQL migration.');
+        }
+        throw error;
+      }
 
-      const usersData = data || [];
+      // Map data to ensure all fields have defaults
+      const usersData: UserWithCredits[] = (data || []).map(u => ({
+        id: u.id,
+        email: u.email || 'Unknown',
+        credits: u.credits ?? 0,
+        subscription_tier: u.subscription_tier || 'FREE',
+        subscription_status: u.subscription_status || 'inactive',
+        created_at: u.created_at,
+        full_name: undefined // Will be populated if available
+      }));
+
       setUsers(usersData);
       setFilteredUsers(usersData);
 
@@ -85,8 +104,8 @@ const CreditManager: React.FC = () => {
       const total = usersData.reduce((sum, u) => sum + (u.credits || 0), 0);
       setTotalCredits(total);
       setAvgCredits(usersData.length > 0 ? Math.round(total / usersData.length) : 0);
-    } catch (err) {
-      console.error('Error loading users:', err);
+    } catch (err: any) {
+      console.error('Error loading users:', err?.message || err);
     } finally {
       setLoading(false);
     }

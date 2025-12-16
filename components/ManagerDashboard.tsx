@@ -33,6 +33,7 @@ interface TeamMember {
   completion_rate: number;
   last_active?: string;
   status: 'active' | 'at_risk' | 'inactive';
+  credits: number;
 }
 
 interface TeamStats {
@@ -141,7 +142,8 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
           .select(`
             *,
             profiles:user_id (
-              email
+              email,
+              credits
             ),
             teams (name)
           `);
@@ -199,7 +201,8 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
           total_habits: member.total_habits || 0,
           completion_rate: member.completion_rate || 0,
           last_active: member.last_active_at,
-          status
+          status,
+          credits: member.profiles?.credits ?? 0
         };
       });
 
@@ -512,6 +515,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
                     <th className="text-left p-4 text-indigo-200 font-medium">Member</th>
                     <th className="text-left p-4 text-indigo-200 font-medium">Role</th>
                     <th className="text-left p-4 text-indigo-200 font-medium">Status</th>
+                    <th className="text-center p-4 text-indigo-200 font-medium">Credits</th>
                     <th className="text-center p-4 text-indigo-200 font-medium">Streak</th>
                     <th className="text-center p-4 text-indigo-200 font-medium">This Week</th>
                     <th className="text-center p-4 text-indigo-200 font-medium">Completion</th>
@@ -537,6 +541,9 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
                       </td>
                       <td className="p-4">{getRoleBadge(member.role)}</td>
                       <td className="p-4">{getStatusBadge(member.status)}</td>
+                      <td className="p-4 text-center">
+                        <span className="font-medium text-white">{member.credits}</span>
+                      </td>
                       <td className="p-4 text-center">
                         <div className="flex items-center justify-center gap-1 text-orange-400">
                           <FireIcon className="w-4 h-4" />
