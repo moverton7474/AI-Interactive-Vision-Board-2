@@ -473,14 +473,17 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     isPremium
   }
 
-  // Build BOTH request strategies
-  // Strategy A: Complex 3-turn conversation (original approach - better for advanced models)
+  // Build ALL request strategies
+  // Strategy A: Natural 3-turn conversation (improved - avoids safety filters)
   const complexRequest = buildLikenessPreservingRequest(requestParams, requestId)
 
   // Strategy B: Simple single-turn (more compatible - fallback for when complex fails)
   const simpleRequest = buildSimpleLikenessRequest(requestParams, requestId)
 
-  console.log(`[${requestId}] Built generation requests: complex=${complexRequest.contents.length} turns, simple=1 turn`)
+  // Strategy C: Ultra-simple (last resort before giving up on Gemini)
+  const ultraSimpleRequest = buildUltraSimpleLikenessRequest(requestParams, requestId)
+
+  console.log(`[${requestId}] Built generation requests: natural=${complexRequest.contents.length} turns, simple=1 turn, ultra-simple=1 turn`)
 
   // Get model configuration
   const modelConfig = getModelConfig()
@@ -494,30 +497,29 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     { id: modelConfig.image_fallback_1, name: 'Fallback (Nano Banana)' },
   ]
 
-  // Try each model with BOTH strategies before moving to next model
+  // Try each model with ALL THREE strategies before moving to next model
   for (const model of modelSequence) {
     console.log(`[${requestId}] Trying ${model.name} (${model.id})...`)
 
-    // Strategy A: Try complex multi-turn prompt first
+    // Strategy A: Try natural multi-turn prompt first
     let result = await tryGeminiImageGenerationV2(apiKey, complexRequest, model.id, requestId)
 
     if (result.success) {
       const imageSize = result.image?.length || 0
-      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=complex_3turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=natural_3turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
       console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
       return successResponse({
         image: result.image,
         model_used: model.id,
-        strategy_used: 'complex_3turn',
+        strategy_used: 'natural_3turn',
         likeness_optimized: true
       }, requestId)
     }
 
     const complexError = result.error || 'Unknown error'
-    console.warn(`[${requestId}] ${model.name} complex prompt failed: ${complexError}`)
+    console.warn(`[${requestId}] ${model.name} natural prompt failed: ${complexError}`)
 
-    // Strategy B: If complex fails, immediately try SIMPLE single-turn on SAME model
-    // This often succeeds when complex fails due to safety filters or format issues
+    // Strategy B: If natural fails, try SIMPLE single-turn on SAME model
     console.log(`[${requestId}] ${model.name} - retrying with SIMPLE single-turn prompt...`)
     result = await tryGeminiImageGenerationV2(apiKey, simpleRequest, model.id, requestId)
 
@@ -533,14 +535,48 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
       }, requestId)
     }
 
-    // Both strategies failed for this model - record error and move to next
     const simpleError = result.error || 'Unknown error'
-    errors[model.id] = `complex: ${complexError} | simple: ${simpleError}`
+    console.warn(`[${requestId}] ${model.name} simple prompt failed: ${simpleError}`)
+
+    // Strategy C: Last try - ULTRA-SIMPLE prompt
+    console.log(`[${requestId}] ${model.name} - final attempt with ULTRA-SIMPLE prompt...`)
+    result = await tryGeminiImageGenerationV2(apiKey, ultraSimpleRequest, model.id, requestId)
+
+    if (result.success) {
+      const imageSize = result.image?.length || 0
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=ultra_simple, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
+      console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
+      return successResponse({
+        image: result.image,
+        model_used: model.id,
+        strategy_used: 'ultra_simple',
+        likeness_optimized: true
+      }, requestId)
+    }
+
+    // All three strategies failed for this model - record error and move to next
+    const ultraSimpleError = result.error || 'Unknown error'
+    errors[model.id] = `natural: ${complexError} | simple: ${simpleError} | ultra: ${ultraSimpleError}`
     console.warn(`[${requestId}] ${model.name} failed all strategies: ${errors[model.id]}`)
   }
 
-  // Last resort: Imagen 3 (no reference image support - likeness WILL be lost)
-  console.warn(`[${requestId}] ⚠️ FALLBACK TO IMAGEN: All Gemini models failed with refs=${referenceImageCount}. Reference images will NOT be used - likeness WILL be lost!`)
+  // CRITICAL: If user has reference images, DO NOT fall back to Imagen
+  // Imagen doesn't support reference images - it would produce random people!
+  const hasReferenceImages = referenceImageCount > 0 || baseImagePresent
+
+  if (hasReferenceImages) {
+    console.error(`[${requestId}] ❌ All Gemini models failed with ${referenceImageCount} reference images. NOT falling back to Imagen to preserve user intent.`)
+
+    // Return helpful error instead of wrong result
+    return errorResponse(
+      'Unable to generate image with your reference photos. All likeness-preserving models are currently unavailable. Please try again in a few moments, or try simplifying your scene description. Your reference photos require Gemini models which support likeness preservation.',
+      503, // Service Unavailable
+      requestId
+    )
+  }
+
+  // Only use Imagen for text-only prompts (no reference images = no likeness needed)
+  console.log(`[${requestId}] No reference images provided - using Imagen 3 for text-only generation`)
 
   const imagenPrompt = buildImagenFallbackPrompt({
     sceneDescription: prompt,
@@ -553,13 +589,12 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 
   const imagenResult = await tryImagenGeneration(apiKey, imagenPrompt, requestId, aspectRatio)
   if (imagenResult.success) {
-    console.log(`[${requestId}] Imagen 3 succeeded (${modelConfig.image_imagen}) - WARNING: No likeness preservation`)
+    console.log(`[${requestId}] Imagen 3 succeeded (${modelConfig.image_imagen}) - text-only mode`)
     return successResponse({
       image: imagenResult.image,
       model_used: modelConfig.image_imagen,
       strategy_used: 'imagen_text_only',
-      likeness_optimized: false,
-      warning: 'Generated with Imagen 3 fallback - likeness may not be preserved. Reference photos were not used.'
+      likeness_optimized: false
     }, requestId)
   }
   errors[modelConfig.image_imagen] = imagenResult.error || 'Unknown error'
@@ -642,8 +677,9 @@ function buildLikenessPreservingRequest(params: LikenessRequestParams, requestId
     : []
 
   // ============================================
-  // TURN 1: Identity Establishment (User)
-  // Introduce ALL reference images with strong identity anchoring
+  // TURN 1: Identity Introduction (User)
+  // REWRITTEN: Natural conversational language instead of robotic commands
+  // Per Google's recommendation: "Describe the scene, don't just list keywords"
   // ============================================
   const turn1Parts: any[] = []
 
@@ -669,40 +705,31 @@ function buildLikenessPreservingRequest(params: LikenessRequestParams, requestId
     })
   })
 
-  // Build comprehensive identity description
-  // CRITICAL: Explicitly mention using people from the base/first image - this dramatically improves likeness
-  let identityText = `IDENTITY LOCK PROTOCOL - READ CAREFULLY:
+  // Build NATURAL LANGUAGE identity description (avoids safety filter triggers)
+  const peopleNames = referenceImageTags.length > 0
+    ? referenceImageTags.join(' and ')
+    : 'these people'
 
-These photos show the EXACT person(s) who MUST appear in all generated images.
-${baseImage ? `\nIMPORTANT: The FIRST image is the primary reference photo. Use the exact appearance of the people shown in this base image as the foundation for likeness.\n` : ''}
-`
+  const totalImageCount = (baseImage ? 1 : 0) + referenceImages.length
 
-  // Add tagged descriptions for each person
-  if (referenceImageTags.length > 0) {
-    identityText += `PEOPLE IN THESE PHOTOS:\n`
-    referenceImageTags.forEach((tag, index) => {
-      const desc = identityDescriptions[index] || ''
-      if (desc) {
-        identityText += `- ${tag}: ${desc}\n`
-      } else {
-        identityText += `- ${tag}\n`
-      }
-    })
-    identityText += `\n`
+  let identityText = `I'm sharing ${totalImageCount} photo(s) of ${peopleNames} so you can see exactly what they look like.`
+
+  if (baseImage) {
+    identityText += ` The first photo is the primary reference - this is who needs to appear in the final image.`
   }
 
-  identityText += `MANDATORY IDENTITY REQUIREMENTS:
-1. FACE: Preserve EXACT facial structure, shape, and proportions. Every facial feature must match.
-2. SKIN: Match skin tone, complexion, and any visible marks/features EXACTLY.
-3. AGE: Keep the SAME age appearance - do NOT make younger or older.
-4. BODY: Preserve body type, height ratio, and build EXACTLY as shown.
-5. FEATURES: Keep hair style/color, glasses, facial hair, or accessories if present.
-6. ETHNICITY: Preserve exact ethnic appearance - do NOT change or generalize.
+  // Add specific feature descriptions (research shows 5-7 features = 41% better retention)
+  if (referenceImageTags.length > 0 && identityDescriptions.length > 0) {
+    identityText += `\n\nHere are the key features to remember for each person:\n`
+    referenceImageTags.forEach((tag, index) => {
+      const desc = identityDescriptions[index]
+      if (desc) {
+        identityText += `- ${tag}: ${desc}\n`
+      }
+    })
+  }
 
-These requirements are ABSOLUTE and override any scene requirements.
-If the scene conflicts with identity preservation, MODIFY THE SCENE, not the people.
-
-Confirm you understand these people and will preserve their exact likeness in any images you generate.`
+  identityText += `\nPlease study these photos carefully. I'll need you to generate an image of ${peopleNames} in a moment, and it's really important that they look exactly like themselves - same face, same skin tone, same build.`
 
   turn1Parts.push({ text: identityText })
 
@@ -712,94 +739,57 @@ Confirm you understand these people and will preserve their exact likeness in an
   })
 
   // ============================================
-  // TURN 2: Model Acknowledgment (Simulated)
-  // This helps reinforce the identity understanding
+  // TURN 2: Model Acknowledgment (Natural)
   // ============================================
-  const peopleNames = referenceImageTags.length > 0
-    ? referenceImageTags.join(' and ')
-    : 'the person(s) shown'
-
-  const totalImageCount = (baseImage ? 1 : 0) + referenceImages.length
-
   contents.push({
     role: 'model',
     parts: [{
-      text: `I have carefully analyzed all ${totalImageCount} reference photo(s) and locked in the identity characteristics of ${peopleNames}.
-
-I will preserve their exact:
-- Facial features and structure
-- Skin tone and complexion
-- Age appearance
-- Body type and proportions
-- Distinctive features (hair, glasses, etc.)
-
-I understand that identity preservation is the HIGHEST PRIORITY and will never substitute generic models or idealized versions. I am ready to generate images with these individuals while maintaining 100% likeness fidelity. What scene would you like me to create?`
+      text: `I've looked at all ${totalImageCount} photos and I have a clear picture of what ${peopleNames} look like. I can see their facial features, skin tone, body type, and any distinctive characteristics. I'll make sure to keep them looking exactly like themselves in any image I create. What scene would you like me to put them in?`
     }]
   })
 
   // ============================================
-  // TURN 3: Scene Generation Request (User)
-  // Now request the actual vision board
+  // TURN 3: Scene Generation (Natural Request)
   // ============================================
-  let sceneInstructions = `Now generate a vision board image with the following scene:
+  let sceneRequest = `Great! Now please create an image showing ${peopleNames} ${sceneDescription}.
 
-${sceneDescription}
-
-CRITICAL REMINDERS:
-- The people in this image MUST be the EXACT same individuals from the reference photos
-- Match their face, skin tone, age, body type, and all distinguishing features PRECISELY
-- If you cannot preserve likeness perfectly, adjust the scene composition instead
-- Do NOT substitute generic models or idealized versions
-- Do NOT change ethnicity, body type, or age appearance
-- KEEP FACE SAME - this is the most important requirement
-`
+Make sure they look exactly like the reference photos - same faces, same skin tones, same body types. This is the most important thing.`
 
   if (titleText) {
-    sceneInstructions += `
-TEXT TO INCLUDE:
-- Display "${titleText}" prominently in elegant typography
-- Position text in a clear area that doesn't obscure the people
-`
+    sceneRequest += `\n\nPlease include the text "${titleText}" in elegant lettering somewhere in the image.`
   }
 
   if (embeddedText) {
-    sceneInstructions += `- Also include: "${embeddedText}"\n`
+    sceneRequest += ` Also add: "${embeddedText}"`
   }
 
   if (style && style !== 'photorealistic') {
-    const styleInstructions: Record<string, string> = {
-      'cinematic': 'Apply cinematic style with dramatic lighting and film-like color grading.',
-      'oil_painting': 'Render in oil painting style while preserving recognizable facial features.',
-      'watercolor': 'Apply soft watercolor aesthetic while maintaining facial likeness accuracy.',
-      'cyberpunk': 'Use cyberpunk neon aesthetic while keeping faces clearly recognizable.',
-      '3d_render': 'Create 3D rendered style while preserving accurate facial proportions and features.'
+    const styleDescriptions: Record<string, string> = {
+      'cinematic': 'Use cinematic lighting and film-like colors',
+      'oil_painting': 'Give it an oil painting look',
+      'watercolor': 'Use a soft watercolor style',
+      'cyberpunk': 'Make it cyberpunk with neon aesthetics',
+      '3d_render': 'Render it in 3D style'
     }
-
-    sceneInstructions += `
-ARTISTIC STYLE: ${styleInstructions[style] || style}
-Note: Apply style to the environment and aesthetic, but DO NOT alter the people's identities or features.
-`
+    sceneRequest += `\n\nFor the style: ${styleDescriptions[style] || style}. But keep the people looking like themselves.`
   }
 
   if (isPremium) {
-    sceneInstructions += `
-QUALITY: Render at highest quality with professional lighting, cinematic composition, and ultra-detailed textures.
-`
+    sceneRequest += `\n\nMake it high quality with professional lighting and lots of detail.`
   }
 
   contents.push({
     role: 'user',
-    parts: [{ text: sceneInstructions }]
+    parts: [{ text: sceneRequest }]
   })
 
-  // Build generation config with improved settings
+  // Build generation config - IMAGE only (per Google docs, TEXT can cause issues)
   const generationConfig: any = {
-    temperature: 0.4, // Lower temperature for more consistent likeness
     maxOutputTokens: 8192,
-    responseModalities: ['IMAGE', 'TEXT']
+    responseModalities: ['IMAGE'] // IMAGE only - matches Gemini chat behavior
   }
 
-  // Add imageConfig for Gemini 3 Pro Image
+  // Add imageConfig for aspect ratio and resolution
   if (aspectRatio || isPremium) {
     generationConfig.imageConfig = {}
 
@@ -812,7 +802,7 @@ QUALITY: Render at highest quality with professional lighting, cinematic composi
     }
   }
 
-  console.log(`[${requestId}] Built ${contents.length}-turn conversation with ${totalImageCount} reference images, temp=${generationConfig.temperature}`)
+  console.log(`[${requestId}] Built NATURAL ${contents.length}-turn conversation with ${totalImageCount} reference images`)
 
   return { contents, generationConfig }
 }
@@ -920,8 +910,8 @@ Make sure the faces and body types match the reference photos exactly - same ski
   parts.push({ text: prompt })
 
   // Build generation config - request IMAGE only (not TEXT) for better results
+  // Note: Temperature is NOT documented for image generation, so we omit it
   const generationConfig: any = {
-    temperature: 0.4, // Low temperature for more consistent likeness
     maxOutputTokens: 8192,
     responseModalities: ['IMAGE'] // Only IMAGE - matches how Gemini chat works
   }
@@ -938,6 +928,74 @@ Make sure the faces and body types match the reference photos exactly - same ski
   }
 
   console.log(`[${requestId}] Built SIMPLE single-turn request with ${totalImages} reference images`)
+
+  return {
+    contents: [{ role: 'user', parts }],
+    generationConfig
+  }
+}
+
+/**
+ * Ultra-Simple Request Builder - Last resort before giving up on Gemini
+ *
+ * This is the most minimal prompt possible:
+ * - All images in one message
+ * - Super short, direct instruction
+ * - No fancy formatting or requirements
+ *
+ * Use this when both complex and simple strategies fail.
+ */
+function buildUltraSimpleLikenessRequest(params: LikenessRequestParams, requestId: string): {
+  contents: any[]
+  generationConfig: any
+} {
+  const {
+    baseImage,
+    referenceImages,
+    referenceImageTags,
+    sceneDescription,
+    titleText,
+    aspectRatio,
+    isPremium
+  } = params
+
+  const parts: any[] = []
+
+  // Add all images
+  if (baseImage) {
+    const data = extractBase64Data(baseImage)
+    parts.push({ inlineData: { mimeType: data.mimeType, data: data.base64 } })
+  }
+
+  referenceImages.forEach((img: string) => {
+    const data = extractBase64Data(img)
+    parts.push({ inlineData: { mimeType: data.mimeType, data: data.base64 } })
+  })
+
+  const totalImages = (baseImage ? 1 : 0) + referenceImages.length
+  const names = referenceImageTags.length > 0 ? referenceImageTags.join(' and ') : 'these people'
+
+  // Ultra-minimal prompt - just the essentials
+  let prompt = `Using these ${totalImages} photos, create an image of ${names} ${sceneDescription}. Keep their faces exactly the same as in the photos.`
+
+  if (titleText) {
+    prompt += ` Add text: "${titleText}".`
+  }
+
+  parts.push({ text: prompt })
+
+  const generationConfig: any = {
+    maxOutputTokens: 8192,
+    responseModalities: ['IMAGE']
+  }
+
+  if (aspectRatio || isPremium) {
+    generationConfig.imageConfig = {}
+    if (aspectRatio) generationConfig.imageConfig.aspectRatio = aspectRatio
+    if (isPremium) generationConfig.imageConfig.imageSize = '2K'
+  }
+
+  console.log(`[${requestId}] Built ULTRA-SIMPLE request with ${totalImages} images`)
 
   return {
     contents: [{ role: 'user', parts }],
