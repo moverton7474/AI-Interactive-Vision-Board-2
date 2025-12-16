@@ -178,6 +178,17 @@ export const editVisionImage = async (
       throw new Error(data?.error || "Generation failed");
     }
 
+    // DIAGNOSTIC: Log raw response data to trace truncation
+    const rawImageLength = data.image?.length || 0;
+    console.log('📊 GEMINI SERVICE - Raw response:', {
+      imageLength: rawImageLength,
+      modelUsed: data.model_used,
+      likenessOptimized: data.likeness_optimized,
+      hasWarning: !!data.warning,
+      imageStartsWith: data.image?.substring(0, 30),
+      imageEndsWith: data.image?.substring(Math.max(0, rawImageLength - 30))
+    });
+
     // Return full result with metadata
     return {
       image: data.image,

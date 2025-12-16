@@ -496,7 +496,9 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     let result = await tryGeminiImageGenerationV2(apiKey, complexRequest, model.id, requestId)
 
     if (result.success) {
-      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=complex_3turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}`)
+      const imageSize = result.image?.length || 0
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=complex_3turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
+      console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
       return successResponse({
         image: result.image,
         model_used: model.id,
@@ -514,7 +516,9 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     result = await tryGeminiImageGenerationV2(apiKey, simpleRequest, model.id, requestId)
 
     if (result.success) {
-      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=simple_single_turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}`)
+      const imageSize = result.image?.length || 0
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=simple_single_turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
+      console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
       return successResponse({
         image: result.image,
         model_used: model.id,

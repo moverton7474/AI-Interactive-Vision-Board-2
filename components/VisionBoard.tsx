@@ -529,6 +529,36 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       );
 
       if (result && result.image) {
+        // DIAGNOSTIC: Log image data details to debug truncation issues
+        const imageData = result.image;
+        const dataLength = imageData.length;
+        const startsCorrectly = imageData.startsWith('data:image/');
+        const hasBase64Marker = imageData.includes(';base64,');
+        const base64Start = imageData.indexOf(';base64,') + 8;
+        const base64Data = hasBase64Marker ? imageData.substring(base64Start) : '';
+        const base64Length = base64Data.length;
+        // Check if base64 ends properly (should be = padded or end cleanly)
+        const endsCorrectly = base64Data.length > 0 && (base64Data.endsWith('=') || base64Data.endsWith('==') || /[A-Za-z0-9+/]$/.test(base64Data));
+
+        console.log('📊 IMAGE DIAGNOSTIC:', {
+          totalLength: dataLength,
+          startsCorrectly,
+          hasBase64Marker,
+          base64Length,
+          endsCorrectly,
+          first50: imageData.substring(0, 50),
+          last50: imageData.substring(Math.max(0, dataLength - 50)),
+          model: result.model_used
+        });
+
+        // Validate image before setting
+        if (!startsCorrectly || !hasBase64Marker) {
+          console.error('❌ Invalid image data format received!');
+        }
+        if (base64Length < 10000) {
+          console.warn('⚠️ Image data seems small - might be truncated. Expected >100KB, got:', base64Length);
+        }
+
         setResultImage(result.image);
         setCurrentPrompt(fullPrompt + (goalText ? ` (Goal: ${goalText})` : '') + (headerText ? ` (Title: ${headerText})` : ''));
 
