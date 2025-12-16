@@ -503,7 +503,10 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       }
 
       const refUrls = dedupedRefs.map(r => r.url);
-      const refTags = dedupedRefs.flatMap(r => r.tags); // Keep as array for proper tagging
+      // CRITICAL FIX: Use only the FIRST tag from each reference (the person's name)
+      // The backend expects one tag per image to match with identity descriptions
+      // Using flatMap was causing tag/description mismatch (12 tags for 5 images!)
+      const refTags = dedupedRefs.map(r => r.tags[0] || 'reference');
 
       // Build identity prompt from selected references with identity descriptions
       const identityPrompt = dedupedRefs
@@ -512,6 +515,22 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         .join('\n\n');
 
       const imagesToProcess = [baseImage, ...refUrls];
+
+      // DIAGNOSTIC: Log what we're sending to verify tag/image alignment
+      console.log('📤 GENERATION REQUEST:', {
+        totalImages: imagesToProcess.length,
+        baseImagePresent: !!baseImage,
+        referenceCount: refUrls.length,
+        tagCount: refTags.length,
+        tags: refTags,
+        hasIdentityPrompt: !!identityPrompt,
+        identityDescriptionCount: dedupedRefs.filter(r => r.identityDescription).length
+      });
+
+      // Warn if mismatch (shouldn't happen after fix)
+      if (refTags.length !== refUrls.length) {
+        console.warn('⚠️ TAG/IMAGE MISMATCH:', refTags.length, 'tags for', refUrls.length, 'reference images');
+      }
 
       // Build the scene prompt (don't append ref info - the backend handles this now)
       let fullPrompt = promptInput;

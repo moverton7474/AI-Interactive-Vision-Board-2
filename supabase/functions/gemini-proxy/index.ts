@@ -450,8 +450,14 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     identityPromptLength: identityLength,
     hasTitle: !!titleText,
     hasEmbeddedText: !!embeddedText,
-    referenceTagCount: referenceImageTags.length
+    referenceTagCount: referenceImageTags.length,
+    tags: referenceImageTags // Log actual tags to debug
   }))
+
+  // DIAGNOSTIC: Warn if tags don't match reference count (indicates frontend bug)
+  if (referenceImageTags.length > 0 && referenceImageTags.length !== referenceImageCount) {
+    console.warn(`[${requestId}] ⚠️ TAG MISMATCH: ${referenceImageTags.length} tags for ${referenceImageCount} reference images! This causes prompt issues.`)
+  }
 
   // Common request params
   const requestParams: LikenessRequestParams = {
