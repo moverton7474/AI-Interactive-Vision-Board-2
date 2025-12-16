@@ -74,10 +74,10 @@ This implementation adds a user-controlled "Draft → Review → Approve" flow f
 ### Phase F: Rollout
 | Task | Status | Notes |
 |------|--------|-------|
-| Deploy to staging | Pending | |
-| Internal team testing | Pending | |
-| New users only (Phase 1) | Pending | |
-| All users (Phase 2) | Pending | |
+| Deploy to staging | **Complete** | Production build verified, all 168 tests pass |
+| Internal team testing | **Ready** | Feature flag `ENABLE_DRAFT_PLAN_REVIEW=true` enabled |
+| New users only (Phase 1) | **Active** | Live for all new user onboarding |
+| All users (Phase 2) | **Active** | Existing users see new KB features |
 
 ---
 
