@@ -27,21 +27,28 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 const getModelConfig = () => {
   const env = typeof Deno !== 'undefined' ? Deno.env : { get: () => undefined }
   return {
-    // Primary: Gemini 2.0 Flash Exp - Best for image generation with reference images
+    // PRIORITY 1: Nano Banana Pro - BEST for likeness preservation (character consistency)
+    // Uses Gemini 2.5 Pro with native image generation
+    image_nano_banana_pro: env.get?.('GOOGLE_IMAGE_MODEL_PRO') || 'gemini-2.5-pro-preview-06-05',
+
+    // PRIORITY 2: Nano Banana Flash - Good balance of speed and likeness
+    // Uses Gemini 2.5 Flash with native image generation
+    image_nano_banana_flash: 'gemini-2.5-flash-preview-05-20',
+
+    // PRIORITY 3: Gemini 2.0 Flash Exp - Reliable fallback
     // Documentation: https://ai.google.dev/gemini-api/docs/image-generation
     image_primary: env.get?.('GOOGLE_IMAGE_MODEL_PRIMARY') || 'gemini-2.0-flash-exp',
 
-    // Fallback 1: Gemini 2.0 Flash (stable version) - If exp fails
+    // PRIORITY 4: Gemini 2.0 Flash (stable version) - If exp fails
     // More stable but may have slightly different behavior
     image_fallback_1: env.get?.('GOOGLE_IMAGE_MODEL_FALLBACK') || 'gemini-2.0-flash',
 
-    // Fallback 2: Gemini 1.5 Pro - Multimodal support as last Gemini fallback
+    // PRIORITY 5: Gemini 1.5 Pro - Multimodal support as last Gemini fallback
     // Older but widely available, uses responseModalities
     image_fallback_2: 'gemini-1.5-pro',
 
-    // Fallback 3: Imagen 3 (different API endpoint)
-    // Last resort - doesn't support reference images for likeness
-    // WARNING: Likeness will NOT be preserved with this model
+    // LAST RESORT: Imagen 3 (different API endpoint)
+    // WARNING: Likeness will NOT be preserved - no reference image support
     image_imagen: 'imagen-3.0-generate-002',
   }
 }
@@ -216,13 +223,15 @@ async function handleDiagnose(apiKey: string, requestId: string) {
   // Get model config for testing
   const modelConfig = getModelConfig()
 
-  // Test each model
+  // Test each model - prioritize Nano Banana Pro for best likeness
   const modelsToTest = [
     { name: MODELS.chat, type: 'chat' },
-    { name: modelConfig.image_primary, type: 'gemini_image', label: 'Nano Banana Pro (Primary)' },
-    { name: modelConfig.image_fallback_1, type: 'gemini_image', label: 'Nano Banana (Fallback 1)' },
-    { name: modelConfig.image_fallback_2, type: 'gemini_image', label: 'Gemini 2.0 Exp (Fallback 2)' },
-    { name: modelConfig.image_imagen, type: 'imagen', label: 'Imagen 3 (Fallback 3)' },
+    { name: modelConfig.image_nano_banana_pro, type: 'gemini_image', label: 'Nano Banana Pro (Priority 1 - Best Likeness)' },
+    { name: modelConfig.image_nano_banana_flash, type: 'gemini_image', label: 'Nano Banana Flash (Priority 2)' },
+    { name: modelConfig.image_primary, type: 'gemini_image', label: 'Gemini 2.0 Flash Exp (Priority 3)' },
+    { name: modelConfig.image_fallback_1, type: 'gemini_image', label: 'Gemini 2.0 Flash (Priority 4)' },
+    { name: modelConfig.image_fallback_2, type: 'gemini_image', label: 'Gemini 1.5 Pro (Priority 5)' },
+    { name: modelConfig.image_imagen, type: 'imagen', label: 'Imagen 3 (Last Resort - No Likeness)' },
   ]
 
   for (const model of modelsToTest) {
@@ -488,9 +497,16 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   const modelConfig = getModelConfig()
   const errors: Record<string, string> = {}
 
-  // Define model sequence to try
-  // Prioritize gemini-2.0-flash-exp as it's currently most reliable for image generation
+  // Define model sequence to try - prioritize Nano Banana Pro for best likeness
+  // Model priority:
+  // 1. Nano Banana Pro (Gemini 2.5 Pro) - BEST likeness preservation
+  // 2. Nano Banana Flash (Gemini 2.5 Flash) - Good balance of speed/likeness
+  // 3. Gemini 2.0 Flash Exp - Reliable fallback
+  // 4. Gemini 2.0 Flash - Stable fallback
+  // 5. Gemini 1.5 Pro - Last Gemini option
   const modelSequence = [
+    { id: modelConfig.image_nano_banana_pro, name: 'Nano Banana Pro (Gemini 2.5 Pro)' },
+    { id: modelConfig.image_nano_banana_flash, name: 'Nano Banana Flash (Gemini 2.5 Flash)' },
     { id: modelConfig.image_primary, name: 'Primary (Gemini 2.0 Flash Exp)' },
     { id: modelConfig.image_fallback_1, name: 'Fallback 1 (Gemini 2.0 Flash)' },
     { id: modelConfig.image_fallback_2, name: 'Fallback 2 (Gemini 1.5 Pro)' },

@@ -1403,6 +1403,16 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
               </button>
             </div>
             <div className="p-4 flex flex-col gap-4 overflow-y-auto h-[calc(100%-60px)]">
+              {/* Pro Tip for Better Likeness (Mobile) */}
+              <div className="bg-gradient-to-r from-gold-50 to-amber-50 p-3 rounded-xl border border-gold-200">
+                <p className="text-[10px] text-navy-700 font-medium mb-1">Pro Tips for Better Likeness:</p>
+                <ul className="text-[9px] text-gray-600 space-y-0.5 list-disc list-inside">
+                  <li>Upload 2-3 photos from different angles</li>
+                  <li>Add identity descriptions (age, build, features)</li>
+                  <li>Select references before generating</li>
+                </ul>
+              </div>
+
               {/* Upload Area */}
               <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
@@ -1510,6 +1520,16 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
 
           {showLibrary && (
             <div className="p-4 flex flex-col gap-4 overflow-y-auto flex-1">
+              {/* Pro Tip for Better Likeness */}
+              <div className="bg-gradient-to-r from-gold-50 to-amber-50 p-3 rounded-xl border border-gold-200">
+                <p className="text-[10px] text-navy-700 font-medium mb-1">Pro Tips for Better Likeness:</p>
+                <ul className="text-[9px] text-gray-600 space-y-0.5 list-disc list-inside">
+                  <li>Upload 2-3 photos from different angles</li>
+                  <li>Add identity descriptions (age, build, features)</li>
+                  <li>Select references before generating</li>
+                </ul>
+              </div>
+
               {/* Upload Area */}
               <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
