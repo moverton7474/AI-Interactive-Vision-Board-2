@@ -783,12 +783,13 @@ Make sure they look exactly like the reference photos - same faces, same skin to
     sceneRequest += `\n\nMake it high quality with professional lighting and lots of detail.`
   }
 
-  // Anti-duplication instruction
-  sceneRequest += `\n\nIMPORTANT: Generate a single cohesive image. Do NOT create:
-- Mirror effects or duplicated layouts
-- Multiple copies of the same person
-- Split or tiled compositions
-- Repeated text elements`
+  // Anti-duplication and face preservation instructions
+  sceneRequest += `\n\nIMPORTANT QUALITY REQUIREMENTS:
+- Generate a single cohesive image (no mirror effects, no duplicates, no tiled layouts)
+- FACE QUALITY: Keep facial features natural and proportional - do NOT warp, stretch, or distort the face
+- Preserve the exact eye shape, nose shape, and mouth from the reference photos
+- Maintain natural facial proportions - no elongation, no compression
+- The face should look like a real photograph, not AI-generated`
 
   contents.push({
     role: 'user',
@@ -926,8 +927,12 @@ Make sure the faces and body types match the reference photos exactly - same ski
     prompt += `\n\nMake it high quality with professional lighting and detail.`
   }
 
-  // Anti-duplication instruction
-  prompt += `\n\nIMPORTANT: Generate a single cohesive image. Do NOT create mirror effects, duplicated layouts, multiple copies of the same person, or repeated text.`
+  // Anti-duplication and face preservation instructions
+  prompt += `\n\nIMPORTANT QUALITY REQUIREMENTS:
+- Single cohesive image (no mirrors, no duplicates, no tiled layouts)
+- FACE QUALITY: Keep facial features natural and proportional - do NOT warp, stretch, or distort the face
+- Preserve exact eye shape, nose shape, and mouth from the reference
+- Maintain natural facial proportions - the face should look like a real photograph`
 
   parts.push({ text: prompt })
 
@@ -996,8 +1001,8 @@ function buildUltraSimpleLikenessRequest(params: LikenessRequestParams, requestI
   const totalImages = (baseImage ? 1 : 0) + referenceImages.length
   const names = referenceImageTags.length > 0 ? referenceImageTags.join(' and ') : 'these people'
 
-  // Ultra-minimal prompt - just the essentials with anti-duplication
-  let prompt = `Using these ${totalImages} photos, create an image of ${names} ${sceneDescription}. Keep their faces exactly the same as in the photos.`
+  // Ultra-minimal prompt - essentials with anti-duplication and face preservation
+  let prompt = `Using these ${totalImages} photos, create an image of ${names} ${sceneDescription}. Keep their faces exactly the same as in the photos - natural proportions, no distortion or warping of facial features.`
 
   // Only add short title text
   const safeTitle = titleText && titleText.length <= 60 ? titleText : null
@@ -1005,8 +1010,8 @@ function buildUltraSimpleLikenessRequest(params: LikenessRequestParams, requestI
     prompt += ` Add "${safeTitle}" at the top of the image.`
   }
 
-  // Critical: prevent duplication even in ultra-simple mode
-  prompt += ` Create ONE single image, no mirroring or duplication.`
+  // Critical: prevent duplication and face distortion
+  prompt += ` Create ONE single image, no mirroring or duplication. The face should look like a real photograph.`
 
   parts.push({ text: prompt })
 
