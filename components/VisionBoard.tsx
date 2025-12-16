@@ -1300,8 +1300,8 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
             {/* Actions Bar */}
             {resultImage && (
               <div className="bg-white p-3 md:p-4 rounded-xl shadow-md border border-gray-100">
-                {/* Mobile: 2 rows of buttons */}
-                <div className="grid grid-cols-3 md:flex md:flex-row md:justify-end gap-2 md:gap-3">
+                {/* Mobile: 2 rows of buttons, Desktop: centered flex wrap */}
+                <div className="grid grid-cols-3 md:flex md:flex-wrap md:justify-center gap-2 md:gap-3">
                   <button
                     onClick={handleSaveToGallery}
                     disabled={isSaving}
