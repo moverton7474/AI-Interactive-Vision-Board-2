@@ -275,9 +275,12 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   };
 
   // Use reference image as base image
+  // IMPORTANT: Also deselect this reference to prevent duplicate image processing
   const useReferenceAsBase = (ref: ReferenceImage) => {
     setBaseImage(ref.url);
     setResultImage(null);
+    // Deselect this reference since it's now the base image (prevents duplication)
+    setSelectedRefIds(prev => prev.filter(id => id !== ref.id));
     showToast(`Using "${ref.tags.join(', ')}" as base image`, 'success');
   };
 
@@ -480,11 +483,19 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     try {
       // Collect selected reference data
       const selectedRefs = references.filter(r => selectedRefIds.includes(r.id));
-      const refUrls = selectedRefs.map(r => r.url);
-      const refTags = selectedRefs.flatMap(r => r.tags); // Keep as array for proper tagging
+
+      // CRITICAL: Filter out any reference that matches the base image URL to prevent duplication
+      // This can happen if a reference was used as base before the deselection fix, or through other edge cases
+      const dedupedRefs = selectedRefs.filter(r => r.url !== baseImage);
+      if (dedupedRefs.length < selectedRefs.length) {
+        console.log('Filtered out duplicate base image from references');
+      }
+
+      const refUrls = dedupedRefs.map(r => r.url);
+      const refTags = dedupedRefs.flatMap(r => r.tags); // Keep as array for proper tagging
 
       // Build identity prompt from selected references with identity descriptions
-      const identityPrompt = selectedRefs
+      const identityPrompt = dedupedRefs
         .map(r => r.identityDescription)
         .filter(Boolean)
         .join('\n\n');
@@ -530,9 +541,9 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         }
 
         // Optional: Run likeness validation if references were used
-        if (selectedRefs.length > 0 && result.likeness_optimized) {
+        if (dedupedRefs.length > 0 && result.likeness_optimized) {
           // Don't block on validation - run it in background
-          runLikenessValidation(refUrls, result.image, selectedRefs.map(r => r.identityDescription || r.tags.join(', ')));
+          runLikenessValidation(refUrls, result.image, dedupedRefs.map(r => r.identityDescription || r.tags.join(', ')));
         }
       } else {
         const errorMsg = "Could not generate image. Please try a different prompt.";
