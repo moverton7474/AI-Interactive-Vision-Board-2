@@ -738,28 +738,34 @@ function buildLikenessPreservingRequest(params: LikenessRequestParams, requestId
   })
 
   // ============================================
-  // TURN 2: Model Acknowledgment (Natural)
+  // TURN 2: Scene Generation Request (User)
+  // NOTE: Removed fake model turn - API doesn't support simulated responses
   // ============================================
-  contents.push({
-    role: 'model',
-    parts: [{
-      text: `I've looked at all ${totalImageCount} photos and I have a clear picture of what ${peopleNames} look like. I can see their facial features, skin tone, body type, and any distinctive characteristics. I'll make sure to keep them looking exactly like themselves in any image I create. What scene would you like me to put them in?`
-    }]
-  })
-
-  // ============================================
-  // TURN 3: Scene Generation (Natural Request)
-  // ============================================
-  let sceneRequest = `Great! Now please create an image showing ${peopleNames} ${sceneDescription}.
+  let sceneRequest = `Now please create an image showing ${peopleNames} ${sceneDescription}.
 
 Make sure they look exactly like the reference photos - same faces, same skin tones, same body types. This is the most important thing.`
 
-  if (titleText) {
-    sceneRequest += `\n\nPlease include the text "${titleText}" in elegant lettering somewhere in the image.`
+  // Text overlay with SPECIFIC placement to avoid duplication
+  // Only render short text - long text gets garbled by image generation
+  const safeTitle = titleText && titleText.length <= 60 ? titleText : null
+  const safeGoal = embeddedText && embeddedText.length <= 40 ? embeddedText : null
+
+  if (safeTitle || safeGoal) {
+    sceneRequest += '\n\nText overlay requirements (render each text ONCE only):'
+    if (safeTitle) {
+      sceneRequest += `\n- At the TOP CENTER of the image, add "${safeTitle}" in large, elegant lettering.`
+    }
+    if (safeGoal) {
+      sceneRequest += `\n- At the BOTTOM CENTER of the image, add "${safeGoal}" in smaller decorative text.`
+    }
   }
 
-  if (embeddedText) {
-    sceneRequest += ` Also add: "${embeddedText}"`
+  // Log if text was too long and skipped
+  if (titleText && !safeTitle) {
+    console.log(`[${requestId}] Title too long (${titleText.length} chars) - skipping image text render to prevent garbling`)
+  }
+  if (embeddedText && !safeGoal) {
+    console.log(`[${requestId}] Goal text too long (${embeddedText.length} chars) - skipping image text render to prevent garbling`)
   }
 
   if (style && style !== 'photorealistic') {
@@ -777,15 +783,22 @@ Make sure they look exactly like the reference photos - same faces, same skin to
     sceneRequest += `\n\nMake it high quality with professional lighting and lots of detail.`
   }
 
+  // Anti-duplication instruction
+  sceneRequest += `\n\nIMPORTANT: Generate a single cohesive image. Do NOT create:
+- Mirror effects or duplicated layouts
+- Multiple copies of the same person
+- Split or tiled compositions
+- Repeated text elements`
+
   contents.push({
     role: 'user',
     parts: [{ text: sceneRequest }]
   })
 
-  // Build generation config - IMAGE only (per Google docs, TEXT can cause issues)
+  // Build generation config - need both TEXT and IMAGE for Gemini to work properly
   const generationConfig: any = {
     maxOutputTokens: 8192,
-    responseModalities: ['TEXT', 'IMAGE'] // Both TEXT and IMAGE - model may output text alongside image
+    responseModalities: ['TEXT', 'IMAGE'] // Both required - IMAGE-only causes model failures
   }
 
   // Add imageConfig for aspect ratio and resolution
@@ -801,7 +814,7 @@ Make sure they look exactly like the reference photos - same faces, same skin to
     }
   }
 
-  console.log(`[${requestId}] Built NATURAL ${contents.length}-turn conversation with ${totalImageCount} reference images`)
+  console.log(`[${requestId}] Built 2-turn conversation with ${totalImageCount} reference images (fake model turn removed)`)
 
   return { contents, generationConfig }
 }
@@ -882,12 +895,19 @@ function buildSimpleLikenessRequest(params: LikenessRequestParams, requestId: st
 
 Make sure the faces and body types match the reference photos exactly - same skin tone, same facial features, same build.${identityDesc}`
 
-  // Add text overlay instructions (natural language)
-  if (titleText) {
-    prompt += `\n\nInclude the text "${titleText}" in elegant typography.`
-  }
-  if (embeddedText) {
-    prompt += ` Also include: "${embeddedText}"`
+  // Text overlay with SPECIFIC placement to avoid duplication
+  // Only render short text - long text gets garbled by image generation
+  const safeTitle = titleText && titleText.length <= 60 ? titleText : null
+  const safeGoal = embeddedText && embeddedText.length <= 40 ? embeddedText : null
+
+  if (safeTitle || safeGoal) {
+    prompt += '\n\nText overlay (render each text ONCE only):'
+    if (safeTitle) {
+      prompt += `\n- At the TOP of the image: "${safeTitle}" in large, elegant lettering.`
+    }
+    if (safeGoal) {
+      prompt += `\n- At the BOTTOM of the image: "${safeGoal}" in smaller decorative text.`
+    }
   }
 
   // Add style instructions (natural language)
@@ -906,13 +926,15 @@ Make sure the faces and body types match the reference photos exactly - same ski
     prompt += `\n\nMake it high quality with professional lighting and detail.`
   }
 
+  // Anti-duplication instruction
+  prompt += `\n\nIMPORTANT: Generate a single cohesive image. Do NOT create mirror effects, duplicated layouts, multiple copies of the same person, or repeated text.`
+
   parts.push({ text: prompt })
 
-  // Build generation config - request IMAGE only (not TEXT) for better results
-  // Note: Temperature is NOT documented for image generation, so we omit it
+  // Build generation config - need both TEXT and IMAGE for Gemini to work properly
   const generationConfig: any = {
     maxOutputTokens: 8192,
-    responseModalities: ['TEXT', 'IMAGE'] // Both TEXT and IMAGE needed for proper generation
+    responseModalities: ['TEXT', 'IMAGE'] // Both required - IMAGE-only causes model failures
   }
 
   // Add imageConfig for aspect ratio and resolution
@@ -974,18 +996,23 @@ function buildUltraSimpleLikenessRequest(params: LikenessRequestParams, requestI
   const totalImages = (baseImage ? 1 : 0) + referenceImages.length
   const names = referenceImageTags.length > 0 ? referenceImageTags.join(' and ') : 'these people'
 
-  // Ultra-minimal prompt - just the essentials
+  // Ultra-minimal prompt - just the essentials with anti-duplication
   let prompt = `Using these ${totalImages} photos, create an image of ${names} ${sceneDescription}. Keep their faces exactly the same as in the photos.`
 
-  if (titleText) {
-    prompt += ` Add text: "${titleText}".`
+  // Only add short title text
+  const safeTitle = titleText && titleText.length <= 60 ? titleText : null
+  if (safeTitle) {
+    prompt += ` Add "${safeTitle}" at the top of the image.`
   }
+
+  // Critical: prevent duplication even in ultra-simple mode
+  prompt += ` Create ONE single image, no mirroring or duplication.`
 
   parts.push({ text: prompt })
 
   const generationConfig: any = {
     maxOutputTokens: 8192,
-    responseModalities: ['TEXT', 'IMAGE']
+    responseModalities: ['TEXT', 'IMAGE'] // Both required - IMAGE-only causes model failures
   }
 
   if (aspectRatio || isPremium) {
