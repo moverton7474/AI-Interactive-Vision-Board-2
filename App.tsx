@@ -676,11 +676,11 @@ const App = () => {
             });
             requestBody.images.push(base64);
 
-            // Include identity description in prompt if available
+            // Include identity description for likeness preservation (use correct param name!)
             if (refData.identity_description) {
-              requestBody.identityDescription = refData.identity_description;
-              // Append identity preservation instruction to prompt
-              requestBody.prompt = `${prompt}\n\nIMPORTANT: The reference photo shows the person who should appear in this vision. Their appearance: ${refData.identity_description}. Preserve their exact likeness, facial features, skin tone, and distinguishing characteristics in the generated image. The person in the output MUST look like the same person in the reference photo.`;
+              requestBody.identityPrompt = refData.identity_description; // Backend expects 'identityPrompt'
+              requestBody.referenceImageTags = ['self']; // Tag for the reference
+              // Don't modify prompt here - backend buildSimpleLikenessRequest handles it naturally
             }
           }
         } catch (refError) {

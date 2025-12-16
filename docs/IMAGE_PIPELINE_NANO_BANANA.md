@@ -315,6 +315,109 @@ validateLikeness(
 
 ## Changelog
 
+### v2.1.0 (2024-12-15) - Likeness Preservation Critical Fix
+
+**Problem Identified**: Users reported generated images not matching their uploaded reference photos. Direct Gemini chat produces perfect likeness, but our app falls back to Imagen 3 (which strips reference images).
+
+**Root Causes Identified**:
+
+1. **Parameter Name Mismatch (Onboarding)**: `App.tsx` sends `identityDescription` but backend expects `identityPrompt`
+2. **Missing Reference Tags (Onboarding)**: No `referenceImageTags` sent during onboarding flow
+3. **Prompt Too Robotic**: Complex "CRITICAL REQUIREMENTS" language triggers safety filters
+4. **Wrong responseModalities**: `['IMAGE', 'TEXT']` should be `['IMAGE']` only
+
+**Implementation Plan**:
+
+#### Phase 1: Fix Backend Prompt Generation (HIGH PRIORITY)
+
+**File**: `supabase/functions/gemini-proxy/index.ts`
+
+| Change | Location | Description |
+|--------|----------|-------------|
+| Fix responseModalities | Line ~911 | Change from `['IMAGE', 'TEXT']` to `['IMAGE']` |
+| Simplify prompt | Lines ~870-905 | Replace robotic language with natural conversational style |
+
+**Before (robotic)**:
+```
+Generate a photorealistic image of ${identityNames}...
+CRITICAL REQUIREMENTS:
+- The people MUST look EXACTLY like...
+```
+
+**After (natural - like Gemini chat)**:
+```
+Use the attached reference photos of ${identityNames} and generate an image of them ${sceneDescription}.
+
+Make sure the faces and body types match the reference photos exactly - same skin tone, same facial features, same build.
+```
+
+#### Phase 2: Fix Onboarding Parameter Mismatch (HIGH PRIORITY)
+
+**File**: `App.tsx`
+
+| Change | Location | Description |
+|--------|----------|-------------|
+| Fix param name | Line ~681 | Change `identityDescription` to `identityPrompt` |
+| Add tags | Line ~682 | Add `referenceImageTags: ['self']` |
+
+#### Phase 3: Improve Onboarding Data Flow (MEDIUM PRIORITY)
+
+**Files**: `VisionGenerationStep.tsx`, `GuidedOnboarding.tsx`
+
+| Change | Description |
+|--------|-------------|
+| Add identityDescription prop | Pass identity description from onboarding state to generation step |
+| Update GuidedOnboarding | Pass `state.identityDescription` to VisionGenerationStep |
+
+#### Phase 4: Enhanced Logging (LOW PRIORITY)
+
+**File**: `supabase/functions/gemini-proxy/index.ts`
+
+| Change | Description |
+|--------|-------------|
+| Success logging | Log model, strategy, reference count, identity prompt presence |
+| Fallback warning | Clear warning when falling back to Imagen (no likeness) |
+
+**User Flow Analysis**:
+
+```
+ONBOARDING FLOW (BROKEN → FIXED):
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ PHOTO_UPLOAD    │ -> │ VISION_CAPTURE  │ -> │ GENERATION      │
+│                 │    │                 │    │                 │
+│ ✅ Captures:    │    │ ✅ Captures:    │    │ ❌ Was missing: │
+│ • Photo         │    │ • Vision text   │    │ • identityPrompt│
+│ • Identity desc │    │                 │    │ • refImageTags  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                     ↓
+                                              ✅ Now passes all
+                                                 required params
+
+
+VISUALIZE CENTER (works correctly):
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ SELECT BASE     │ -> │ SELECT REFS     │ -> │ GENERATE        │
+│                 │    │                 │    │                 │
+│ ✅ Has base     │    │ ✅ Has refs +   │    │ ✅ Sends all:   │
+│    image        │    │    identity     │    │ • identityPrompt│
+│                 │    │    descriptions │    │ • refImageTags  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+**Expected Results**:
+- Onboarding: User uploads photo → Vision board shows THEIR face
+- Visualize: Continues working correctly
+- "Likeness Optimized" badge appears consistently
+- Imagen fallback rarely triggered
+
+**Testing Checklist**:
+- [ ] New user onboarding with selfie → face matches
+- [ ] Visualize center with references → faces match
+- [ ] Supabase logs show Gemini model (not Imagen fallback)
+- [ ] "Likeness Optimized" badge appears
+
+---
+
 ### v2.0.0 (2024-12-11)
 - Upgraded to Nano Banana Pro as primary model
 - Implemented multi-turn conversation structure for likeness

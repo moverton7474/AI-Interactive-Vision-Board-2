@@ -496,7 +496,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     let result = await tryGeminiImageGenerationV2(apiKey, complexRequest, model.id, requestId)
 
     if (result.success) {
-      console.log(`[${requestId}] ${model.name} succeeded with COMPLEX prompt`)
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=complex_3turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}`)
       return successResponse({
         image: result.image,
         model_used: model.id,
@@ -514,7 +514,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     result = await tryGeminiImageGenerationV2(apiKey, simpleRequest, model.id, requestId)
 
     if (result.success) {
-      console.log(`[${requestId}] ${model.name} succeeded with SIMPLE prompt`)
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=simple_single_turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}`)
       return successResponse({
         image: result.image,
         model_used: model.id,
@@ -530,7 +530,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   }
 
   // Last resort: Imagen 3 (no reference image support - likeness WILL be lost)
-  console.log(`[${requestId}] All Gemini models failed - trying Imagen 3 (WARNING: no likeness preservation)`)
+  console.warn(`[${requestId}] ⚠️ FALLBACK TO IMAGEN: All Gemini models failed with refs=${referenceImageCount}. Reference images will NOT be used - likeness WILL be lost!`)
 
   const imagenPrompt = buildImagenFallbackPrompt({
     sceneDescription: prompt,
@@ -868,47 +868,42 @@ function buildSimpleLikenessRequest(params: LikenessRequestParams, requestId: st
     }).join('\n')}`
   }
 
-  let prompt = `Generate a photorealistic image of ${identityNames} ${sceneDescription}.
-${identityDesc}
+  // Build natural conversational prompt (like Gemini chat - avoids triggering safety filters)
+  let prompt = `Use the attached reference photos of ${identityNames} and generate an image of them ${sceneDescription}.
 
-CRITICAL REQUIREMENTS:
-- The people in the generated image MUST look EXACTLY like the people in the attached ${totalImages} reference photo(s)
-- Match their facial features, skin tone, body type, and age PRECISELY
-- Do NOT substitute generic models or idealized versions
-- Do NOT alter ethnicity, body type, or age appearance
-- Preserve any distinctive features (glasses, facial hair, etc.)`
+Make sure the faces and body types match the reference photos exactly - same skin tone, same facial features, same build.${identityDesc}`
 
-  // Add text overlay instructions
+  // Add text overlay instructions (natural language)
   if (titleText) {
-    prompt += `\n\nTEXT TO INCLUDE: Display "${titleText}" prominently in elegant typography.`
+    prompt += `\n\nInclude the text "${titleText}" in elegant typography.`
   }
   if (embeddedText) {
-    prompt += `\nAlso include: "${embeddedText}"`
+    prompt += ` Also include: "${embeddedText}"`
   }
 
-  // Add style instructions
+  // Add style instructions (natural language)
   if (style && style !== 'photorealistic') {
-    const styleInstructions: Record<string, string> = {
-      'cinematic': 'Apply cinematic style with dramatic lighting and film-like color grading.',
-      'oil_painting': 'Render in oil painting style while preserving recognizable facial features.',
-      'watercolor': 'Apply soft watercolor aesthetic while maintaining facial likeness accuracy.',
-      'cyberpunk': 'Use cyberpunk neon aesthetic while keeping faces clearly recognizable.',
-      '3d_render': 'Create 3D rendered style while preserving accurate facial proportions.'
+    const styleDescriptions: Record<string, string> = {
+      'cinematic': 'with cinematic lighting and film-like colors',
+      'oil_painting': 'in oil painting style',
+      'watercolor': 'with soft watercolor aesthetic',
+      'cyberpunk': 'with cyberpunk neon aesthetic',
+      '3d_render': 'in 3D rendered style'
     }
-    prompt += `\n\nARTISTIC STYLE: ${styleInstructions[style] || style}. Apply style to environment/aesthetic only - do NOT alter the people's identities.`
+    prompt += `\n\nStyle: ${styleDescriptions[style] || style}. Keep the people looking like themselves.`
   }
 
   if (isPremium) {
-    prompt += `\n\nQUALITY: Render at highest quality with professional lighting, cinematic composition, and ultra-detailed textures.`
+    prompt += `\n\nMake it high quality with professional lighting and detail.`
   }
 
   parts.push({ text: prompt })
 
-  // Build generation config
+  // Build generation config - request IMAGE only (not TEXT) for better results
   const generationConfig: any = {
     temperature: 0.4, // Low temperature for more consistent likeness
     maxOutputTokens: 8192,
-    responseModalities: ['IMAGE', 'TEXT']
+    responseModalities: ['IMAGE'] // Only IMAGE - matches how Gemini chat works
   }
 
   // Add imageConfig for aspect ratio and resolution
