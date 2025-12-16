@@ -217,11 +217,41 @@ export const validateLikeness = async (
   referenceDescriptions?: string[]
 ): Promise<LikenessValidationResult | null> => {
   try {
+    // Convert any URLs to base64 (Gemini API expects base64, not URLs)
+    const processedReferenceImages: string[] = [];
+    for (const img of referenceImages) {
+      if (!img) continue;
+      let base64Data = img;
+      if (typeof img === 'string' && (img.startsWith('http://') || img.startsWith('https://'))) {
+        base64Data = await urlToBase64(img);
+        if (!base64Data) {
+          console.warn('Failed to convert reference image URL to base64:', img.substring(0, 50));
+          continue;
+        }
+      }
+      processedReferenceImages.push(base64Data);
+    }
+
+    // Also convert generated image if it's a URL
+    let processedGeneratedImage = generatedImage;
+    if (typeof generatedImage === 'string' && (generatedImage.startsWith('http://') || generatedImage.startsWith('https://'))) {
+      processedGeneratedImage = await urlToBase64(generatedImage);
+      if (!processedGeneratedImage) {
+        console.error('Failed to convert generated image URL to base64');
+        return null;
+      }
+    }
+
+    if (processedReferenceImages.length === 0) {
+      console.error('No valid reference images for likeness validation');
+      return null;
+    }
+
     const { data, error } = await supabase.functions.invoke('gemini-proxy', {
       body: {
         action: 'validate_likeness',
-        referenceImages,
-        generatedImage,
+        referenceImages: processedReferenceImages,
+        generatedImage: processedGeneratedImage,
         referenceDescriptions: referenceDescriptions || []
       }
     });
