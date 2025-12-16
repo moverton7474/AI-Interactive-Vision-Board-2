@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { editVisionImage, enhanceVisionPrompt, getVisionSuggestions, fetchUserGoalsAndVision, validateLikeness, VisionGenerationResult, LikenessValidationResult } from '../services/geminiService';
+import { analyzeUserFace } from '../services/ai/identityService';
 import { useToast } from '../components/ToastContext';
 import {
   saveVisionImage,
@@ -509,10 +510,26 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       const refTags = dedupedRefs.map(r => r.tags[0] || 'reference');
 
       // Build identity prompt from selected references with identity descriptions
-      const identityPrompt = dedupedRefs
+      let identityPrompt = dedupedRefs
         .map(r => r.identityDescription)
         .filter(Boolean)
         .join('\n\n');
+
+      // IDENTITY ENGINE: If no identity descriptions provided, auto-analyze the base image
+      // This solves the "Stranger Effect" where generated images don't look like the user
+      if (!identityPrompt && baseImage) {
+        console.log('🔍 No identity description - activating Identity Engine...');
+        showToast("Analyzing your photo for likeness...", "info");
+        try {
+          const autoIdentity = await analyzeUserFace(baseImage);
+          if (autoIdentity) {
+            identityPrompt = autoIdentity;
+            console.log('✅ Identity Engine extracted:', autoIdentity);
+          }
+        } catch (err) {
+          console.warn('⚠️ Identity Engine analysis skipped due to error:', err);
+        }
+      }
 
       const imagesToProcess = [baseImage, ...refUrls];
 
