@@ -13,6 +13,7 @@ import SiteSettingsManager from './admin/SiteSettingsManager';
 import TeamMemberAdmin from './admin/TeamMemberAdmin';
 import TeamCommunications from './admin/TeamCommunications';
 import TeamKnowledgeView from './admin/TeamKnowledgeView';
+import CreditManager from './admin/CreditManager';
 
 interface Props {
   onBack?: () => void;
@@ -60,7 +61,7 @@ interface Team {
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'knowledge' | 'team_admin' | 'site_settings'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'knowledge' | 'team_admin' | 'site_settings' | 'credits'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
@@ -365,6 +366,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             { id: 'communications', label: 'Communications', adminOnly: false, managerOnly: true },
             { id: 'knowledge', label: 'Knowledge Base', adminOnly: true },
             { id: 'team_admin', label: 'Manage Members', adminOnly: true },
+            { id: 'credits', label: 'Credit Management', adminOnly: true },
             { id: 'site_settings', label: 'Site Settings', adminOnly: true },
           ]
             .filter(view => !view.adminOnly || isPlatformAdmin)
@@ -628,6 +630,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         {/* Site Settings View - Platform Admin Only */}
         {activeView === 'site_settings' && isPlatformAdmin && (
           <SiteSettingsManager />
+        )}
+
+        {/* Credit Management View - Platform Admin Only */}
+        {activeView === 'credits' && isPlatformAdmin && (
+          <CreditManager />
         )}
 
         {/* Invite Modal */}
