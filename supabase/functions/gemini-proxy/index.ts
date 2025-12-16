@@ -27,18 +27,17 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 const getModelConfig = () => {
   const env = typeof Deno !== 'undefined' ? Deno.env : { get: () => undefined }
   return {
-    // Primary: Gemini 2.0 Flash Exp - MOST RELIABLE for image generation
-    // This is currently the best working model for image generation with reference images
-    // If you have access to gemini-3-pro-image-preview, set GOOGLE_IMAGE_MODEL_PRIMARY env var
+    // Primary: Gemini 2.0 Flash Exp - Best for image generation with reference images
+    // Documentation: https://ai.google.dev/gemini-api/docs/image-generation
     image_primary: env.get?.('GOOGLE_IMAGE_MODEL_PRIMARY') || 'gemini-2.0-flash-exp',
 
-    // Fallback 1: Gemini 2.5 Flash Image (Nano Banana)
-    // Good balance of speed/quality, supports up to 3 reference images
-    image_fallback_1: env.get?.('GOOGLE_IMAGE_MODEL_FALLBACK') || 'gemini-2.5-flash-preview-05-20',
+    // Fallback 1: Gemini 2.0 Flash (stable version) - If exp fails
+    // More stable but may have slightly different behavior
+    image_fallback_1: env.get?.('GOOGLE_IMAGE_MODEL_FALLBACK') || 'gemini-2.0-flash',
 
-    // Fallback 2: Gemini 2.0 Flash Experimental (older variant)
-    // Older but stable, uses responseModalities
-    image_fallback_2: 'gemini-2.0-flash-exp-image-generation',
+    // Fallback 2: Gemini 1.5 Pro - Multimodal support as last Gemini fallback
+    // Older but widely available, uses responseModalities
+    image_fallback_2: 'gemini-1.5-pro',
 
     // Fallback 3: Imagen 3 (different API endpoint)
     // Last resort - doesn't support reference images for likeness
@@ -492,9 +491,9 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   // Define model sequence to try
   // Prioritize gemini-2.0-flash-exp as it's currently most reliable for image generation
   const modelSequence = [
-    { id: modelConfig.image_primary, name: 'Primary (Nano Banana Pro)' },
-    { id: modelConfig.image_fallback_2, name: 'Gemini 2.0 Flash Exp' }, // Moved up - most reliable
-    { id: modelConfig.image_fallback_1, name: 'Fallback (Nano Banana)' },
+    { id: modelConfig.image_primary, name: 'Primary (Gemini 2.0 Flash Exp)' },
+    { id: modelConfig.image_fallback_1, name: 'Fallback 1 (Gemini 2.0 Flash)' },
+    { id: modelConfig.image_fallback_2, name: 'Fallback 2 (Gemini 1.5 Pro)' },
   ]
 
   // Try each model with ALL THREE strategies before moving to next model
@@ -786,7 +785,7 @@ Make sure they look exactly like the reference photos - same faces, same skin to
   // Build generation config - IMAGE only (per Google docs, TEXT can cause issues)
   const generationConfig: any = {
     maxOutputTokens: 8192,
-    responseModalities: ['IMAGE'] // IMAGE only - matches Gemini chat behavior
+    responseModalities: ['TEXT', 'IMAGE'] // Both TEXT and IMAGE - model may output text alongside image
   }
 
   // Add imageConfig for aspect ratio and resolution
@@ -913,7 +912,7 @@ Make sure the faces and body types match the reference photos exactly - same ski
   // Note: Temperature is NOT documented for image generation, so we omit it
   const generationConfig: any = {
     maxOutputTokens: 8192,
-    responseModalities: ['IMAGE'] // Only IMAGE - matches how Gemini chat works
+    responseModalities: ['TEXT', 'IMAGE'] // Both TEXT and IMAGE needed for proper generation
   }
 
   // Add imageConfig for aspect ratio and resolution
@@ -986,7 +985,7 @@ function buildUltraSimpleLikenessRequest(params: LikenessRequestParams, requestI
 
   const generationConfig: any = {
     maxOutputTokens: 8192,
-    responseModalities: ['IMAGE']
+    responseModalities: ['TEXT', 'IMAGE']
   }
 
   if (aspectRatio || isPremium) {
