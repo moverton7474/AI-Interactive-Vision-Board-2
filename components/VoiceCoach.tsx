@@ -102,6 +102,8 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
   const [themeName, setThemeName] = useState<string>('AMIE');
   const [demoMode, setDemoMode] = useState(false);
   const [demoResponseIndex, setDemoResponseIndex] = useState(0);
+  const [autoListen, setAutoListen] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -283,9 +285,41 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
 
       // Speak response if speech synthesis available
       if ('speechSynthesis' in window && aiResponse) {
+        setIsSpeaking(true);
         const utterance = new SpeechSynthesisUtterance(aiResponse);
         utterance.rate = 0.9;
         utterance.pitch = 1;
+
+        // Try to use a natural voice
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v =>
+          v.name.includes('Samantha') ||
+          v.name.includes('Google') ||
+          v.name.includes('Microsoft')
+        );
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
+        }
+
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          // Auto-listen after AI speaks if enabled
+          if (autoListen && recognitionRef.current && activeSession) {
+            setTimeout(() => {
+              try {
+                recognitionRef.current.start();
+                setIsListening(true);
+              } catch (err) {
+                console.log('Could not auto-start listening');
+              }
+            }, 500);
+          }
+        };
+
+        utterance.onerror = () => {
+          setIsSpeaking(false);
+        };
+
         window.speechSynthesis.speak(utterance);
       }
     } catch (err: any) {
@@ -610,6 +644,33 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
               {error}
             </div>
           )}
+
+          {/* Auto-listen toggle and Speaking indicator */}
+          <div className="flex items-center justify-between mb-3">
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoListen}
+                onChange={(e) => setAutoListen(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-navy-600 focus:ring-navy-500"
+              />
+              Auto-listen after response
+            </label>
+            {isSpeaking && (
+              <button
+                type="button"
+                onClick={() => {
+                  window.speechSynthesis.cancel();
+                  setIsSpeaking(false);
+                }}
+                className="text-xs px-3 py-1 bg-purple-100 text-purple-700 rounded-full flex items-center gap-1 hover:bg-purple-200"
+              >
+                <span className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                Speaking... (tap to stop)
+              </button>
+            )}
+          </div>
+
           <div className="flex items-end gap-2">
             <div className="flex-1 relative">
               <textarea
@@ -619,15 +680,16 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
                 placeholder="Type or use voice..."
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-navy-500 focus:border-navy-500 resize-none"
                 rows={1}
-                disabled={isProcessing}
+                disabled={isProcessing || isSpeaking}
               />
               {recognitionRef.current && (
                 <button
                   onClick={toggleListening}
+                  disabled={isSpeaking}
                   className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-colors ${
                     isListening
                       ? 'bg-red-100 text-red-600'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -639,7 +701,7 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
             </div>
             <button
               onClick={sendMessage}
-              disabled={!inputText.trim() || isProcessing}
+              disabled={!inputText.trim() || isProcessing || isSpeaking}
               className="p-3 bg-navy-900 text-white rounded-xl hover:bg-navy-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
