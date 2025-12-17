@@ -271,6 +271,26 @@ export default function NotificationSettings() {
                     <h3 className="text-lg font-semibold text-white mb-4">Communication Channels</h3>
 
                     <div className="space-y-4">
+                        {/* Phone Number Input */}
+                        <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700 mb-4">
+                            <label className="block text-sm font-medium text-white mb-2">📱 Phone Number</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="tel"
+                                    placeholder="+1 (555) 123-4567"
+                                    value={prefs?.phone_number || ''}
+                                    onChange={(e) => setPrefs(prev => prev ? ({ ...prev, phone_number: e.target.value }) : null)}
+                                    className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                                {prefs?.phone_verified && (
+                                    <span className="flex items-center gap-1 px-3 py-2 bg-green-900/30 text-green-400 rounded-lg text-xs font-medium">
+                                        ✓ Verified
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2">Used for SMS reminders and voice calls from your AI Coach</p>
+                        </div>
+
                         <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-green-500/20 rounded-full text-green-400">
@@ -291,6 +311,29 @@ export default function NotificationSettings() {
                                 <option value="primary">Primary</option>
                                 <option value="secondary">Disabled</option>
                             </select>
+                        </div>
+
+                        {/* Voice Calls Channel */}
+                        <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-500/20 rounded-full text-purple-400">
+                                    📞
+                                </div>
+                                <div>
+                                    <div className="text-sm font-medium text-white">Voice Calls</div>
+                                    <div className="text-xs text-slate-400">Receive automated coaching calls from AMIE</div>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    aria-label="Enable voice calls"
+                                    checked={prefs?.call_enabled || false}
+                                    onChange={(e) => setPrefs(prev => prev ? ({ ...prev, call_enabled: e.target.checked }) : null)}
+                                />
+                                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                            </label>
                         </div>
 
                         <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
@@ -315,8 +358,27 @@ export default function NotificationSettings() {
                             </select>
                         </div>
 
-                        <div className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                            ℹ️ Updates to phone number must be done in Account Settings.
+                        {/* Voice Coach In-App */}
+                        <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-500/20 rounded-full text-indigo-400">
+                                    🎙️
+                                </div>
+                                <div>
+                                    <div className="text-sm font-medium text-white">Voice Coach (In-App)</div>
+                                    <div className="text-xs text-slate-400">Enable microphone for in-app voice sessions</div>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    aria-label="Enable in-app voice coach"
+                                    checked={prefs?.voice_enabled !== false}
+                                    onChange={(e) => setPrefs(prev => prev ? ({ ...prev, voice_enabled: e.target.checked }) : null)}
+                                />
+                                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                            </label>
                         </div>
                     </div>
                 </div>

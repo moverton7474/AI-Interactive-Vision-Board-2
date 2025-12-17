@@ -39,6 +39,7 @@ const ImageLibraryIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 import PrintOrderModal from './PrintOrderModal';
 import SubscriptionModal from './SubscriptionModal'; // Import subscription modal
+import VoiceCoachWidget from './VoiceCoachWidget'; // Voice Coach floating widget
 
 // Granular tags that can be combined
 const PRESET_TAGS = [
@@ -87,6 +88,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showSubModal, setShowSubModal] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
+  const [showVoiceCoach, setShowVoiceCoach] = useState(false);
 
   // Reference Library State - collapsed by default on mobile
   const [showLibrary, setShowLibrary] = useState(false);
@@ -95,6 +97,7 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const [newRefTag, setNewRefTag] = useState('');
   const [newRefIdentityDesc, setNewRefIdentityDesc] = useState('');
   const [isRefUploading, setIsRefUploading] = useState(false);
+  const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState(false);
 
   // Credit State
   const [credits, setCredits] = useState<number | null>(null);
@@ -233,6 +236,13 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     console.log('Cleared image generation state');
   }, []);
 
+  // Clear/remove base image handler
+  const clearBaseImage = useCallback(() => {
+    setBaseImage(null);
+    clearImageGenerationState();
+    showToast('Base image removed', 'info');
+  }, [clearImageGenerationState, showToast]);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -254,17 +264,38 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         const base64 = reader.result as string;
         try {
           const tags = newRefTag ? [newRefTag] : ['reference'];
+
+          // AUTO-ANALYSIS: If user didn't provide identity description, analyze the photo
+          let finalIdentityDesc = newRefIdentityDesc;
+          if (!finalIdentityDesc) {
+            setIsAnalyzingPhoto(true);
+            showToast('Analyzing photo for identity features...', 'info');
+            try {
+              const autoIdentity = await analyzeUserFace(base64);
+              if (autoIdentity) {
+                finalIdentityDesc = autoIdentity;
+                console.log('✅ Auto-analyzed identity:', autoIdentity);
+              }
+            } catch (analysisErr) {
+              console.warn('⚠️ Auto-analysis failed, saving without identity:', analysisErr);
+            } finally {
+              setIsAnalyzingPhoto(false);
+            }
+          }
+
           // Pass identity description for likeness preservation
-          await saveReferenceImage(base64, tags, newRefIdentityDesc || undefined);
+          await saveReferenceImage(base64, tags, finalIdentityDesc || undefined);
           setNewRefTag('');
           setNewRefIdentityDesc('');
           await loadReferences();
-          const hasIdentity = newRefIdentityDesc ? ' with identity description' : '';
+
+          const hasIdentity = finalIdentityDesc ? ' with AI-detected identity' : '';
           showToast(`Reference added to library${hasIdentity}`, 'success');
         } catch (e) {
           showToast("Failed to upload reference", 'error');
         } finally {
           setIsRefUploading(false);
+          setIsAnalyzingPhoto(false);
         }
       };
       reader.readAsDataURL(file);
@@ -1022,6 +1053,17 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                 {baseImage && (
                   <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
                     <img src={baseImage} alt="Base" className="w-full h-32 object-cover" />
+                    {/* Clear/Remove Button - Top Right */}
+                    <button
+                      type="button"
+                      onClick={clearBaseImage}
+                      className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-md transition-colors z-10"
+                      title="Remove base image"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-between p-2">
                       <span className="text-white text-xs font-medium">Base Image Loaded</span>
                       <button
@@ -1433,12 +1475,16 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                     onChange={(e) => setNewRefIdentityDesc(e.target.value)}
                   />
                 </div>
-                <label className="block w-full text-center bg-white border border-gray-200 hover:border-gold-500 rounded-lg py-2 cursor-pointer transition-colors">
+                <label className={`block w-full text-center border rounded-lg py-2 transition-colors ${isAnalyzingPhoto ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:border-gold-500 cursor-pointer'}`}>
                   <span className="text-xs font-medium text-navy-900 flex items-center justify-center gap-1">
-                    {isRefUploading ? <div className="w-3 h-3 border-2 border-gray-300 border-t-navy-900 rounded-full animate-spin" /> : <PlusIcon className="w-3 h-3" />}
-                    Upload Ref
+                    {isRefUploading || isAnalyzingPhoto ? (
+                      <div className="w-3 h-3 border-2 border-gray-300 border-t-navy-900 rounded-full animate-spin" />
+                    ) : (
+                      <PlusIcon className="w-3 h-3" />
+                    )}
+                    {isAnalyzingPhoto ? 'Analyzing...' : isRefUploading ? 'Uploading...' : 'Upload Ref'}
                   </span>
-                  <input type="file" className="hidden" accept="image/*" onChange={handleReferenceUpload} disabled={isRefUploading} />
+                  <input type="file" className="hidden" accept="image/*" onChange={handleReferenceUpload} disabled={isRefUploading || isAnalyzingPhoto} />
                 </label>
               </div>
 
@@ -1552,12 +1598,16 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
                   />
                   <p className="text-[9px] text-gray-400 mt-1">Describe physical features for better likeness</p>
                 </div>
-                <label className="block w-full text-center bg-white border border-gray-200 hover:border-gold-500 rounded-lg py-2 cursor-pointer transition-colors">
+                <label className={`block w-full text-center border rounded-lg py-2 transition-colors ${isAnalyzingPhoto ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:border-gold-500 cursor-pointer'}`}>
                   <span className="text-xs font-medium text-navy-900 flex items-center justify-center gap-1">
-                    {isRefUploading ? <div className="w-3 h-3 border-2 border-gray-300 border-t-navy-900 rounded-full animate-spin" /> : <PlusIcon className="w-3 h-3" />}
-                    Upload Ref
+                    {isRefUploading || isAnalyzingPhoto ? (
+                      <div className="w-3 h-3 border-2 border-gray-300 border-t-navy-900 rounded-full animate-spin" />
+                    ) : (
+                      <PlusIcon className="w-3 h-3" />
+                    )}
+                    {isAnalyzingPhoto ? 'Analyzing...' : isRefUploading ? 'Uploading...' : 'Upload Ref'}
                   </span>
-                  <input type="file" className="hidden" accept="image/*" onChange={handleReferenceUpload} disabled={isRefUploading} />
+                  <input type="file" className="hidden" accept="image/*" onChange={handleReferenceUpload} disabled={isRefUploading || isAnalyzingPhoto} />
                 </label>
               </div>
 
@@ -1637,6 +1687,33 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
             </div>
           )}
         </div>
+      </div>
+
+      {/* Floating Voice Coach Widget */}
+      <div className="fixed bottom-4 right-4 z-50">
+        {showVoiceCoach ? (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowVoiceCoach(false)}
+              className="absolute -top-2 -right-2 z-10 w-6 h-6 bg-slate-800 text-white rounded-full flex items-center justify-center text-xs hover:bg-slate-900 transition-colors shadow-md"
+            >
+              ✕
+            </button>
+            <div className="w-80 md:w-96 shadow-2xl rounded-2xl overflow-hidden">
+              <VoiceCoachWidget />
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowVoiceCoach(true)}
+            className="group w-14 h-14 bg-gradient-to-br from-purple-600 to-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+            title="Talk to AMIE"
+          >
+            <MicIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
+          </button>
+        )}
       </div>
 
     </div>

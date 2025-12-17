@@ -33,7 +33,7 @@ serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 
     // All actions require authentication
     const authHeader = req.headers.get('Authorization')
@@ -84,9 +84,9 @@ serve(async (req) => {
       case 'start':
         return await startSession(supabase, userId, body)
       case 'process':
-        return await processTranscript(supabase, userId, body, OPENAI_API_KEY)
+        return await processTranscript(supabase, userId, body, GEMINI_API_KEY)
       case 'end':
-        return await endSession(supabase, userId, body, OPENAI_API_KEY)
+        return await endSession(supabase, userId, body, GEMINI_API_KEY)
       case 'list':
         return await listSessions(supabase, userId, url.searchParams)
       case 'get':
@@ -198,7 +198,7 @@ async function startSession(supabase: any, userId: string, body: any) {
 /**
  * Process transcript and generate AI response
  */
-async function processTranscript(supabase: any, userId: string, body: any, openaiKey: string) {
+async function processTranscript(supabase: any, userId: string, body: any, geminiKey: string) {
   const { sessionId, transcript, isPartial = false } = body
 
   if (!sessionId || !transcript) {
@@ -289,33 +289,40 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
     }))
   ]
 
-  // Generate AI response
+  // Generate AI response using Gemini
   let aiResponse = ''
   let sentiment = 0.5
 
-  if (openaiKey) {
+  if (geminiKey) {
     try {
-      const completion = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages,
-          max_tokens: 300,
-          temperature: 0.7
-        })
-      })
+      // Convert messages to Gemini format
+      const geminiContents = messages.map((msg: any) => ({
+        role: msg.role === 'assistant' ? 'model' : msg.role === 'system' ? 'user' : 'user',
+        parts: [{ text: msg.role === 'system' ? `[System Instructions]: ${msg.content}` : msg.content }]
+      }))
 
-      const result = await completion.json()
-      aiResponse = result.choices?.[0]?.message?.content || ''
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: geminiContents,
+            generationConfig: {
+              maxOutputTokens: 300,
+              temperature: 0.7
+            }
+          })
+        }
+      )
+
+      const result = await geminiResponse.json()
+      aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
       // Simple sentiment analysis based on keywords
       sentiment = analyzeSentiment(transcript)
     } catch (err) {
-      console.error('OpenAI error:', err)
+      console.error('Gemini error:', err)
       aiResponse = generateFallbackResponse(session.session_type, theme)
     }
   } else {
@@ -352,7 +359,7 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
 /**
  * End session and generate summary
  */
-async function endSession(supabase: any, userId: string, body: any, openaiKey: string) {
+async function endSession(supabase: any, userId: string, body: any, geminiKey: string) {
   const { sessionId } = body
 
   if (!sessionId) {
@@ -385,12 +392,12 @@ async function endSession(supabase: any, userId: string, body: any, openaiKey: s
   const transcript = session.transcript || []
   const userMessages = transcript.filter((t: any) => t.role === 'user' && !t.isPartial)
 
-  // Extract key topics and action items
+  // Extract key topics and action items using Gemini
   let keyTopics: string[] = []
   let actionItems: string[] = []
   let sessionSummary = ''
 
-  if (openaiKey && userMessages.length > 0) {
+  if (geminiKey && userMessages.length > 0) {
     try {
       const summaryPrompt = `Analyze this voice coaching session and extract:
 1. Key topics discussed (max 5)
@@ -400,29 +407,33 @@ async function endSession(supabase: any, userId: string, body: any, openaiKey: s
 Session transcript:
 ${transcript.map((t: any) => `${t.role}: ${t.content}`).join('\n')}
 
-Respond in JSON format:
+Respond in JSON format only, no markdown:
 {
   "keyTopics": ["topic1", "topic2"],
   "actionItems": ["action1", "action2"],
   "summary": "Brief summary here"
 }`
 
-      const completion = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: summaryPrompt }],
-          max_tokens: 500,
-          temperature: 0.3
-        })
-      })
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }],
+            generationConfig: {
+              maxOutputTokens: 500,
+              temperature: 0.3
+            }
+          })
+        }
+      )
 
-      const result = await completion.json()
-      const content = result.choices?.[0]?.message?.content || ''
+      const result = await geminiResponse.json()
+      let content = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+
+      // Clean up potential markdown code blocks
+      content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
 
       try {
         const parsed = JSON.parse(content)

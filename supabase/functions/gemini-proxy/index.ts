@@ -512,6 +512,54 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     { id: modelConfig.image_fallback_2, name: 'Fallback 2 (Gemini 1.5 Pro)' },
   ]
 
+  // Collect all reference images for likeness validation
+  const allReferenceImages: string[] = []
+  if (requestParams.baseImage) allReferenceImages.push(requestParams.baseImage)
+  allReferenceImages.push(...requestParams.referenceImages)
+
+  // Helper function to validate likeness and retry if needed
+  const validateAndRetryIfNeeded = async (
+    image: string,
+    modelId: string,
+    strategyName: string
+  ): Promise<{ image: string; likenessScore?: number; wasRetried: boolean }> => {
+    // Skip validation if no reference images
+    if (allReferenceImages.length === 0) {
+      return { image, wasRetried: false }
+    }
+
+    // Quick likeness check
+    const validation = await quickLikenessCheck(apiKey, allReferenceImages, image, requestId)
+    console.log(`[${requestId}] Likeness validation: score=${validation.score}, shouldRetry=${validation.shouldRetry}`)
+
+    if (!validation.shouldRetry) {
+      return { image, likenessScore: validation.score, wasRetried: false }
+    }
+
+    // Likeness is low - retry with maximum likeness prompt
+    console.log(`[${requestId}] ⚠️ Low likeness score (${validation.score}). Retrying with MAX LIKENESS prompt...`)
+    const retryRequest = buildMaxLikenessRetryRequest(requestParams, requestId)
+    const retryResult = await tryGeminiImageGenerationV2(apiKey, retryRequest, modelId, requestId)
+
+    if (retryResult.success && retryResult.image) {
+      // Validate the retry result too
+      const retryValidation = await quickLikenessCheck(apiKey, allReferenceImages, retryResult.image, requestId)
+      console.log(`[${requestId}] Retry likeness score: ${retryValidation.score} (original: ${validation.score})`)
+
+      // Use retry image if it's better, otherwise keep original
+      if (retryValidation.score > validation.score) {
+        console.log(`[${requestId}] ✅ Retry improved likeness! Using retry image.`)
+        return { image: retryResult.image, likenessScore: retryValidation.score, wasRetried: true }
+      } else {
+        console.log(`[${requestId}] ⚠️ Retry didn't improve likeness. Keeping original.`)
+        return { image, likenessScore: validation.score, wasRetried: true }
+      }
+    }
+
+    console.log(`[${requestId}] ⚠️ Retry generation failed. Keeping original image.`)
+    return { image, likenessScore: validation.score, wasRetried: true }
+  }
+
   // Try each model with ALL THREE strategies before moving to next model
   for (const model of modelSequence) {
     console.log(`[${requestId}] Trying ${model.name} (${model.id})...`)
@@ -519,15 +567,21 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     // Strategy A: Try natural multi-turn prompt first
     let result = await tryGeminiImageGenerationV2(apiKey, complexRequest, model.id, requestId)
 
-    if (result.success) {
+    if (result.success && result.image) {
       const imageSize = result.image?.length || 0
       console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=natural_3turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
       console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
+
+      // Validate likeness and retry if score is low
+      const validated = await validateAndRetryIfNeeded(result.image, model.id, 'natural_3turn')
+
       return successResponse({
-        image: result.image,
+        image: validated.image,
         model_used: model.id,
-        strategy_used: 'natural_3turn',
-        likeness_optimized: true
+        strategy_used: validated.wasRetried ? 'natural_3turn+max_likeness_retry' : 'natural_3turn',
+        likeness_optimized: true,
+        likeness_score: validated.likenessScore,
+        was_retried: validated.wasRetried
       }, requestId)
     }
 
@@ -538,15 +592,21 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     console.log(`[${requestId}] ${model.name} - retrying with SIMPLE single-turn prompt...`)
     result = await tryGeminiImageGenerationV2(apiKey, simpleRequest, model.id, requestId)
 
-    if (result.success) {
+    if (result.success && result.image) {
       const imageSize = result.image?.length || 0
       console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=simple_single_turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
       console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
+
+      // Validate likeness and retry if score is low
+      const validated = await validateAndRetryIfNeeded(result.image, model.id, 'simple_single_turn')
+
       return successResponse({
-        image: result.image,
+        image: validated.image,
         model_used: model.id,
-        strategy_used: 'simple_single_turn',
-        likeness_optimized: true
+        strategy_used: validated.wasRetried ? 'simple_single_turn+max_likeness_retry' : 'simple_single_turn',
+        likeness_optimized: true,
+        likeness_score: validated.likenessScore,
+        was_retried: validated.wasRetried
       }, requestId)
     }
 
@@ -557,15 +617,21 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     console.log(`[${requestId}] ${model.name} - final attempt with ULTRA-SIMPLE prompt...`)
     result = await tryGeminiImageGenerationV2(apiKey, ultraSimpleRequest, model.id, requestId)
 
-    if (result.success) {
+    if (result.success && result.image) {
       const imageSize = result.image?.length || 0
       console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=ultra_simple, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
       console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
+
+      // Validate likeness and retry if score is low
+      const validated = await validateAndRetryIfNeeded(result.image, model.id, 'ultra_simple')
+
       return successResponse({
-        image: result.image,
+        image: validated.image,
         model_used: model.id,
-        strategy_used: 'ultra_simple',
-        likeness_optimized: true
+        strategy_used: validated.wasRetried ? 'ultra_simple+max_likeness_retry' : 'ultra_simple',
+        likeness_optimized: true,
+        likeness_score: validated.likenessScore,
+        was_retried: validated.wasRetried
       }, requestId)
     }
 
@@ -1043,6 +1109,182 @@ function buildUltraSimpleLikenessRequest(params: LikenessRequestParams, requestI
   }
 
   console.log(`[${requestId}] Built ULTRA-SIMPLE request with ${totalImages} images`)
+
+  return {
+    contents: [{ role: 'user', parts }],
+    generationConfig
+  }
+}
+
+/**
+ * Quick Likeness Score Check
+ *
+ * Performs a fast validation to check if the generated image matches reference photos.
+ * Returns a score from 0-1, where:
+ * - 1.0 = Perfect match
+ * - 0.7+ = Good likeness
+ * - 0.5-0.7 = Moderate likeness (may need retry)
+ * - <0.5 = Poor likeness (should retry)
+ *
+ * This is a lightweight check that runs in the background after initial generation.
+ */
+async function quickLikenessCheck(
+  apiKey: string,
+  referenceImages: string[],
+  generatedImage: string,
+  requestId: string
+): Promise<{ score: number; shouldRetry: boolean; reason?: string }> {
+  // If no reference images, skip validation
+  if (!referenceImages || referenceImages.length === 0) {
+    return { score: 1.0, shouldRetry: false }
+  }
+
+  try {
+    const parts: any[] = []
+
+    // Add first reference image only (for speed)
+    const refData = extractBase64Data(referenceImages[0])
+    parts.push({
+      inlineData: { mimeType: refData.mimeType, data: refData.base64 }
+    })
+    parts.push({ text: 'Reference photo of the person to match:' })
+
+    // Add generated image
+    const genData = extractBase64Data(generatedImage)
+    parts.push({
+      inlineData: { mimeType: genData.mimeType, data: genData.base64 }
+    })
+    parts.push({ text: 'Generated image:' })
+
+    // Quick evaluation prompt
+    parts.push({
+      text: `Rate the facial similarity between the person in the Reference photo and the Generated image.
+Score from 0.0 to 1.0 where:
+- 1.0 = Same person, perfect match
+- 0.7 = Recognizable as same person
+- 0.5 = Somewhat similar
+- 0.3 = Different person but similar features
+- 0.0 = Completely different person
+
+Respond with ONLY a JSON object: {"score": <number>, "reason": "<brief reason>"}`
+    })
+
+    const response = await callGeminiAPI(apiKey, MODELS.likeness_validator, {
+      contents: [{ parts }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 150,
+        responseMimeType: 'application/json'
+      }
+    }, requestId)
+
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+    const result = JSON.parse(text)
+    const score = typeof result.score === 'number' ? result.score : 0.5
+
+    console.log(`[${requestId}] Quick likeness check: score=${score}, reason=${result.reason || 'N/A'}`)
+
+    return {
+      score,
+      shouldRetry: score < 0.6, // Retry if below 0.6
+      reason: result.reason
+    }
+  } catch (error: any) {
+    console.warn(`[${requestId}] Quick likeness check failed: ${error.message}. Skipping retry.`)
+    return { score: 0.7, shouldRetry: false, reason: 'Validation error - using original' }
+  }
+}
+
+/**
+ * Build Maximum Likeness Retry Request
+ *
+ * When initial generation has low likeness score, this builds an aggressive
+ * retry prompt with MAXIMUM emphasis on face preservation.
+ */
+function buildMaxLikenessRetryRequest(params: LikenessRequestParams, requestId: string): {
+  contents: any[]
+  generationConfig: any
+} {
+  const {
+    baseImage,
+    referenceImages,
+    referenceImageTags,
+    identityPrompt,
+    sceneDescription,
+    titleText,
+    aspectRatio,
+    isPremium
+  } = params
+
+  const parts: any[] = []
+
+  // Add base image first
+  if (baseImage) {
+    const data = extractBase64Data(baseImage)
+    parts.push({ inlineData: { mimeType: data.mimeType, data: data.base64 } })
+  }
+
+  // Add reference images
+  referenceImages.forEach((img: string) => {
+    const data = extractBase64Data(img)
+    parts.push({ inlineData: { mimeType: data.mimeType, data: data.base64 } })
+  })
+
+  const totalImages = (baseImage ? 1 : 0) + referenceImages.length
+  const names = referenceImageTags.length > 0 ? referenceImageTags.join(' and ') : 'this person'
+
+  // MAXIMUM LIKENESS prompt - very aggressive face preservation
+  let prompt = `*** CRITICAL FACE MATCHING REQUIRED ***
+
+These ${totalImages} photos show ${names}. Generate an image of EXACTLY this person in this scene: ${sceneDescription}
+
+MANDATORY REQUIREMENTS (FAILURE IS NOT AN OPTION):
+1. The FACE must be an EXACT COPY of the reference photos
+   - Same exact eye shape, eye color, eye spacing
+   - Same exact nose shape and size
+   - Same exact mouth shape and lip fullness
+   - Same exact face shape (round, oval, square, etc.)
+   - Same exact jawline and chin
+
+2. The SKIN must match EXACTLY
+   - Same skin tone (do NOT lighten or darken)
+   - Same complexion and any visible features
+
+3. The BODY TYPE must be IDENTICAL
+   - Same build (slim/medium/heavy)
+   - Same proportions
+   - Do NOT idealize or change the body
+
+4. The AGE must be the SAME
+   - Do NOT make them look younger or older`
+
+  // Add identity description if provided
+  if (identityPrompt) {
+    prompt += `\n\nIdentity description: ${identityPrompt}`
+  }
+
+  // Add title if short enough
+  const safeTitle = titleText && titleText.length <= 50 ? titleText : null
+  if (safeTitle) {
+    prompt += `\n\nAdd "${safeTitle}" at the top.`
+  }
+
+  prompt += `\n\nGenerate ONE single high-quality image. The person MUST be immediately recognizable as the same person from the reference photos. This is a RETRY because the first attempt did not match well enough.`
+
+  parts.push({ text: prompt })
+
+  const generationConfig: any = {
+    maxOutputTokens: 8192,
+    responseModalities: ['TEXT', 'IMAGE']
+  }
+
+  if (aspectRatio || isPremium) {
+    generationConfig.imageConfig = {}
+    if (aspectRatio) generationConfig.imageConfig.aspectRatio = aspectRatio
+    if (isPremium) generationConfig.imageConfig.imageSize = '2K'
+  }
+
+  console.log(`[${requestId}] Built MAXIMUM LIKENESS retry request`)
 
   return {
     contents: [{ role: 'user', parts }],
