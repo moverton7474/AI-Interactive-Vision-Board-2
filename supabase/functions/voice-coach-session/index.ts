@@ -108,26 +108,38 @@ serve(async (req) => {
  * Get team AI settings for guardrails
  */
 async function getTeamAISettings(supabase: any, userId: string): Promise<any> {
-  // Get user's team
-  const { data: teamMember } = await supabase
-    .from('team_members')
-    .select('team_id')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .single()
+  try {
+    // Get user's team
+    const { data: teamMember } = await supabase
+      .from('team_members')
+      .select('team_id')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single()
 
-  if (!teamMember?.team_id) {
-    return null // No team = no guardrails
+    if (!teamMember?.team_id) {
+      return null // No team = no guardrails
+    }
+
+    // Get team AI settings (table may not exist yet)
+    const { data: settings, error } = await supabase
+      .from('team_ai_settings')
+      .select('*')
+      .eq('team_id', teamMember.team_id)
+      .single()
+
+    // If table doesn't exist or no settings, return null (no guardrails)
+    if (error) {
+      console.log('AI settings not available:', error.message)
+      return null
+    }
+
+    return settings
+  } catch (err) {
+    // Gracefully handle missing table or other errors
+    console.log('Error fetching AI settings, proceeding without guardrails:', err)
+    return null
   }
-
-  // Get team AI settings
-  const { data: settings } = await supabase
-    .from('team_ai_settings')
-    .select('*')
-    .eq('team_id', teamMember.team_id)
-    .single()
-
-  return settings
 }
 
 /**
@@ -187,6 +199,7 @@ function checkContentGuardrails(transcript: string, settings: any): { allowed: b
  * Check if sentiment triggers an alert
  */
 async function checkSentimentAlert(supabase: any, userId: string, sentiment: number, settings: any, sessionId: string) {
+  // Skip if no settings or sentiment alerts disabled
   if (!settings?.enable_sentiment_alerts) {
     return
   }
@@ -194,37 +207,46 @@ async function checkSentimentAlert(supabase: any, userId: string, sentiment: num
   const threshold = settings.sentiment_alert_threshold || 0.3
 
   if (sentiment < threshold) {
-    // Get user's team
-    const { data: teamMember } = await supabase
-      .from('team_members')
-      .select('team_id')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single()
+    try {
+      // Get user's team
+      const { data: teamMember } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single()
 
-    if (teamMember?.team_id) {
-      // Create engagement alert
-      await supabase
-        .from('engagement_alerts')
-        .insert({
-          team_id: teamMember.team_id,
-          user_id: userId,
-          alert_type: 'low_sentiment',
-          severity: sentiment < 0.2 ? 'high' : 'medium',
-          title: 'Low sentiment detected in voice session',
-          description: `User's voice coaching session showed sentiment score of ${(sentiment * 100).toFixed(0)}%, which is below the team threshold of ${(threshold * 100).toFixed(0)}%.`,
-          metadata: {
-            session_id: sessionId,
-            sentiment_score: sentiment,
-            threshold: threshold
-          }
-        })
+      if (teamMember?.team_id) {
+        // Create engagement alert (table may not exist yet)
+        const { error } = await supabase
+          .from('engagement_alerts')
+          .insert({
+            team_id: teamMember.team_id,
+            user_id: userId,
+            alert_type: 'low_sentiment',
+            severity: sentiment < 0.2 ? 'high' : 'medium',
+            title: 'Low sentiment detected in voice session',
+            description: `User's voice coaching session showed sentiment score of ${(sentiment * 100).toFixed(0)}%, which is below the team threshold of ${(threshold * 100).toFixed(0)}%.`,
+            metadata: {
+              session_id: sessionId,
+              sentiment_score: sentiment,
+              threshold: threshold
+            }
+          })
 
-      // If crisis escalation email is configured and sentiment is very low
-      if (sentiment < 0.2 && settings.crisis_escalation_email) {
-        // Log for potential email notification (would trigger in separate function)
-        console.log(`Crisis alert: Low sentiment ${sentiment} for user ${userId}, escalation email: ${settings.crisis_escalation_email}`)
+        if (error) {
+          console.log('Could not create sentiment alert:', error.message)
+        }
+
+        // If crisis escalation email is configured and sentiment is very low
+        if (sentiment < 0.2 && settings.crisis_escalation_email) {
+          // Log for potential email notification (would trigger in separate function)
+          console.log(`Crisis alert: Low sentiment ${sentiment} for user ${userId}, escalation email: ${settings.crisis_escalation_email}`)
+        }
       }
+    } catch (err) {
+      // Gracefully handle missing table
+      console.log('Error creating sentiment alert:', err)
     }
   }
 }
