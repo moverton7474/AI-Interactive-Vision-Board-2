@@ -500,48 +500,70 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
       for (const part of parts) {
         if (part.functionCall) {
           console.log('Function call detected:', part.functionCall)
-          const { name, args } = part.functionCall
+          const name = part.functionCall?.name
+          const args = part.functionCall?.args || {}
 
-          // Execute the tool with guardrails
-          const toolResult = await executeAgentTool(supabase, userId, name, args, aiSettings)
-          actionsPerformed.push({ tool: name, args, result: toolResult })
+          // Validate function call has required data
+          if (!name) {
+            console.error('Function call missing name:', part.functionCall)
+            aiResponse = "I understood you want me to take an action, but I couldn't determine what to do. Could you please clarify?"
+            continue
+          }
+
+          // Execute the tool with guardrails - wrapped in try-catch
+          let toolResult
+          try {
+            toolResult = await executeAgentTool(supabase, userId, name, args, aiSettings)
+            actionsPerformed.push({ tool: name, args, result: toolResult })
+          } catch (toolError: any) {
+            console.error('Tool execution error:', toolError)
+            toolResult = { success: false, error: toolError.message || 'Tool execution failed' }
+          }
 
           // Get Gemini to respond based on tool result
-          const followUpContents = [
-            ...geminiContents,
-            {
-              role: 'model',
-              parts: [{ functionCall: part.functionCall }]
-            },
-            {
-              role: 'function',
-              parts: [{
-                functionResponse: {
-                  name: name,
-                  response: toolResult
-                }
-              }]
-            }
-          ]
+          try {
+            const followUpContents = [
+              ...geminiContents,
+              {
+                role: 'model',
+                parts: [{ functionCall: part.functionCall }]
+              },
+              {
+                role: 'function',
+                parts: [{
+                  functionResponse: {
+                    name: name,
+                    response: toolResult
+                  }
+                }]
+              }
+            ]
 
-          const followUpResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${geminiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: followUpContents,
-                generationConfig: {
-                  maxOutputTokens: 300,
-                  temperature: 0.7
-                }
-              })
-            }
-          )
+            const followUpResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${geminiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: followUpContents,
+                  generationConfig: {
+                    maxOutputTokens: 300,
+                    temperature: 0.7
+                  }
+                })
+              }
+            )
 
-          const followUpResult = await followUpResponse.json()
-          aiResponse = followUpResult.candidates?.[0]?.content?.parts?.[0]?.text ||
-            `Done! I've ${name.replace('_', ' ')} for you.`
+            const followUpResult = await followUpResponse.json()
+            aiResponse = followUpResult.candidates?.[0]?.content?.parts?.[0]?.text ||
+              (toolResult.success ? `Done! I've ${name.replace(/_/g, ' ')} for you.` : `I tried to ${name.replace(/_/g, ' ')}, but encountered an issue: ${toolResult.error || 'Unknown error'}`)
+          } catch (followUpError: any) {
+            console.error('Follow-up Gemini error:', followUpError)
+            // Generate response based on tool result
+            aiResponse = toolResult.success
+              ? `Done! I've ${name.replace(/_/g, ' ')} for you. ${toolResult.message || ''}`
+              : `I tried to ${name.replace(/_/g, ' ')}, but encountered an issue: ${toolResult.error || 'Please try again.'}`
+          }
         } else if (part.text) {
           aiResponse = part.text
         }
@@ -1058,7 +1080,17 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
 
   switch (toolName) {
     case 'send_email': {
-      const { to, subject, body } = args
+      const to = args?.to
+      const subject = args?.subject
+      const body = args?.body
+
+      // Validate required args
+      if (!to || !subject || !body) {
+        return {
+          success: false,
+          error: `Missing required information. I need: ${!to ? 'email address, ' : ''}${!subject ? 'subject, ' : ''}${!body ? 'message body' : ''}`.replace(/, $/, '')
+        }
+      }
 
       // Check if sending to team or specific email
       if (to.toLowerCase() === 'team') {
@@ -1135,7 +1167,18 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
     }
 
     case 'create_task': {
-      const { title, description, due_date, priority } = args
+      const title = args?.title
+      const description = args?.description
+      const due_date = args?.due_date
+      const priority = args?.priority
+
+      // Validate required args
+      if (!title) {
+        return {
+          success: false,
+          error: 'I need a title for the task. What should I call it?'
+        }
+      }
 
       // Get user's primary vision to associate task
       const { data: vision } = await supabase
@@ -1175,38 +1218,105 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
     }
 
     case 'schedule_reminder': {
-      const { message, when } = args
+      const message = args?.message
+      const when = args?.when
+
+      // Validate required args
+      if (!message || !when) {
+        return {
+          success: false,
+          error: `I need ${!message ? 'a message for the reminder' : ''}${!message && !when ? ' and ' : ''}${!when ? 'when to send it' : ''}`
+        }
+      }
 
       // Parse the "when" into a timestamp
       const scheduledFor = parseReminderTime(when)
 
-      // Create scheduled notification
-      const { data: reminder, error } = await supabase
-        .from('scheduled_checkins')
-        .insert({
-          user_id: userId,
-          checkin_type: 'custom',
-          scheduled_for: scheduledFor.toISOString(),
-          channel: 'push', // or 'email' or 'sms'
-          status: 'pending',
-          content: { message }
-        })
-        .select()
-        .single()
+      // Create scheduled notification - use action_steps as fallback if scheduled_checkins doesn't exist
+      try {
+        const { data: reminder, error } = await supabase
+          .from('scheduled_checkins')
+          .insert({
+            user_id: userId,
+            checkin_type: 'custom',
+            scheduled_for: scheduledFor.toISOString(),
+            channel: 'push',
+            status: 'pending',
+            content: { message }
+          })
+          .select()
+          .single()
 
-      if (error) {
-        return { success: false, error: error.message }
-      }
+        if (error) {
+          // If table doesn't exist, create as a task instead
+          if (error.message.includes('does not exist') || error.code === '42P01') {
+            const { data: task, error: taskError } = await supabase
+              .from('action_steps')
+              .insert({
+                user_id: userId,
+                title: `Reminder: ${message}`,
+                description: `Scheduled reminder for ${scheduledFor.toLocaleString()}`,
+                due_date: scheduledFor.toISOString().split('T')[0],
+                priority: 'medium',
+                status: 'pending'
+              })
+              .select()
+              .single()
 
-      return {
-        success: true,
-        message: `Reminder scheduled for ${scheduledFor.toLocaleString()}: "${message}"`,
-        reminderId: reminder.id
+            if (taskError) {
+              return { success: false, error: taskError.message }
+            }
+
+            return {
+              success: true,
+              message: `Reminder created as task for ${scheduledFor.toLocaleString()}: "${message}"`,
+              taskId: task.id
+            }
+          }
+          return { success: false, error: error.message }
+        }
+
+        return {
+          success: true,
+          message: `Reminder scheduled for ${scheduledFor.toLocaleString()}: "${message}"`,
+          reminderId: reminder.id
+        }
+      } catch (err: any) {
+        // Fallback: create as task
+        const { data: task, error: taskError } = await supabase
+          .from('action_steps')
+          .insert({
+            user_id: userId,
+            title: `Reminder: ${message}`,
+            description: `Scheduled reminder for ${scheduledFor.toLocaleString()}`,
+            due_date: scheduledFor.toISOString().split('T')[0],
+            priority: 'medium',
+            status: 'pending'
+          })
+          .select()
+          .single()
+
+        if (taskError) {
+          return { success: false, error: taskError.message }
+        }
+
+        return {
+          success: true,
+          message: `Reminder saved as task for ${scheduledFor.toLocaleString()}: "${message}"`,
+          taskId: task.id
+        }
       }
     }
 
     case 'get_user_data': {
-      const { data_type } = args
+      const data_type = args?.data_type
+
+      if (!data_type) {
+        return {
+          success: false,
+          error: 'I need to know what data you want to see. Options are: goals, habits, tasks, progress, or vision.'
+        }
+      }
 
       switch (data_type) {
         case 'goals': {
