@@ -93,6 +93,17 @@ interface TeamMemberForSelect {
   status: string;
 }
 
+interface CommunicationTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  subject_template: string;
+  body_html_template: string;
+  variables: string[];
+  is_system: boolean;
+}
+
 interface Props {
   teamId: string;
   teamName: string;
@@ -150,6 +161,12 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
   // Detail view state
   const [selectedCommunication, setSelectedCommunication] = useState<Communication | null>(null);
   const [communicationDetail, setCommunicationDetail] = useState<any>(null);
+
+  // Template state
+  const [savedTemplates, setSavedTemplates] = useState<CommunicationTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
   const PAGE_SIZE = 10;
 
@@ -258,6 +275,62 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     }
   }, [teamId, recipientFilter]);
 
+  // Load saved templates
+  const loadTemplates = useCallback(async () => {
+    setLoadingTemplates(true);
+    try {
+      // Load system templates and team-specific templates
+      const { data, error } = await supabase
+        .from('communication_templates')
+        .select('*')
+        .or(`team_id.is.null,team_id.eq.${teamId}`)
+        .eq('is_active', true)
+        .order('is_system', { ascending: false })
+        .order('usage_count', { ascending: false });
+
+      if (error) throw error;
+
+      setSavedTemplates((data || []).map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        category: t.category,
+        subject_template: t.subject_template,
+        body_html_template: t.body_html_template,
+        variables: t.variables || [],
+        is_system: t.is_system
+      })));
+    } catch (err) {
+      console.error('Error loading templates:', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, [teamId]);
+
+  // Apply selected template
+  const applyTemplate = (template: CommunicationTemplate) => {
+    setSubject(template.subject_template);
+    setMessageHtml(template.body_html_template);
+    setSelectedTemplate(template.id);
+    setShowTemplateSelector(false);
+
+    // Map template category to templateType
+    const categoryMap: Record<string, TemplateType> = {
+      recognition: 'recognition',
+      reminder: 'reminder',
+      motivation: 'announcement',
+      milestone: 'recognition',
+      custom: 'custom'
+    };
+    setTemplateType(categoryMap[template.category] || 'custom');
+
+    // Increment usage count
+    supabase
+      .from('communication_templates')
+      .update({ usage_count: supabase.rpc('increment', { x: 1 }) })
+      .eq('id', template.id);
+  };
+
   // Load communication detail - using direct Supabase query
   const loadCommunicationDetail = useCallback(async (commId: string) => {
     try {
@@ -285,8 +358,9 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
   useEffect(() => {
     if (viewMode === 'compose') {
       loadEligibleRecipients();
+      loadTemplates();
     }
-  }, [viewMode, recipientFilter, loadEligibleRecipients]);
+  }, [viewMode, recipientFilter, loadEligibleRecipients, loadTemplates]);
 
   useEffect(() => {
     if (selectedCommunication) {
@@ -669,13 +743,108 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
             Send a message to {teamName} members
           </p>
         </div>
-        <button
-          onClick={() => setViewMode('list')}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-        >
-          <XMarkIcon className="w-6 h-6 text-indigo-300" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowTemplateSelector(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-sm transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+            </svg>
+            Use Template
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <XMarkIcon className="w-6 h-6 text-indigo-300" />
+          </button>
+        </div>
       </div>
+
+      {/* Template Selector Modal */}
+      {showTemplateSelector && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-2xl p-6 max-w-2xl w-full border border-white/20 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-xl font-semibold text-white">Choose a Template</h4>
+              <button
+                type="button"
+                onClick={() => setShowTemplateSelector(false)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                title="Close"
+                aria-label="Close template selector"
+              >
+                <XMarkIcon className="w-5 h-5 text-indigo-300" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 space-y-3">
+              {loadingTemplates ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto"></div>
+                  <p className="text-indigo-200 mt-4">Loading templates...</p>
+                </div>
+              ) : savedTemplates.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-indigo-200">No templates available</p>
+                  <p className="text-indigo-300 text-sm mt-2">Templates will be available once the database is updated.</p>
+                </div>
+              ) : (
+                savedTemplates.map((template) => (
+                  <button
+                    type="button"
+                    key={template.id}
+                    onClick={() => applyTemplate(template)}
+                    className={`w-full p-4 rounded-xl border text-left transition-all hover:bg-white/10 ${
+                      selectedTemplate === template.id
+                        ? 'bg-indigo-500/20 border-indigo-500'
+                        : 'bg-white/5 border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h5 className="text-white font-medium">{template.name}</h5>
+                          {template.is_system && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                              System
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 capitalize">
+                            {template.category}
+                          </span>
+                        </div>
+                        {template.description && (
+                          <p className="text-indigo-200 text-sm mb-2">{template.description}</p>
+                        )}
+                        <p className="text-indigo-300 text-xs truncate">
+                          Subject: {template.subject_template}
+                        </p>
+                        {template.variables.length > 0 && (
+                          <p className="text-indigo-400 text-xs mt-1">
+                            Variables: {template.variables.map(v => `{{${v}}}`).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-white/10 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowTemplateSelector(false)}
+                className="px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Success Message */}
       {successMessage && (

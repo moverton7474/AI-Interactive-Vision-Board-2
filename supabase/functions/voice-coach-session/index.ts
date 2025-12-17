@@ -105,6 +105,131 @@ serve(async (req) => {
 })
 
 /**
+ * Get team AI settings for guardrails
+ */
+async function getTeamAISettings(supabase: any, userId: string): Promise<any> {
+  // Get user's team
+  const { data: teamMember } = await supabase
+    .from('team_members')
+    .select('team_id')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .single()
+
+  if (!teamMember?.team_id) {
+    return null // No team = no guardrails
+  }
+
+  // Get team AI settings
+  const { data: settings } = await supabase
+    .from('team_ai_settings')
+    .select('*')
+    .eq('team_id', teamMember.team_id)
+    .single()
+
+  return settings
+}
+
+/**
+ * Check guardrails for session start
+ */
+async function checkSessionGuardrails(supabase: any, userId: string, settings: any): Promise<{ allowed: boolean; reason?: string }> {
+  if (!settings) {
+    return { allowed: true }
+  }
+
+  // Check daily session limit
+  if (settings.max_sessions_per_day) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const { count } = await supabase
+      .from('voice_coach_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('started_at', today.toISOString())
+
+    if (count >= settings.max_sessions_per_day) {
+      return {
+        allowed: false,
+        reason: `Daily session limit reached (${settings.max_sessions_per_day} sessions). Please try again tomorrow.`
+      }
+    }
+  }
+
+  return { allowed: true }
+}
+
+/**
+ * Check content guardrails for blocked topics
+ */
+function checkContentGuardrails(transcript: string, settings: any): { allowed: boolean; reason?: string; blockedTopic?: string } {
+  if (!settings?.blocked_topics || settings.blocked_topics.length === 0) {
+    return { allowed: true }
+  }
+
+  const lowerTranscript = transcript.toLowerCase()
+
+  for (const topic of settings.blocked_topics) {
+    if (lowerTranscript.includes(topic.toLowerCase())) {
+      return {
+        allowed: false,
+        reason: `This topic has been restricted by team policy. Let's focus on something else.`,
+        blockedTopic: topic
+      }
+    }
+  }
+
+  return { allowed: true }
+}
+
+/**
+ * Check if sentiment triggers an alert
+ */
+async function checkSentimentAlert(supabase: any, userId: string, sentiment: number, settings: any, sessionId: string) {
+  if (!settings?.enable_sentiment_alerts) {
+    return
+  }
+
+  const threshold = settings.sentiment_alert_threshold || 0.3
+
+  if (sentiment < threshold) {
+    // Get user's team
+    const { data: teamMember } = await supabase
+      .from('team_members')
+      .select('team_id')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single()
+
+    if (teamMember?.team_id) {
+      // Create engagement alert
+      await supabase
+        .from('engagement_alerts')
+        .insert({
+          team_id: teamMember.team_id,
+          user_id: userId,
+          alert_type: 'low_sentiment',
+          severity: sentiment < 0.2 ? 'high' : 'medium',
+          title: 'Low sentiment detected in voice session',
+          description: `User's voice coaching session showed sentiment score of ${(sentiment * 100).toFixed(0)}%, which is below the team threshold of ${(threshold * 100).toFixed(0)}%.`,
+          metadata: {
+            session_id: sessionId,
+            sentiment_score: sentiment,
+            threshold: threshold
+          }
+        })
+
+      // If crisis escalation email is configured and sentiment is very low
+      if (sentiment < 0.2 && settings.crisis_escalation_email) {
+        // Log for potential email notification (would trigger in separate function)
+        console.log(`Crisis alert: Low sentiment ${sentiment} for user ${userId}, escalation email: ${settings.crisis_escalation_email}`)
+      }
+    }
+  }
+}
+
+/**
  * Start a new voice coaching session
  */
 async function startSession(supabase: any, userId: string, body: any) {
@@ -118,6 +243,14 @@ async function startSession(supabase: any, userId: string, body: any) {
   const validTypes = ['morning_routine', 'check_in', 'reflection', 'goal_setting', 'celebration', 'accountability', 'crisis_support']
   if (!validTypes.includes(sessionType)) {
     throw new Error(`Invalid sessionType. Valid types: ${validTypes.join(', ')}`)
+  }
+
+  // Check guardrails
+  const aiSettings = await getTeamAISettings(supabase, userId)
+  const guardrailCheck = await checkSessionGuardrails(supabase, userId, aiSettings)
+
+  if (!guardrailCheck.allowed) {
+    throw new Error(guardrailCheck.reason || 'Session not allowed by team policy')
   }
 
   // Get user's AMIE profile and theme
@@ -219,6 +352,23 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
 
   if (session.ended_at) {
     throw new Error('Session has already ended')
+  }
+
+  // Get AI settings for guardrails
+  const aiSettings = await getTeamAISettings(supabase, userId)
+
+  // Check content guardrails for blocked topics
+  const contentCheck = checkContentGuardrails(transcript, aiSettings)
+  if (!contentCheck.allowed) {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        response: contentCheck.reason,
+        blocked: true,
+        blockedTopic: contentCheck.blockedTopic
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   // Update transcript history
@@ -330,8 +480,8 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
           console.log('Function call detected:', part.functionCall)
           const { name, args } = part.functionCall
 
-          // Execute the tool
-          const toolResult = await executeAgentTool(supabase, userId, name, args)
+          // Execute the tool with guardrails
+          const toolResult = await executeAgentTool(supabase, userId, name, args, aiSettings)
           actionsPerformed.push({ tool: name, args, result: toolResult })
 
           // Get Gemini to respond based on tool result
@@ -404,6 +554,9 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
       sentiment_score: sentiment
     })
     .eq('id', sessionId)
+
+  // Check sentiment and create alert if below threshold
+  await checkSentimentAlert(supabase, userId, sentiment, aiSettings, sessionId)
 
   return new Response(
     JSON.stringify({
@@ -850,10 +1003,36 @@ function getGeminiTools() {
 }
 
 /**
- * Execute agent tool based on function call
+ * Execute agent tool based on function call with guardrails
  */
-async function executeAgentTool(supabase: any, userId: string, toolName: string, args: any): Promise<any> {
+async function executeAgentTool(supabase: any, userId: string, toolName: string, args: any, aiSettings?: any): Promise<any> {
   console.log(`Executing tool: ${toolName}`, args)
+
+  // Check agentic capability guardrails
+  if (aiSettings) {
+    switch (toolName) {
+      case 'send_email':
+        if (aiSettings.allow_send_email === false) {
+          return { success: false, error: 'Email sending has been disabled by team policy.' }
+        }
+        break
+      case 'create_task':
+        if (aiSettings.allow_create_tasks === false) {
+          return { success: false, error: 'Task creation has been disabled by team policy.' }
+        }
+        break
+      case 'schedule_reminder':
+        if (aiSettings.allow_schedule_reminders === false) {
+          return { success: false, error: 'Reminder scheduling has been disabled by team policy.' }
+        }
+        break
+    }
+
+    // Check if confirmation is required (log for now, could be expanded)
+    if (aiSettings.require_confirmation) {
+      console.log(`Action ${toolName} would require confirmation in strict mode`)
+    }
+  }
 
   switch (toolName) {
     case 'send_email': {
