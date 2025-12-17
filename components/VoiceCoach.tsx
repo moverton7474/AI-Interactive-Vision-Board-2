@@ -118,27 +118,63 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
+      recognitionRef.current.continuous = true; // Keep listening even with pauses
       recognitionRef.current.interimResults = true;
       recognitionRef.current.lang = 'en-US';
+      recognitionRef.current.maxAlternatives = 1;
+
+      let finalTranscript = '';
+      let silenceTimer: any = null;
 
       recognitionRef.current.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
-          .join('');
-        setInputText(transcript);
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript = transcript;
+          }
+        }
+
+        // Update input with both final and interim results
+        setInputText((finalTranscript + interimTranscript).trim());
+
+        // Reset silence timer - give user 3 seconds of silence before stopping
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+          if (recognitionRef.current && isListening) {
+            // Don't auto-stop, let user click button to send
+            // But we could implement auto-send here if desired
+          }
+        }, 3000);
       };
 
       recognitionRef.current.onend = () => {
-        setIsListening(false);
+        // If continuous mode ends unexpectedly and we're still supposed to be listening, restart
+        if (isListening && !isSpeaking) {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {
+            setIsListening(false);
+            finalTranscript = '';
+          }
+        } else {
+          setIsListening(false);
+          finalTranscript = '';
+        }
       };
 
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
-        setIsListening(false);
+        // Only stop if it's a real error, not just no-speech
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          setIsListening(false);
+        }
       };
     }
-  }, []);
+  }, [isListening, isSpeaking]);
 
   const fetchSessions = async () => {
     try {
@@ -177,16 +213,18 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
 
       try {
         const response = await supabase.functions.invoke('voice-coach-session', {
-          body: { sessionType: type },
+          body: { action: 'start', sessionType: type },
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
         });
 
         if (response.error) {
+          console.error('Voice coach API error:', response.error);
           throw new Error(response.error.message || 'Failed to start session');
         }
 
+        console.log('Voice coach response:', response.data);
         const { session: newSession, openingMessage: greeting, theme } = response.data;
 
         setActiveSession(newSession);
@@ -261,6 +299,7 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
 
         const response = await supabase.functions.invoke('voice-coach-session', {
           body: {
+            action: 'process',
             sessionId: activeSession.id,
             transcript: userMessage
           },
@@ -270,9 +309,11 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
         });
 
         if (response.error) {
+          console.error('Voice coach process error:', response.error);
           throw new Error(response.error.message || 'Failed to process message');
         }
 
+        console.log('AI Response:', response.data);
         aiResponse = response.data.response;
       }
 

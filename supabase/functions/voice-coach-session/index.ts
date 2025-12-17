@@ -289,9 +289,10 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
     }))
   ]
 
-  // Generate AI response using Gemini
+  // Generate AI response using Gemini with tools
   let aiResponse = ''
   let sentiment = 0.5
+  let actionsPerformed: any[] = []
 
   if (geminiKey) {
     try {
@@ -308,8 +309,9 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: geminiContents,
+            tools: getGeminiTools(),
             generationConfig: {
-              maxOutputTokens: 300,
+              maxOutputTokens: 500,
               temperature: 0.7
             }
           })
@@ -317,7 +319,65 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
       )
 
       const result = await geminiResponse.json()
-      aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      console.log('Gemini result:', JSON.stringify(result, null, 2))
+
+      const candidate = result.candidates?.[0]
+      const parts = candidate?.content?.parts || []
+
+      // Check if Gemini wants to call a function
+      for (const part of parts) {
+        if (part.functionCall) {
+          console.log('Function call detected:', part.functionCall)
+          const { name, args } = part.functionCall
+
+          // Execute the tool
+          const toolResult = await executeAgentTool(supabase, userId, name, args)
+          actionsPerformed.push({ tool: name, args, result: toolResult })
+
+          // Get Gemini to respond based on tool result
+          const followUpContents = [
+            ...geminiContents,
+            {
+              role: 'model',
+              parts: [{ functionCall: part.functionCall }]
+            },
+            {
+              role: 'function',
+              parts: [{
+                functionResponse: {
+                  name: name,
+                  response: toolResult
+                }
+              }]
+            }
+          ]
+
+          const followUpResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: followUpContents,
+                generationConfig: {
+                  maxOutputTokens: 300,
+                  temperature: 0.7
+                }
+              })
+            }
+          )
+
+          const followUpResult = await followUpResponse.json()
+          aiResponse = followUpResult.candidates?.[0]?.content?.parts?.[0]?.text ||
+            `Done! I've ${name.replace('_', ' ')} for you.`
+        } else if (part.text) {
+          aiResponse = part.text
+        }
+      }
+
+      if (!aiResponse) {
+        aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      }
 
       // Simple sentiment analysis based on keywords
       sentiment = analyzeSentiment(transcript)
@@ -666,9 +726,18 @@ function buildVoiceCoachPrompt(sessionType: string, theme: any, profile: any): s
     crisis_support: 'providing calm, supportive presence during difficulty'
   }
 
-  return `You are ${themeName}, an AI voice coach with a ${voiceStyle} communication style.
+  return `You are ${themeName}, an AI voice coach and executive assistant with a ${voiceStyle} communication style.
 
 Your role: ${sessionContext[sessionType] || sessionContext.check_in}
+
+CAPABILITIES - You can perform actions for the user:
+- Send emails on their behalf (use send_email tool)
+- Create tasks and to-do items (use create_task tool)
+- Schedule reminders (use schedule_reminder tool)
+- Look up their goals and progress (use get_user_data tool)
+
+When the user asks you to do something like "send an email" or "create a task" or "remind me", use the appropriate tool.
+Always confirm the action before executing and report back what you did.
 
 Communication guidelines:
 - Keep responses concise and conversational (2-4 sentences max)
@@ -676,14 +745,416 @@ Communication guidelines:
 - Be warm, encouraging, and authentic
 - Ask one question at a time
 - Acknowledge emotions before offering advice
-- Use the user's name if known
-- Avoid bullet points or lists - speak in flowing sentences
+- When the user asks you to perform a task, confirm the details and execute it
+- Report back on completed actions
 
 ${personalityContext ? `User context: ${personalityContext}` : ''}
 
 ${theme?.encouragement_phrases ? `When encouraging, consider phrases like: ${theme.encouragement_phrases.join(', ')}` : ''}
 
-Remember: This is a voice conversation. Keep it natural and human.`
+Remember: This is a voice conversation. Keep it natural and human. You are both a coach AND an assistant who can take action.`
+}
+
+/**
+ * Get Gemini tools definition for agentic capabilities
+ */
+function getGeminiTools() {
+  return [
+    {
+      functionDeclarations: [
+        {
+          name: 'send_email',
+          description: 'Send an email on behalf of the user',
+          parameters: {
+            type: 'object',
+            properties: {
+              to: {
+                type: 'string',
+                description: 'Email address of recipient (or "team" for team members)'
+              },
+              subject: {
+                type: 'string',
+                description: 'Email subject line'
+              },
+              body: {
+                type: 'string',
+                description: 'Email body content'
+              }
+            },
+            required: ['to', 'subject', 'body']
+          }
+        },
+        {
+          name: 'create_task',
+          description: 'Create a new task or action item for the user',
+          parameters: {
+            type: 'object',
+            properties: {
+              title: {
+                type: 'string',
+                description: 'Task title'
+              },
+              description: {
+                type: 'string',
+                description: 'Task description (optional)'
+              },
+              due_date: {
+                type: 'string',
+                description: 'Due date in YYYY-MM-DD format (optional)'
+              },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high'],
+                description: 'Task priority'
+              }
+            },
+            required: ['title']
+          }
+        },
+        {
+          name: 'schedule_reminder',
+          description: 'Schedule a reminder notification for the user',
+          parameters: {
+            type: 'object',
+            properties: {
+              message: {
+                type: 'string',
+                description: 'Reminder message'
+              },
+              when: {
+                type: 'string',
+                description: 'When to send (e.g., "tomorrow at 9am", "in 2 hours", "2024-12-20 14:00")'
+              }
+            },
+            required: ['message', 'when']
+          }
+        },
+        {
+          name: 'get_user_data',
+          description: 'Get information about the user\'s goals, habits, or progress',
+          parameters: {
+            type: 'object',
+            properties: {
+              data_type: {
+                type: 'string',
+                enum: ['goals', 'habits', 'tasks', 'progress', 'vision'],
+                description: 'Type of data to retrieve'
+              }
+            },
+            required: ['data_type']
+          }
+        }
+      ]
+    }
+  ]
+}
+
+/**
+ * Execute agent tool based on function call
+ */
+async function executeAgentTool(supabase: any, userId: string, toolName: string, args: any): Promise<any> {
+  console.log(`Executing tool: ${toolName}`, args)
+
+  switch (toolName) {
+    case 'send_email': {
+      const { to, subject, body } = args
+
+      // Check if sending to team or specific email
+      if (to.toLowerCase() === 'team') {
+        // Get user's team
+        const { data: teamMember } = await supabase
+          .from('team_members')
+          .select('team_id, teams(name)')
+          .eq('user_id', userId)
+          .single()
+
+        if (!teamMember?.team_id) {
+          return { success: false, error: 'You are not part of a team' }
+        }
+
+        // Create team communication
+        const { data: comm, error } = await supabase
+          .from('team_communications')
+          .insert({
+            team_id: teamMember.team_id,
+            sender_id: userId,
+            subject,
+            body_html: body,
+            body_text: body,
+            template_type: 'custom',
+            status: 'sent',
+            sent_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+
+        if (error) {
+          return { success: false, error: error.message }
+        }
+
+        return {
+          success: true,
+          message: `Email sent to team: ${subject}`,
+          communicationId: comm.id
+        }
+      } else {
+        // Send individual email via send-email function
+        try {
+          const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+          const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+          const emailResponse = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+            },
+            body: JSON.stringify({
+              to,
+              subject,
+              template: 'generic',
+              data: {
+                subject,
+                html: `<p>${body}</p>`,
+                content: body
+              }
+            })
+          })
+
+          const result = await emailResponse.json()
+          return {
+            success: true,
+            message: `Email sent to ${to}: "${subject}"`,
+            result
+          }
+        } catch (err: any) {
+          return { success: false, error: err.message }
+        }
+      }
+    }
+
+    case 'create_task': {
+      const { title, description, due_date, priority } = args
+
+      // Get user's primary vision to associate task
+      const { data: vision } = await supabase
+        .from('visions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_primary', true)
+        .single()
+
+      const visionId = vision?.id
+
+      // Create action step (task)
+      const { data: task, error } = await supabase
+        .from('action_steps')
+        .insert({
+          user_id: userId,
+          vision_id: visionId,
+          title,
+          description: description || '',
+          due_date: due_date || null,
+          priority: priority || 'medium',
+          status: 'pending',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      return {
+        success: true,
+        message: `Task created: "${title}"${due_date ? ` due ${due_date}` : ''}`,
+        taskId: task.id
+      }
+    }
+
+    case 'schedule_reminder': {
+      const { message, when } = args
+
+      // Parse the "when" into a timestamp
+      const scheduledFor = parseReminderTime(when)
+
+      // Create scheduled notification
+      const { data: reminder, error } = await supabase
+        .from('scheduled_checkins')
+        .insert({
+          user_id: userId,
+          checkin_type: 'custom',
+          scheduled_for: scheduledFor.toISOString(),
+          channel: 'push', // or 'email' or 'sms'
+          status: 'pending',
+          content: { message }
+        })
+        .select()
+        .single()
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      return {
+        success: true,
+        message: `Reminder scheduled for ${scheduledFor.toLocaleString()}: "${message}"`,
+        reminderId: reminder.id
+      }
+    }
+
+    case 'get_user_data': {
+      const { data_type } = args
+
+      switch (data_type) {
+        case 'goals': {
+          const { data: goals } = await supabase
+            .from('milestones')
+            .select('id, title, target_date, completion_percentage')
+            .eq('user_id', userId)
+            .order('target_date', { ascending: true })
+            .limit(5)
+
+          return {
+            success: true,
+            data: goals || [],
+            summary: goals?.length
+              ? `Found ${goals.length} goals: ${goals.map((g: any) => g.title).join(', ')}`
+              : 'No goals found'
+          }
+        }
+
+        case 'habits': {
+          const { data: habits } = await supabase
+            .from('habits')
+            .select('id, title, current_streak, is_active')
+            .eq('user_id', userId)
+            .eq('is_active', true)
+
+          return {
+            success: true,
+            data: habits || [],
+            summary: habits?.length
+              ? `Found ${habits.length} active habits: ${habits.map((h: any) => `${h.title} (${h.current_streak} day streak)`).join(', ')}`
+              : 'No active habits found'
+          }
+        }
+
+        case 'tasks': {
+          const { data: tasks } = await supabase
+            .from('action_steps')
+            .select('id, title, status, due_date')
+            .eq('user_id', userId)
+            .in('status', ['pending', 'in_progress'])
+            .order('due_date', { ascending: true })
+            .limit(10)
+
+          return {
+            success: true,
+            data: tasks || [],
+            summary: tasks?.length
+              ? `Found ${tasks.length} pending tasks: ${tasks.map((t: any) => t.title).join(', ')}`
+              : 'No pending tasks'
+          }
+        }
+
+        case 'vision': {
+          const { data: vision } = await supabase
+            .from('visions')
+            .select('id, title, description, dream_location, target_date')
+            .eq('user_id', userId)
+            .eq('is_primary', true)
+            .single()
+
+          return {
+            success: true,
+            data: vision || null,
+            summary: vision
+              ? `Your vision: "${vision.title}" - ${vision.description || vision.dream_location || 'Your dream retirement'}`
+              : 'No vision set yet'
+          }
+        }
+
+        case 'progress': {
+          // Get overall progress stats
+          const { data: habits } = await supabase
+            .from('habits')
+            .select('current_streak')
+            .eq('user_id', userId)
+            .eq('is_active', true)
+
+          const { data: tasks } = await supabase
+            .from('action_steps')
+            .select('status')
+            .eq('user_id', userId)
+
+          const completedTasks = tasks?.filter((t: any) => t.status === 'completed').length || 0
+          const totalTasks = tasks?.length || 0
+          const avgStreak = habits?.length
+            ? Math.round(habits.reduce((sum: number, h: any) => sum + (h.current_streak || 0), 0) / habits.length)
+            : 0
+
+          return {
+            success: true,
+            data: {
+              completedTasks,
+              totalTasks,
+              taskCompletionRate: totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0,
+              averageHabitStreak: avgStreak,
+              activeHabits: habits?.length || 0
+            },
+            summary: `You've completed ${completedTasks} of ${totalTasks} tasks (${totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0}%). Average habit streak: ${avgStreak} days.`
+          }
+        }
+
+        default:
+          return { success: false, error: `Unknown data type: ${data_type}` }
+      }
+    }
+
+    default:
+      return { success: false, error: `Unknown tool: ${toolName}` }
+  }
+}
+
+/**
+ * Parse reminder time string to Date
+ */
+function parseReminderTime(when: string): Date {
+  const now = new Date()
+  const lowerWhen = when.toLowerCase()
+
+  // Handle relative times
+  if (lowerWhen.includes('hour')) {
+    const hours = parseInt(lowerWhen.match(/(\d+)/)?.[1] || '1')
+    return new Date(now.getTime() + hours * 60 * 60 * 1000)
+  }
+  if (lowerWhen.includes('minute')) {
+    const minutes = parseInt(lowerWhen.match(/(\d+)/)?.[1] || '30')
+    return new Date(now.getTime() + minutes * 60 * 1000)
+  }
+  if (lowerWhen.includes('tomorrow')) {
+    const tomorrow = new Date(now)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    if (lowerWhen.includes('9am') || lowerWhen.includes('9 am')) {
+      tomorrow.setHours(9, 0, 0, 0)
+    } else if (lowerWhen.includes('noon')) {
+      tomorrow.setHours(12, 0, 0, 0)
+    } else {
+      tomorrow.setHours(9, 0, 0, 0) // Default to 9am
+    }
+    return tomorrow
+  }
+
+  // Try to parse as ISO date
+  const parsed = new Date(when)
+  if (!isNaN(parsed.getTime())) {
+    return parsed
+  }
+
+  // Default to 1 hour from now
+  return new Date(now.getTime() + 60 * 60 * 1000)
 }
 
 /**
