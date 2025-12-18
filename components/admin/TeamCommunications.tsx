@@ -151,6 +151,8 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     status: ['active']
   });
   const [eligibleRecipients, setEligibleRecipients] = useState<TeamMemberForSelect[]>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set()); // Individual selection
+  const [selectionMode, setSelectionMode] = useState<'role' | 'individual'>('role');
   const [loadingRecipients, setLoadingRecipients] = useState(false);
 
   // Scheduling state
@@ -266,10 +268,14 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
         }));
 
       setEligibleRecipients(filtered);
+
+      // Auto-select all recipients by default
+      setSelectedRecipients(new Set(filtered.map(r => r.user_id)));
     } catch (err) {
       console.error('Error loading recipients:', err);
       // Don't show error, just set empty
       setEligibleRecipients([]);
+      setSelectedRecipients(new Set());
     } finally {
       setLoadingRecipients(false);
     }
@@ -378,8 +384,13 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
       setError('Message is required');
       return;
     }
-    if (eligibleRecipients.length === 0) {
-      setError('No eligible recipients found');
+    // Get final recipients based on selection mode
+    const finalRecipients = selectionMode === 'individual'
+      ? eligibleRecipients.filter(r => selectedRecipients.has(r.user_id))
+      : eligibleRecipients;
+
+    if (finalRecipients.length === 0) {
+      setError('No recipients selected. Please select at least one recipient.');
       return;
     }
 
@@ -406,7 +417,7 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
         return;
       }
 
-      const recipientCount = eligibleRecipients.length;
+      const recipientCount = finalRecipients.length;
 
       // Determine if this is immediate send or scheduled
       const isScheduled = scheduleForLater && scheduledDate && scheduledTime;
@@ -435,7 +446,7 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
       if (insertError) throw insertError;
 
       // Insert recipient records for queue processing
-      const recipientRecords = eligibleRecipients.map(r => ({
+      const recipientRecords = finalRecipients.map(r => ({
         communication_id: communication.id,
         user_id: r.user_id,
         email: r.email,
@@ -484,15 +495,25 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
         </p>
       `;
 
-      // Send emails to each recipient
+      // Send emails to each recipient with rate limiting (max 2/second for Resend)
       let sentCount = 0;
       let failedCount = 0;
       const errors: string[] = [];
 
-      for (const recipient of eligibleRecipients) {
+      // Helper function to delay between requests
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+      for (let i = 0; i < finalRecipients.length; i++) {
+        const recipient = finalRecipients[i];
+
         if (!recipient.email) {
           failedCount++;
           continue;
+        }
+
+        // Add 600ms delay between emails to stay under Resend's 2/second rate limit
+        if (i > 0) {
+          await delay(600);
         }
 
         try {
@@ -890,58 +911,112 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
       <div>
         <label className="block text-sm font-medium text-indigo-200 mb-2">Recipients</label>
         <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-          <div className="flex flex-wrap gap-4 mb-4">
-            <div>
-              <label className="text-xs text-indigo-300 block mb-1">Roles</label>
-              <div className="flex gap-2">
-                {['owner', 'admin', 'manager', 'member'].map((role) => (
-                  <label key={role} className="flex items-center gap-1 text-sm text-white">
-                    <input
-                      type="checkbox"
-                      checked={recipientFilter.roles.includes(role)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setRecipientFilter(f => ({ ...f, roles: [...f.roles, role] }));
-                        } else {
-                          setRecipientFilter(f => ({ ...f, roles: f.roles.filter(r => r !== role) }));
-                        }
-                      }}
-                      className="rounded bg-white/10 border-white/30 text-indigo-500 focus:ring-indigo-500"
-                    />
-                    <span className="capitalize">{role}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-indigo-300 block mb-1">Status</label>
-              <div className="flex gap-2">
-                {['active', 'at_risk', 'inactive'].map((status) => (
-                  <label key={status} className="flex items-center gap-1 text-sm text-white">
-                    <input
-                      type="checkbox"
-                      checked={recipientFilter.status.includes(status)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setRecipientFilter(f => ({ ...f, status: [...f.status, status] }));
-                        } else {
-                          setRecipientFilter(f => ({ ...f, status: f.status.filter(s => s !== status) }));
-                        }
-                      }}
-                      className="rounded bg-white/10 border-white/30 text-indigo-500 focus:ring-indigo-500"
-                    />
-                    <span className="capitalize">{status.replace('_', ' ')}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+          {/* Selection Mode Toggle */}
+          <div className="flex gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setSelectionMode('role')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                selectionMode === 'role'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-white/10 text-indigo-200 hover:bg-white/20'
+              }`}
+            >
+              Filter by Role
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectionMode('individual')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                selectionMode === 'individual'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-white/10 text-indigo-200 hover:bg-white/20'
+              }`}
+            >
+              Select Individually
+            </button>
           </div>
+
+          {/* Role-based filter (shown when mode is 'role') */}
+          {selectionMode === 'role' && (
+            <div className="flex flex-wrap gap-4 mb-4">
+              <div>
+                <label className="text-xs text-indigo-300 block mb-1">Roles</label>
+                <div className="flex gap-2">
+                  {['owner', 'admin', 'manager', 'member'].map((role) => (
+                    <label key={role} className="flex items-center gap-1 text-sm text-white">
+                      <input
+                        type="checkbox"
+                        checked={recipientFilter.roles.includes(role)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setRecipientFilter(f => ({ ...f, roles: [...f.roles, role] }));
+                          } else {
+                            setRecipientFilter(f => ({ ...f, roles: f.roles.filter(r => r !== role) }));
+                          }
+                        }}
+                        className="rounded bg-white/10 border-white/30 text-indigo-500 focus:ring-indigo-500"
+                      />
+                      <span className="capitalize">{role}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-indigo-300 block mb-1">Status</label>
+                <div className="flex gap-2">
+                  {['active', 'at_risk', 'inactive'].map((status) => (
+                    <label key={status} className="flex items-center gap-1 text-sm text-white">
+                      <input
+                        type="checkbox"
+                        checked={recipientFilter.status.includes(status)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setRecipientFilter(f => ({ ...f, status: [...f.status, status] }));
+                          } else {
+                            setRecipientFilter(f => ({ ...f, status: f.status.filter(s => s !== status) }));
+                          }
+                        }}
+                        className="rounded bg-white/10 border-white/30 text-indigo-500 focus:ring-indigo-500"
+                      />
+                      <span className="capitalize">{status.replace('_', ' ')}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Individual selection controls (shown when mode is 'individual') */}
+          {selectionMode === 'individual' && !loadingRecipients && eligibleRecipients.length > 0 && (
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setSelectedRecipients(new Set(eligibleRecipients.map(r => r.user_id)))}
+                className="px-3 py-1 text-xs bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 transition-colors"
+              >
+                Select All ({eligibleRecipients.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRecipients(new Set())}
+                className="px-3 py-1 text-xs bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors"
+              >
+                Deselect All
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between pt-3 border-t border-white/10">
             <p className="text-indigo-200 text-sm">
               {loadingRecipients ? (
                 <span className="flex items-center gap-2">
                   <span className="animate-spin w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full"></span>
                   Loading recipients...
+                </span>
+              ) : selectionMode === 'individual' ? (
+                <span>
+                  <strong className="text-white">{selectedRecipients.size}</strong> of {eligibleRecipients.length} selected
                 </span>
               ) : (
                 <span>
@@ -951,17 +1026,51 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
             </p>
           </div>
 
-          {/* Recipient List Preview */}
+          {/* Recipient List with checkboxes */}
           {!loadingRecipients && eligibleRecipients.length > 0 && (
             <div className="mt-4 pt-3 border-t border-white/10">
-              <p className="text-xs text-indigo-300 mb-2">Recipients:</p>
-              <div className="max-h-32 overflow-y-auto space-y-1">
+              <p className="text-xs text-indigo-300 mb-2">
+                {selectionMode === 'individual' ? 'Click to select/deselect recipients:' : 'Recipients:'}
+              </p>
+              <div className="max-h-48 overflow-y-auto space-y-1">
                 {eligibleRecipients.map((r) => (
-                  <div key={r.user_id} className="flex items-center gap-2 text-sm">
+                  <div
+                    key={r.user_id}
+                    onClick={() => {
+                      if (selectionMode === 'individual') {
+                        setSelectedRecipients(prev => {
+                          const next = new Set(prev);
+                          if (next.has(r.user_id)) {
+                            next.delete(r.user_id);
+                          } else {
+                            next.add(r.user_id);
+                          }
+                          return next;
+                        });
+                      }
+                    }}
+                    className={`flex items-center gap-2 text-sm p-2 rounded-lg transition-colors ${
+                      selectionMode === 'individual'
+                        ? 'cursor-pointer hover:bg-white/10'
+                        : ''
+                    } ${
+                      selectionMode === 'individual' && selectedRecipients.has(r.user_id)
+                        ? 'bg-indigo-500/20 border border-indigo-500/50'
+                        : 'bg-transparent'
+                    }`}
+                  >
+                    {selectionMode === 'individual' && (
+                      <input
+                        type="checkbox"
+                        checked={selectedRecipients.has(r.user_id)}
+                        onChange={() => {}} // Handled by parent div onClick
+                        className="rounded bg-white/10 border-white/30 text-indigo-500 focus:ring-indigo-500"
+                      />
+                    )}
                     <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-300 text-xs font-medium">
                       {r.email ? r.email[0].toUpperCase() : '?'}
                     </div>
-                    <span className="text-white">{r.email || 'No email'}</span>
+                    <span className="text-white flex-1">{r.email || 'No email'}</span>
                     <span className="text-indigo-400 text-xs capitalize">({r.role})</span>
                   </div>
                 ))}
@@ -1074,7 +1183,7 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
             sending ||
             !subject.trim() ||
             !messageHtml.trim() ||
-            eligibleRecipients.length === 0 ||
+            (selectionMode === 'individual' ? selectedRecipients.size === 0 : eligibleRecipients.length === 0) ||
             (scheduleForLater && (!scheduledDate || !scheduledTime))
           }
           className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1087,12 +1196,12 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
           ) : scheduleForLater ? (
             <>
               <CalendarIcon className="w-5 h-5" />
-              Schedule for {eligibleRecipients.length} Recipients
+              Schedule for {selectionMode === 'individual' ? selectedRecipients.size : eligibleRecipients.length} Recipients
             </>
           ) : (
             <>
               <EnvelopeIcon className="w-5 h-5" />
-              Send Now to {eligibleRecipients.length} Recipients
+              Send Now to {selectionMode === 'individual' ? selectedRecipients.size : eligibleRecipients.length} Recipients
             </>
           )}
         </button>

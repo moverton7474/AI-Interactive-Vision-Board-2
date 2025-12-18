@@ -801,10 +801,9 @@ serve(async (req) => {
 
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    // Use Resend's shared domain as fallback for reliable delivery when custom domain
-    // has verification issues (e.g., Wix DNS doesn't support DKIM underscore subdomains)
-    const fromEmail = Deno.env.get("FROM_EMAIL") || "Visionary AI <noreply@resend.dev>";
-    const siteUrl = Deno.env.get("SITE_URL") || "https://visionary.app";
+    // Use verified domain for sending (visionaryaicoach.com)
+    const fromEmail = Deno.env.get("FROM_EMAIL") || "Visionary AI <noreply@visionaryaicoach.com>";
+    const siteUrl = Deno.env.get("SITE_URL") || "https://visionaryaicoach.com";
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -813,7 +812,25 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const body: EmailRequest = await req.json();
+
+    // Parse JSON body with error handling for empty/malformed requests
+    let body: EmailRequest;
+    try {
+      const bodyText = await req.text();
+      if (!bodyText || bodyText.trim() === '') {
+        throw new Error("Empty request body");
+      }
+      body = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
+      return new Response(
+        JSON.stringify({ error: "Invalid or empty JSON body. Please provide a valid email request." }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     const { to, template, data = {}, subject: customSubject, html: customHtml, userId } = body;
 
