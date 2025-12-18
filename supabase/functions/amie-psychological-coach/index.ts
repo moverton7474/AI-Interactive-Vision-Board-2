@@ -61,7 +61,7 @@ serve(async (req) => {
         }
 
         // 4. Generate Response using Gemini 1.5 Flash
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
         let baseSystemPrompt = `You are AMIE, an Identity Architect and Psychological Coach.`;
 

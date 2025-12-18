@@ -54,14 +54,14 @@ const getModelConfig = () => {
 }
 
 const MODELS = {
-  // Chat: Use Gemini 1.5 Flash for conversational AI
-  chat: 'gemini-1.5-flash',
+  // Chat: Use Gemini 2.0 Flash for conversational AI
+  chat: 'gemini-2.0-flash-exp',
 
   // Reasoning: Use Gemini 1.5 Pro for complex planning and projections
   reasoning: 'gemini-1.5-pro',
 
   // Likeness Validation: Use multimodal model to compare faces
-  likeness_validator: 'gemini-1.5-flash',
+  likeness_validator: 'gemini-2.0-flash-exp',
 }
 
 /**
