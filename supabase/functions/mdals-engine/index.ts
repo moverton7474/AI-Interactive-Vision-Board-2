@@ -22,8 +22,8 @@ function cleanJson(text: string) {
 }
 
 async function callGemini(apiKey: string, prompt: string) {
-  // Use the correct model name (gemini-2.0-flash-001, not gemini-2.0-flash)
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
+  // Use Gemini 1.5 Flash model
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -179,7 +179,7 @@ serve(async (req) => {
           domain_tags: data.domain_tags,
           references: data.references,
           domain_preferences: domain_preferences,
-          model_used: 'gemini-2.0-flash-001',
+          model_used: 'gemini-1.5-flash',
         })
         .select()
         .single();
@@ -251,7 +251,7 @@ serve(async (req) => {
           plan_json: data.days,
           status: 'paused', // Not started yet (using 'paused' per DB constraint)
           current_day: 0,
-          model_used: 'gemini-2.0-flash-001',
+          model_used: 'gemini-1.5-flash',
         })
         .select()
         .single();

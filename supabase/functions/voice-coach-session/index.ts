@@ -466,6 +466,8 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
   let sentiment = 0.5
   let actionsPerformed: any[] = []
 
+  console.log(`[Voice Coach] Processing transcript. GEMINI_API_KEY present: ${!!geminiKey}, key length: ${geminiKey?.length || 0}`)
+
   if (geminiKey) {
     try {
       // Convert messages to Gemini format
@@ -474,8 +476,10 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
         parts: [{ text: msg.role === 'system' ? `[System Instructions]: ${msg.content}` : msg.content }]
       }))
 
+      console.log('[Voice Coach] Calling Gemini API with', geminiContents.length, 'messages')
+
       const geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -491,7 +495,14 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
       )
 
       const result = await geminiResponse.json()
-      console.log('Gemini result:', JSON.stringify(result, null, 2))
+      console.log('[Voice Coach] Gemini response status:', geminiResponse.status)
+      console.log('[Voice Coach] Gemini result:', JSON.stringify(result, null, 2))
+
+      // Check for API errors
+      if (result.error) {
+        console.error('[Voice Coach] Gemini API error:', result.error)
+        throw new Error(result.error.message || 'Gemini API error')
+      }
 
       const candidate = result.candidates?.[0]
       const parts = candidate?.content?.parts || []
@@ -540,7 +551,7 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
             ]
 
             const followUpResponse = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${geminiKey}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
               {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -575,11 +586,14 @@ async function processTranscript(supabase: any, userId: string, body: any, gemin
 
       // Simple sentiment analysis based on keywords
       sentiment = analyzeSentiment(transcript)
-    } catch (err) {
-      console.error('Gemini error:', err)
+    } catch (err: any) {
+      console.error('[Voice Coach] Gemini error:', err?.message || err)
+      console.error('[Voice Coach] Full error:', JSON.stringify(err, null, 2))
       aiResponse = generateFallbackResponse(session.session_type, theme)
+      console.log('[Voice Coach] Using fallback response due to Gemini error')
     }
   } else {
+    console.warn('[Voice Coach] GEMINI_API_KEY not available, using fallback response')
     aiResponse = generateFallbackResponse(session.session_type, theme)
   }
 
@@ -672,7 +686,7 @@ Respond in JSON format only, no markdown:
 }`
 
       const geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
