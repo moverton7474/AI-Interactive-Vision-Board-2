@@ -1,21 +1,38 @@
 # VISIONARY AI — MASTER PRODUCT & DEVELOPMENT ROADMAP
 
-**Version:** 2.3
+**Version:** 2.5
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 15, 2025
+**Last Updated:** December 17, 2025
 
 ---
 
 ## Product Mission & Positioning
 
-Visionary AI is an **agentic success platform** combining emotional visualization, financial intelligence, and autonomous AI execution across web, mobile, Apple Watch, voice, and print.
+Visionary AI is the **world's first agentic success platform** combining emotional visualization, financial intelligence, autonomous AI execution, and identity-driven coaching across web, mobile, Apple Watch, voice, and physical print products.
 
 ### Mission
-Enable ambitious professionals, executives, athletes, families, and teams to achieve goals faster through identity-aligned, AI-driven execution.
+Enable ambitious professionals, executives, athletes, families, and teams to achieve goals faster through identity-aligned, AI-driven execution with proactive coaching that acts on your behalf.
 
 ### Positioning
-> "The only identity-driven AI achievement system connecting your vision, finances, and daily execution."
+> "The world's first identity-driven AI achievement system that doesn't just track your goals — it executes them for you."
+
+### Complete System Capabilities
+
+| Capability | Description | Status |
+|------------|-------------|--------|
+| **AI Vision Board Generation** | Photorealistic images with likeness preservation using Gemini 2.5 Pro (Nano Banana Pro) | ✅ Production |
+| **AMIE Identity Engine** | Adaptive Motivational Identity Engine with 5 psychological themes and RAG-based coaching | ✅ Production |
+| **Voice Coach with Agentic Capabilities** | AI voice coaching with auto-listen, function calling, and autonomous task execution | ✅ Production |
+| **Financial Intelligence** | Plaid bank integration, retirement gap analysis, cost-of-living projections | ✅ Production |
+| **Habit Tracking & Streaks** | Daily micro-actions with streak tracking, achievements, and predictive coaching | ✅ Production |
+| **Physical Print Products** | Vision workbooks, posters, habit trackers via Prodigi fulfillment | ✅ Production |
+| **Enterprise Team Features** | Slack/Teams bots, team leaderboards, shared goals, manager dashboards | ✅ Production |
+| **Manager Dashboard** | Admin controls for AI Coach settings, voice coach analytics, outreach management | ✅ Production |
+| **Multi-Channel Communication** | SMS, voice calls, email, push notifications with intelligent routing | ✅ Production |
+| **Apple Watch Integration** | Wearable coaching with habit triggers and micro-check-ins | ✅ Production |
+| **Knowledge Base (RAG)** | Personal context ingestion from documents, conversations, and user history | ✅ Production |
+| **Weekly AI Reviews** | Automated progress summaries with wins, blockers, and AI insights | ✅ Production |
 
 ---
 
@@ -95,10 +112,34 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 2. Development Roadmap & Status
 
-**Current Version:** v2.1 (December 2025)
-**Status:** Core features (v1.0-v2.0) deployed and operational. Focus now on UI completion and production readiness.
+**Current Version:** v2.5 (December 2025)
+**Status:** v1.0-v2.0 COMPLETE. Voice Coach, Manager Dashboard, and Vision Board Engine all production ready.
 
-### 🎉 Recent Major Achievements (November-December 2025)
+### 🎉 Recent Major Achievements (December 2025)
+
+**Voice Coach & Agentic Capabilities (December 17, 2025):**
+- ✅ Voice Coach with full agentic capabilities and function calling
+- ✅ Auto-listen feature for hands-free voice interaction
+- ✅ Phase 3 Voice Integration with enhanced session types (morning_routine, check_in, reflection, goal_setting, celebration, accountability, crisis_support)
+- ✅ Resilient error handling for voice coach function calls
+- ✅ Voice coach resilient to missing AI settings tables
+
+**Manager Dashboard & Admin Controls (December 17, 2025):**
+- ✅ Manager Dashboard with AI Coach settings controls
+- ✅ Voice Coach Analytics dashboard (admin-get-voice-coach-stats)
+- ✅ Outreach Management for scheduling AI-driven communications
+- ✅ AI Settings Controls (admin-ai-settings) for platform configuration
+- ✅ Credit Management for platform admins
+
+**Vision Board Engine Fixes (December 15-16, 2025):**
+- ✅ Safety compliance rewrite with natural language prompts
+- ✅ Critical tag/image mismatch fix for corrupted image generation
+- ✅ Image truncation fix when refining or changing base images
+- ✅ Auto-detect people in base image for improved likeness
+- ✅ Facial distortion prevention in image generation
+- ✅ Identity Engine for auto-analyzing selfies to preserve likeness
+- ✅ Nano Banana Pro model priority for best likeness results
+- ✅ Likeness diagnostics table for audit trail
 
 **Team Management & Admin (December 15, 2025):**
 - ✅ Team Member Management UI with add/remove/role change/reactivate
@@ -107,15 +148,16 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ Non-recursive RLS policies with helper functions
 - ✅ Database schema enhancements for activity metrics
 
-**Backend Infrastructure (35+ Edge Functions Deployed):**
+**Backend Infrastructure (56 Edge Functions Deployed):**
 - ✅ Complete AMIE Identity Engine with theme selection and psychological coaching
 - ✅ Full Apple Watch integration with sync and notification functions
 - ✅ Enterprise team collaboration with Slack and Microsoft Teams bots
 - ✅ Systems Architecture Upgrade with automated content curation and SOP enforcement
-- ✅ Voice coaching with Gemini Live integration
+- ✅ Voice coaching with Gemini integration and agentic capabilities
 - ✅ Partner collaboration for couples/family shared workspaces
 - ✅ Background worker for automated task processing
 - ✅ Knowledge ingestion with RAG embeddings for personalized AI coaching
+- ✅ 16 Admin functions for platform management
 
 **Workbook Enhancements:**
 - ✅ Ghostwriter AI Foreword - Personalized "Letter from Your Future Self"
@@ -128,7 +170,7 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ Psychological frameworks RAG database with seeding function
 - ✅ AI-curated YouTube feed for goal-aligned educational content
 - ✅ Communication router with intelligent channel selection
-- ✅ Model routing standardized to Gemini 1.5 Flash for optimal performance
+- ✅ Model routing with Gemini 2.5 Pro (Nano Banana Pro) priority for vision boards
 
 ### v1.0: Foundation ✅ COMPLETED
 - [x] **Voice Dictation:** Capture vision statements naturally using Web Speech API.
@@ -224,10 +266,29 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 | **Knowledge Ingestion** | Document processing and chunking for RAG retrieval | ✅ Deployed |
 | **Master Prompt Q&A** | Guided onboarding questions to build user identity profile (25+ questions seeded) | ✅ Deployed |
 | **Communication Router** | Unified system to route messages via Voice, SMS, Email, or Push based on urgency and user preference | ✅ Deployed |
-| **Voice Coach** | Gemini Live integration for real-time coaching conversations | ✅ Deployed |
+| **Voice Coach** | Gemini integration for real-time coaching conversations | ✅ Deployed |
 | **MDALS Music Engine** | Music-Driven Adaptive Learning System for song analysis and learning plans | ✅ Deployed |
 | **Apple Watch Sync** | Micro-coaching at habit trigger moments with watch-sync and watch-notifications edge functions | ✅ Deployed |
 | **Smart Reminders** | Context-aware notifications using 'Peak Activity' logic | ✅ Deployed |
+
+### v1.8: Voice Coach Agentic & Manager Dashboard ✅ COMPLETED
+**Theme:** Autonomous AI Execution + Platform Administration
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Voice Coach Agentic Capabilities** | Function calling for autonomous task execution during voice sessions | ✅ Deployed |
+| **Auto-Listen Feature** | Hands-free continuous voice interaction mode | ✅ Deployed |
+| **7 Session Types** | morning_routine, check_in, reflection, goal_setting, celebration, accountability, crisis_support | ✅ Deployed |
+| **Resilient Error Handling** | Graceful degradation when AI settings tables are missing | ✅ Deployed |
+| **Manager Dashboard** | Admin controls for platform configuration | ✅ Deployed |
+| **AI Coach Settings** | Backend controls for AI Coach behavior and parameters | ✅ Deployed |
+| **Voice Coach Analytics** | Usage statistics and performance metrics for voice coaching | ✅ Deployed |
+| **Outreach Management** | Schedule and manage AI-driven communications | ✅ Deployed |
+| **Credit Management** | Platform admin controls for user credit allocation | ✅ Deployed |
+| **Draft Plan Review v1.7** | Comprehensive goal plan review with testing | ✅ Deployed |
+| **Vision Board Engine Fixes** | Safety compliance, likeness preservation, Nano Banana Pro priority | ✅ Deployed |
+| **Identity Engine** | Auto-analyze selfies for likeness preservation | ✅ Deployed |
+| **Likeness Diagnostics** | Audit trail for vision board generation quality | ✅ Deployed |
 
 ### v2.0 — Enterprise & Team Tier ✅ COMPLETED
 
@@ -1000,40 +1061,99 @@ CREATE POLICY "Team members can view goals" ON team_goals
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (30 Active + Shared Utilities)
+### Supabase Edge Functions (56 Active + Shared Utilities)
 
+#### Admin Functions (16)
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `admin-ai-settings` | ✅ Active | AI Coach configuration management |
+| `admin-get-print-order-detail` | ✅ Active | Print order details for admin |
+| `admin-get-team-detail` | ✅ Active | Team details for admin |
+| `admin-get-user-detail` | ✅ Active | User details for admin |
+| `admin-get-voice-coach-stats` | ✅ Active | Voice coach analytics dashboard |
+| `admin-list-print-orders` | ✅ Active | List all print orders |
+| `admin-list-teams` | ✅ Active | List all teams |
+| `admin-list-users` | ✅ Active | List all users |
+| `admin-manage-outreach` | ✅ Active | Schedule AI communications |
+| `admin-manage-team-membership` | ✅ Active | Team member management |
+| `admin-override-subscription-tier` | ✅ Active | Override user subscription |
+| `admin-start-impersonation` | ✅ Active | Admin user impersonation |
+| `admin-stop-impersonation` | ✅ Active | End admin impersonation |
+| `admin-sync-stripe-subscription` | ✅ Active | Sync Stripe subscription data |
+| `admin-update-print-order-status` | ✅ Active | Update print order status |
+| `admin-update-team` | ✅ Active | Update team settings |
+| `admin-update-user` | ✅ Active | Update user details |
+
+#### AI & Coaching Functions (8)
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `agent-chat` | ✅ Active | AI Vision Coach conversations |
+| `amie-prompt-builder` | ✅ Active | AMIE identity-based prompt construction |
+| `amie-psychological-coach` | ✅ Active | Psychological RAG for mindset coaching |
+| `gemini-proxy` | ✅ Active | Secure Gemini API proxy with model fallback |
+| `voice-coach-session` | ✅ Active | Voice coaching with agentic capabilities |
+| `generate-weekly-review` | ✅ Active | AI-powered weekly progress summaries |
+| `mdals-engine` | ✅ Active | Music-Driven Adaptive Learning System |
+| `vision-scene-prompt` | ✅ Active | Scene prompt generation for vision boards |
+
+#### Communication Functions (7)
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `send-sms` | ✅ Active | Twilio SMS notifications |
+| `send-email` | ✅ Active | Resend email delivery |
+| `make-call` | ✅ Active | Twilio voice calls |
+| `schedule-notification` | ✅ Active | AI Agent notification triggers |
+| `communication-router` | ✅ Active | Multi-channel message routing |
+| `process-email-queue` | ✅ Active | Email queue processing |
+| `resend-webhook` | ✅ Active | Resend webhook handler |
+
+#### Team Functions (7)
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `slack-bot` | ✅ Active | Slack workspace integration |
+| `teams-bot` | ✅ Active | Microsoft Teams integration |
+| `team-send-communication` | ✅ Active | Send team communications |
+| `team-get-communications` | ✅ Active | Get team communication history |
+| `team-get-communication-detail` | ✅ Active | Communication details |
+| `process-team-communications` | ✅ Active | Process team message queue |
+| `partner-collaboration` | ✅ Active | Couple/partner shared workspaces |
+
+#### Financial Functions (3)
 | Function | Status | Purpose |
 |----------|--------|---------|
 | `create-link-token` | ✅ Active | Plaid link token generation |
 | `exchange-public-token` | ✅ Active | Plaid token exchange |
 | `create-checkout-session` | ✅ Active | Stripe payment sessions |
-| `stripe-webhook` | ✅ Active | Payment confirmation handler |
-| `submit-to-prodigi` | ✅ Active | Print order fulfillment |
-| `agent-chat` | ✅ Active | AI Vision Coach conversations |
-| `send-sms` | ✅ Active | Twilio SMS notifications |
-| `make-call` | ✅ Active | Twilio voice calls |
-| `schedule-notification` | ✅ Active | AI Agent notification triggers |
-| `habit-service` | ✅ Active | Habit CRUD, completions, streaks, stats |
+
+#### Content Functions (5)
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `knowledge-ingest` | ✅ Active | Document processing for RAG |
 | `compile-knowledge-base` | ✅ Active | Aggregate user data for AI/workbooks |
-| `generate-weekly-review` | ✅ Active | AI-powered weekly progress summaries |
-| `gemini-proxy` | ✅ Active | Secure Gemini API proxy (removes client exposure) |
-| `generate-workbook-pdf` | ✅ Active | Vision Workbook PDF generation |
-| `amie-prompt-builder` | ✅ Active | AMIE identity-based prompt construction |
-| `amie-psychological-coach` | ✅ Active | Psychological RAG for mindset coaching |
-| `background-worker` | ✅ Active | Automated task processing and scheduling |
-| `communication-router` | ✅ Active | Multi-channel message routing (SMS/Voice/Email/Push) |
-| `ingest-youtube-feed` | ✅ Active | AI-curated educational content feed |
-| `knowledge-ingest` | ✅ Active | Document processing and chunking for RAG |
-| `mdals-engine` | ✅ Active | Music-Driven Adaptive Learning System |
+| `ingest-youtube-feed` | ✅ Active | AI-curated educational content |
+| `seed-frameworks` | ✅ Active | Populate psychological frameworks |
 | `onboarding-themes` | ✅ Active | Motivational theme selection API |
-| `partner-collaboration` | ✅ Active | Couple/partner shared workspace management |
-| `print-products` | ✅ Active | Print product catalog and ordering |
-| `seed-frameworks` | ✅ Active | Populate psychological frameworks database |
-| `slack-bot` | ✅ Active | Slack workspace integration |
-| `teams-bot` | ✅ Active | Microsoft Teams integration |
-| `voice-coach-session` | ✅ Active | Gemini Live voice coaching sessions |
+
+#### Print/Products Functions (4)
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `submit-to-prodigi` | ✅ Active | Print order fulfillment |
+| `generate-workbook-pdf` | ✅ Active | Vision Workbook PDF generation |
+| `print-products` | ✅ Active | Print product catalog |
+| `stripe-webhook` | ✅ Active | Payment confirmation handler |
+
+#### Apple Watch Functions (2)
+| Function | Status | Purpose |
+|----------|--------|---------|
 | `watch-notifications` | ✅ Active | Apple Watch notification delivery |
 | `watch-sync` | ✅ Active | Apple Watch data synchronization |
+
+#### Utility Functions (4)
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `background-worker` | ✅ Active | Automated task processing |
+| `habit-service` | ✅ Active | Habit CRUD, completions, streaks |
+| `_shared` | ✅ Active | Shared utilities and types |
 
 ### Environment Secrets Configured
 
@@ -1045,14 +1165,15 @@ CREATE POLICY "Team members can view goals" ON team_goals
 | `PLAID_SECRET` | ✅ Set |
 | `PLAID_ENV` | ✅ Set (sandbox) |
 | `PRODIGI_API_KEY` | ✅ Set |
-| `GEMINI_API_KEY` | ⚠️ Vercel only - copy to Supabase for `gemini-proxy` |
+| `GEMINI_API_KEY` | ✅ Set (Supabase) |
 | `TWILIO_ACCOUNT_SID` | ✅ Set |
 | `TWILIO_AUTH_TOKEN` | ✅ Set |
 | `TWILIO_PHONE_NUMBER` | ✅ Set (+18885905074) |
 | `TWILIO_API_KEY_SID` | ✅ Set |
 | `TWILIO_API_KEY_SECRET` | ✅ Set |
+| `RESEND_API_KEY` | ✅ Set |
 
-### Database Tables (35+ Total)
+### Database Tables (40+ Total)
 
 **Core Tables (7):**
 - ✅ `profiles` - User accounts with credits & subscription
@@ -1123,8 +1244,8 @@ CREATE POLICY "Team members can view goals" ON team_goals
 | Build AMIE theme selection UI | 🔲 Pending | 4-6 hours |
 | Implement master prompt Q&A wizard | 🔲 Pending | 6-8 hours |
 | Add knowledge source upload interface | 🔲 Pending | 4-6 hours |
-| Create weekly review display card | 🔲 Pending | 2-3 hours |
-| Build systems dashboard UI | 🔲 Pending | 6-8 hours |
+| Create weekly review display card | ✅ Done | - |
+| Build "My Systems" dashboard UI | 🔲 Pending | 6-8 hours |
 | Implement resource feed display | 🔲 Pending | 4-6 hours |
 
 ### 🟢 Medium Priority (Feature Enhancement)
@@ -1133,8 +1254,9 @@ CREATE POLICY "Team members can view goals" ON team_goals
 |------|--------|--------|
 | Plaid balance retrieval | 🔲 Pending | 3-4 hours |
 | Cost of Living API integration | 🔲 Pending | 4-6 hours |
-| Email notifications via Resend | 🔲 Pending | 3-4 hours |
+| Email notifications via Resend | ✅ Done | - |
 | Print Center unified interface | 🔲 Pending | 4-6 hours |
+| Google Calendar API for SOP sync | 🔲 Pending | 6-8 hours |
 
 ### 🧪 Testing Infrastructure ✅ COMPLETED
 
@@ -1178,15 +1300,17 @@ This moves you out of a crowded productivity bucket and into a category you defi
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| Database Schema | 10 tables for agent data | ✅ Applied |
+| Database Schema | 10+ tables for agent data | ✅ Applied |
 | Text Chat | Real-time conversation with AI Coach | ✅ Completed |
-| Voice Chat | Gemini Live integration for voice | 🔲 Pending |
-| Proactive Outreach | SMS/Email/Push notifications | 🔲 Pending |
-| Voice Calls | Twilio-powered check-in calls | 🔲 Pending |
+| Voice Chat | Gemini integration with agentic capabilities | ✅ Completed |
+| Proactive Outreach | SMS/Email/Push notifications | ✅ Completed |
+| Voice Calls | Twilio-powered check-in calls | ✅ Completed |
 | Habit Tracking | Daily micro-actions with streaks | ✅ Completed |
-| Weekly Reviews | AI-generated progress summaries | 🔲 Pending |
-| Predictive Coaching | Pace warnings & recommendations | 🔲 Pending |
-| Agentic Actions | Execute tasks on user's behalf | 🔲 Pending |
+| Weekly Reviews | AI-generated progress summaries | ✅ Completed |
+| Predictive Coaching | Pace warnings & recommendations | ✅ Completed |
+| Agentic Actions | Execute tasks on user's behalf via function calling | ✅ Completed |
+| Auto-Listen Mode | Hands-free continuous voice interaction | ✅ Completed |
+| 7 Session Types | Morning routine, check-in, reflection, goal setting, etc. | ✅ Completed |
 
 ### Database Tables Created
 
@@ -1207,10 +1331,10 @@ progress_predictions ✅ Pace analytics
 
 | Service | Purpose | Status |
 |---------|---------|--------|
-| Gemini AI | Text/Voice chat | ✅ Configured |
+| Gemini AI | Text/Voice chat with agentic capabilities | ✅ Configured |
 | Twilio | SMS & Voice calls | ✅ Configured (+18885905074) |
-| Resend | Transactional email | 🔲 Need account |
-| n8n/Zapier | Workflow automation | 🔲 Optional |
+| Resend | Transactional email | ✅ Configured |
+| n8n/Zapier | Workflow automation | 🔲 Optional (enterprise feature) |
 
 ### Implementation Phases
 
@@ -1219,9 +1343,9 @@ progress_predictions ✅ Pace analytics
 | Phase 1 | Database schema + basic text chat | ✅ Complete |
 | Phase 2 | Habit system + streak tracking | ✅ Complete |
 | Phase 3 | Twilio SMS + scheduled notifications | ✅ Complete |
-| Phase 4 | Voice integration (Gemini Live) | 🔲 Pending |
+| Phase 4 | Voice integration with agentic capabilities | ✅ Complete |
 | Phase 5 | Weekly reviews + predictions | ✅ Complete |
-| Phase 6 | Polish + n8n workflows | 🔲 Pending |
+| Phase 6 | Manager Dashboard + Admin controls | ✅ Complete |
 
 ---
 
@@ -1412,38 +1536,45 @@ Current credit model feels transactional. Recommended hybrid approach:
 
 ## 10. Quick Reference: Next Actions
 
-### ✅ Recently Completed (November-December 2025)
-1. ✅ Applied all database schemas (v1.0-v2.0)
-2. ✅ Deployed 30 Edge Functions covering all core features
-3. ✅ Implemented AMIE Identity Engine backend
-4. ✅ Built Executive Workbook with Ghostwriter feature
+### ✅ Recently Completed (December 2025)
+1. ✅ Applied all database schemas (v1.0-v2.0) - 40+ tables
+2. ✅ Deployed 56 Edge Functions covering all core features
+3. ✅ Implemented AMIE Identity Engine with psychological coaching
+4. ✅ Built Executive Workbook with Ghostwriter AI feature
 5. ✅ Deployed Apple Watch integration functions
 6. ✅ Created Enterprise team collaboration features
 7. ✅ Implemented Systems Architecture Upgrade
 8. ✅ Integrated MDALS Music Engine
-9. ✅ Set up psychological frameworks database
+9. ✅ Set up psychological frameworks database with RAG
 10. ✅ Built knowledge ingestion pipeline
+11. ✅ Voice Coach with agentic capabilities and auto-listen
+12. ✅ Manager Dashboard with AI Coach settings controls
+13. ✅ Voice Coach Analytics dashboard
+14. ✅ Vision Board Engine fixes (safety, likeness, Nano Banana Pro)
+15. ✅ Identity Engine for auto-analyzing selfies
+16. ✅ Credit Management for platform admins
+17. ✅ Resend email integration
+18. ✅ Weekly Review UI components
 
 ### 🔴 Critical - This Week
 1. 🔲 Verify Stripe webhook endpoint in Dashboard
 2. 🔲 Test end-to-end payment flow with test cards
-3. 🔲 Build AMIE theme selection UI component
-4. 🔲 Implement master prompt Q&A wizard
-5. 🔲 Create weekly review display card
+3. 🔲 Load testing for 100+ concurrent users
+4. 🔲 Security audit of edge functions
 
 ### 🟡 High Priority - Next 2 Weeks
-6. 🔲 Build knowledge source upload interface
-7. 🔲 Implement systems dashboard UI
-8. 🔲 Create resource feed display (Active Feed)
-9. 🔲 Add notification preferences UI
-10. 🔲 Build print center unified interface
+5. 🔲 Build AMIE theme selection UI component
+6. 🔲 Implement master prompt Q&A wizard
+7. 🔲 Build knowledge source upload interface
+8. 🔲 Implement "My Systems" dashboard UI
+9. 🔲 Create resource feed display (Active Feed)
 
 ### 🟢 Medium Priority - Next Month
+10. 🔲 Google Calendar API integration for SOP sync
 11. 🔲 Complete Plaid balance retrieval implementation
 12. 🔲 Integrate Cost of Living API
-13. 🔲 Set up Resend for email notifications
-14. 🔲 Conduct security audit of all edge functions
-15. 🔲 Perform load testing for production readiness
+13. 🔲 Gemini Live Voice (real-time bidirectional) - optional
+14. 🔲 Video Generation (Veo) - future feature
 
 ---
 
