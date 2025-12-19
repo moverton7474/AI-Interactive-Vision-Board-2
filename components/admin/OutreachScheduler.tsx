@@ -167,6 +167,7 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
       const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`);
 
       const insertData = selectedMembers.map(userId => ({
+        team_id: teamId,
         user_id: userId,
         outreach_type: selectedType,
         scheduled_for: scheduledFor.toISOString(),
