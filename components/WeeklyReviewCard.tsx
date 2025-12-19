@@ -19,6 +19,27 @@ const WeeklyReviewCard: React.FC<Props> = ({ review, isExpanded = false, onToggl
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  // Helper to safely render text - handles objects that might come from JSONB
+  const safeText = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') {
+      // Handle common JSONB structures
+      if ('text' in (value as any)) return String((value as any).text);
+      if ('message' in (value as any)) return String((value as any).message);
+      if ('content' in (value as any)) return String((value as any).content);
+      return JSON.stringify(value);
+    }
+    return String(value);
+  };
+
+  // Safely parse array fields that might be JSONB
+  const safeArray = (arr: unknown): string[] => {
+    if (!arr) return [];
+    if (!Array.isArray(arr)) return [];
+    return arr.map(item => safeText(item)).filter(Boolean);
+  };
+
   const getCompletionColor = (rate: number) => {
     if (rate >= 0.8) return 'text-green-600 bg-green-50';
     if (rate >= 0.5) return 'text-yellow-600 bg-yellow-50';
@@ -86,28 +107,28 @@ const WeeklyReviewCard: React.FC<Props> = ({ review, isExpanded = false, onToggl
           {/* Stats Row */}
           <div className="grid grid-cols-3 gap-4 py-4 border-b border-gray-100">
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{review.wins?.length || 0}</div>
+              <div className="text-2xl font-bold text-green-600">{safeArray(review.wins).length}</div>
               <div className="text-xs text-gray-500">Wins</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-500">{review.blockers?.length || 0}</div>
+              <div className="text-2xl font-bold text-red-500">{safeArray(review.blockers).length}</div>
               <div className="text-xs text-gray-500">Blockers</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{review.next_steps?.length || 0}</div>
+              <div className="text-2xl font-bold text-blue-600">{safeArray(review.next_steps).length}</div>
               <div className="text-xs text-gray-500">Next Steps</div>
             </div>
           </div>
 
           {/* Wins */}
-          {review.wins?.length > 0 && (
+          {safeArray(review.wins).length > 0 && (
             <div className="mt-4">
               <h4 className="text-sm font-bold text-green-700 flex items-center gap-2 mb-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                 Wins This Week
               </h4>
               <ul className="space-y-2">
-                {review.wins.map((win, i) => (
+                {safeArray(review.wins).map((win, i) => (
                   <li key={i} className="text-sm text-gray-700 pl-4 border-l-2 border-green-200">
                     {win}
                   </li>
@@ -117,14 +138,14 @@ const WeeklyReviewCard: React.FC<Props> = ({ review, isExpanded = false, onToggl
           )}
 
           {/* Blockers */}
-          {review.blockers?.length > 0 && (
+          {safeArray(review.blockers).length > 0 && (
             <div className="mt-4">
               <h4 className="text-sm font-bold text-red-700 flex items-center gap-2 mb-2">
                 <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                 Blockers to Address
               </h4>
               <ul className="space-y-2">
-                {review.blockers.map((blocker, i) => (
+                {safeArray(review.blockers).map((blocker, i) => (
                   <li key={i} className="text-sm text-gray-700 pl-4 border-l-2 border-red-200">
                     {blocker}
                   </li>
@@ -134,14 +155,14 @@ const WeeklyReviewCard: React.FC<Props> = ({ review, isExpanded = false, onToggl
           )}
 
           {/* Next Steps */}
-          {review.next_steps?.length > 0 && (
+          {safeArray(review.next_steps).length > 0 && (
             <div className="mt-4">
               <h4 className="text-sm font-bold text-blue-700 flex items-center gap-2 mb-2">
                 <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                 Focus for Next Week
               </h4>
               <ul className="space-y-2">
-                {review.next_steps.map((step, i) => (
+                {safeArray(review.next_steps).map((step, i) => (
                   <li key={i} className="text-sm text-gray-700 pl-4 border-l-2 border-blue-200">
                     {step}
                   </li>
@@ -160,7 +181,7 @@ const WeeklyReviewCard: React.FC<Props> = ({ review, isExpanded = false, onToggl
                 AI Coach Insights
               </h4>
               <p className="text-sm text-gray-700 leading-relaxed">
-                {review.ai_insights}
+                {safeText(review.ai_insights)}
               </p>
             </div>
           )}

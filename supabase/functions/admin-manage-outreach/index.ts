@@ -33,21 +33,14 @@ serve(async (req) => {
     }
 
     const body = await req.json()
-    const { action, team_id, outreach_id, outreach_data, filters } = body
+    const { action, team_id, outreach_id, outreach_data, filters, channel } = body
 
-    if (!team_id) {
+    // team_id is required except for send_now (we get it from the outreach record)
+    if (!team_id && action !== 'send_now') {
       throw new Error('team_id is required')
     }
 
-    // Verify user has access to this team (manager or platform admin)
-    const { data: memberCheck } = await supabase
-      .from('team_members')
-      .select('role')
-      .eq('team_id', team_id)
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single()
-
+    // Check platform admin status first (applies to all actions)
     const { data: platformRole } = await supabase
       .from('platform_roles')
       .select('role')
@@ -56,9 +49,23 @@ serve(async (req) => {
       .single()
 
     const isPlatformAdmin = platformRole?.role === 'platform_admin'
-    const isTeamManager = memberCheck && ['owner', 'admin', 'manager'].includes(memberCheck.role)
 
-    if (!isPlatformAdmin && !isTeamManager) {
+    // For send_now action, we verify access after getting the outreach record
+    let isTeamManager = false
+    if (team_id) {
+      const { data: memberCheck } = await supabase
+        .from('team_members')
+        .select('role')
+        .eq('team_id', team_id)
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single()
+
+      isTeamManager = memberCheck && ['owner', 'admin', 'manager'].includes(memberCheck.role)
+    }
+
+    // Skip authorization check for send_now (will check after getting outreach)
+    if (action !== 'send_now' && !isPlatformAdmin && !isTeamManager) {
       throw new Error('Access denied: You must be a team manager or platform admin')
     }
 
@@ -319,8 +326,223 @@ serve(async (req) => {
         )
       }
 
+      case 'send_now': {
+        // Send outreach immediately (for testing or urgent needs)
+        if (!outreach_id) {
+          throw new Error('outreach_id is required for send_now action')
+        }
+
+        // Get the outreach record
+        const { data: outreach, error: fetchError } = await supabase
+          .from('voice_outreach_queue')
+          .select('*')
+          .eq('id', outreach_id)
+          .single()
+
+        if (fetchError || !outreach) {
+          throw new Error('Outreach not found')
+        }
+
+        // Verify access to the outreach's team
+        if (!isPlatformAdmin) {
+          const { data: memberCheck } = await supabase
+            .from('team_members')
+            .select('role')
+            .eq('team_id', outreach.team_id)
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .single()
+
+          if (!memberCheck || !['owner', 'admin', 'manager'].includes(memberCheck.role)) {
+            throw new Error('Access denied: You must be a team manager for this outreach')
+          }
+        }
+
+        // Get user's phone number from profiles
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('phone, email, full_name')
+          .eq('id', outreach.user_id)
+          .single()
+
+        if (profileError || !profile) {
+          throw new Error('User profile not found')
+        }
+
+        if (!profile.phone) {
+          throw new Error(`User ${profile.email || 'unknown'} does not have a phone number configured`)
+        }
+
+        // Mark as processing
+        await supabase
+          .from('voice_outreach_queue')
+          .update({
+            status: 'processing',
+            last_attempt_at: new Date().toISOString(),
+            attempt_count: (outreach.attempt_count || 0) + 1
+          })
+          .eq('id', outreach_id)
+
+        // Determine if this is SMS or Voice based on outreach_type
+        // For now, we'll use voice for all types (can be extended)
+        const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID')
+        const TWILIO_AUTH_TOKEN = Deno.env.get('TWILIO_AUTH_TOKEN')
+        const TWILIO_PHONE_NUMBER = Deno.env.get('TWILIO_PHONE_NUMBER')
+
+        if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
+          // Mark as failed and return error
+          await supabase
+            .from('voice_outreach_queue')
+            .update({
+              status: 'failed',
+              result: { error: 'Twilio credentials not configured' }
+            })
+            .eq('id', outreach_id)
+          throw new Error('Twilio credentials not configured')
+        }
+
+        // Prepare message context
+        const messageContext = outreach.context?.message || ''
+        const outreachType = outreach.outreach_type
+        const userName = profile.full_name || profile.email?.split('@')[0] || 'there'
+
+        // Default messages based on outreach type
+        const defaultMessages: Record<string, string> = {
+          'morning_motivation': `Good morning ${userName}! This is your AI coach checking in. Remember, every day is a new opportunity to grow. What's one goal you're focusing on today?`,
+          'habit_reminder': `Hey ${userName}, this is a friendly reminder to check in on your habits. Small consistent actions lead to big results!`,
+          'celebration': `Congratulations ${userName}! I'm calling to celebrate your amazing progress. You've been doing great work!`,
+          'check_in': `Hi ${userName}, just checking in to see how you're doing. Your well-being matters to us.`,
+          'goal_review': `Hi ${userName}, let's take a moment to review your goals. Progress is being made every day!`,
+          'weekly_summary': `Hey ${userName}, here's your weekly check-in. Let's reflect on what you've accomplished!`
+        }
+
+        const message = messageContext || defaultMessages[outreachType] || `Hi ${userName}, this is your AI coach reaching out!`
+
+        // Determine channel: 'sms' or 'voice' (default to voice)
+        const sendChannel = channel || 'voice'
+
+        try {
+          let twilioResult: any
+          let responseMessage: string
+
+          if (sendChannel === 'sms') {
+            // Send SMS
+            const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`
+
+            const formData = new URLSearchParams()
+            formData.append('To', profile.phone)
+            formData.append('From', TWILIO_PHONE_NUMBER)
+            formData.append('Body', message)
+
+            const twilioResponse = await fetch(twilioUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: formData
+            })
+
+            twilioResult = await twilioResponse.json()
+
+            if (!twilioResponse.ok) {
+              throw new Error(twilioResult.message || 'Twilio SMS failed')
+            }
+
+            responseMessage = `SMS sent to ${profile.phone}`
+          } else {
+            // Make Twilio API call for voice
+            const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna">${message}</Say>
+  <Pause length="1"/>
+  <Say voice="Polly.Joanna">Press any key to repeat this message, or hang up when you're ready. Have a great day!</Say>
+  <Gather numDigits="1" action="" timeout="10">
+    <Say voice="Polly.Joanna">${message}</Say>
+  </Gather>
+</Response>`
+
+            const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`
+
+            const formData = new URLSearchParams()
+            formData.append('To', profile.phone)
+            formData.append('From', TWILIO_PHONE_NUMBER)
+            formData.append('Twiml', twiml)
+
+            const twilioResponse = await fetch(twilioUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Basic ' + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: formData
+            })
+
+            twilioResult = await twilioResponse.json()
+
+            if (!twilioResponse.ok) {
+              throw new Error(twilioResult.message || 'Twilio call failed')
+            }
+
+            responseMessage = `Voice call initiated to ${profile.phone}`
+          }
+
+          // Mark as completed
+          await supabase
+            .from('voice_outreach_queue')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              result: {
+                sid: twilioResult.sid,
+                status: twilioResult.status,
+                channel: sendChannel,
+                to: profile.phone
+              }
+            })
+            .eq('id', outreach_id)
+
+          // Log the action
+          await supabase.from('audit_logs').insert({
+            user_id: user.id,
+            action: 'outreach_sent_now',
+            resource_type: 'voice_outreach_queue',
+            resource_id: outreach_id,
+            details: {
+              outreach_type: outreachType,
+              channel: sendChannel,
+              target_user: outreach.user_id,
+              sid: twilioResult.sid
+            }
+          })
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: responseMessage,
+              sid: twilioResult.sid,
+              channel: sendChannel
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } catch (callError: any) {
+          console.error('Twilio error:', callError)
+
+          // Mark as failed
+          await supabase
+            .from('voice_outreach_queue')
+            .update({
+              status: 'failed',
+              result: { error: callError.message, channel: sendChannel }
+            })
+            .eq('id', outreach_id)
+
+          throw new Error(`Failed to send ${sendChannel}: ${callError.message}`)
+        }
+      }
+
       default:
-        throw new Error(`Unknown action: ${action}. Valid actions: list, schedule, cancel, pause_user, resume_user, get_team_members`)
+        throw new Error(`Unknown action: ${action}. Valid actions: list, schedule, cancel, pause_user, resume_user, get_team_members, send_now`)
     }
 
   } catch (err: any) {

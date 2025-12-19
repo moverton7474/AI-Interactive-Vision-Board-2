@@ -62,6 +62,9 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
   const [priority, setPriority] = useState(5);
   const [customMessage, setCustomMessage] = useState('');
   const [scheduling, setScheduling] = useState(false);
+  const [sendingNowId, setSendingNowId] = useState<string | null>(null);
+  const [sendNowMode, setSendNowMode] = useState(false); // For modal toggle
+  const [sendChannel, setSendChannel] = useState<'voice' | 'sms'>('voice'); // Channel for immediate sends
 
   useEffect(() => {
     loadData();
@@ -213,6 +216,78 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
       setError(err.message || 'Failed to schedule outreach');
     } finally {
       setScheduling(false);
+    }
+  };
+
+  // Send outreach immediately (for testing or urgent needs)
+  const sendNow = async (outreachId?: string) => {
+    setSendingNowId(outreachId || 'new');
+    setError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      let targetOutreachId = outreachId;
+
+      // If creating a new immediate outreach
+      if (!outreachId && selectedMembers.length > 0) {
+        // Create outreach entry with 'processing' status (to be sent immediately)
+        const insertData = selectedMembers.map(userId => ({
+          team_id: teamId,
+          user_id: userId,
+          outreach_type: selectedType,
+          scheduled_for: new Date().toISOString(), // Now
+          priority: 10, // High priority for immediate sends
+          context: customMessage ? { message: customMessage } : {},
+          status: 'processing' // Skip pending, go straight to processing
+        }));
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('voice_outreach_queue')
+          .insert(insertData)
+          .select('id');
+
+        if (insertError) throw insertError;
+        targetOutreachId = inserted?.[0]?.id;
+      }
+
+      if (!targetOutreachId) {
+        throw new Error('No outreach to send');
+      }
+
+      // Call edge function to process this specific outreach
+      const { data, error: fnError } = await supabase.functions.invoke('admin-manage-outreach', {
+        body: {
+          action: 'send_now',
+          outreach_id: targetOutreachId,
+          channel: sendChannel // 'voice' or 'sms'
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      if (fnError) throw fnError;
+
+      // Close modal and refresh
+      setShowScheduleModal(false);
+      setSelectedMembers([]);
+      setCustomMessage('');
+      setSendNowMode(false);
+      setSendChannel('voice');
+
+      await loadData();
+
+      // Show success toast or message
+      alert(data?.message || 'Outreach sent successfully!');
+    } catch (err: any) {
+      console.error('Error sending outreach:', err);
+      setError(err.message || 'Failed to send outreach');
+    } finally {
+      setSendingNowId(null);
     }
   };
 
@@ -401,12 +476,33 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
                       </td>
                       <td className="p-4 text-right">
                         {item.status === 'pending' && (
-                          <button
-                            onClick={() => cancelOutreach(item.id)}
-                            className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg text-sm transition-colors"
-                          >
-                            Cancel
-                          </button>
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => sendNow(item.id)}
+                              disabled={sendingNowId === item.id}
+                              className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-lg text-sm transition-colors disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {sendingNowId === item.id ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-green-300 border-t-transparent rounded-full animate-spin" />
+                                  Sending...
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                  </svg>
+                                  Send Now
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => cancelOutreach(item.id)}
+                              className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg text-sm transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -449,6 +545,83 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
             </div>
 
             <div className="space-y-6">
+              {/* Send Now vs Schedule Toggle */}
+              <div className="flex rounded-lg bg-white/10 p-1">
+                <button
+                  type="button"
+                  onClick={() => setSendNowMode(true)}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                    sendNowMode
+                      ? 'bg-green-500 text-white'
+                      : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Send Now (Test)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSendNowMode(false)}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                    !sendNowMode
+                      ? 'bg-indigo-500 text-white'
+                      : 'text-white hover:bg-white/10'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Schedule Later
+                </button>
+              </div>
+
+              {sendNowMode && (
+                <>
+                  <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-4 flex items-center gap-3">
+                    <span className="text-2xl">⚡</span>
+                    <div>
+                      <p className="font-medium text-white">Immediate Send Mode</p>
+                      <p className="text-green-200 text-sm">Outreach will be sent immediately to selected members</p>
+                    </div>
+                  </div>
+
+                  {/* Channel Selector for Send Now */}
+                  <div>
+                    <label className="block text-sm font-medium text-indigo-200 mb-2">Send Via</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSendChannel('voice')}
+                        className={`p-4 rounded-lg text-center transition-colors ${
+                          sendChannel === 'voice'
+                            ? 'bg-indigo-500 border-indigo-400'
+                            : 'bg-white/10 border-white/20 hover:bg-white/20'
+                        } border`}
+                      >
+                        <span className="text-3xl">📞</span>
+                        <p className="font-medium text-white mt-2">Voice Call</p>
+                        <p className="text-xs text-indigo-300">AI will call and speak</p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSendChannel('sms')}
+                        className={`p-4 rounded-lg text-center transition-colors ${
+                          sendChannel === 'sms'
+                            ? 'bg-indigo-500 border-indigo-400'
+                            : 'bg-white/10 border-white/20 hover:bg-white/20'
+                        } border`}
+                      >
+                        <span className="text-3xl">💬</span>
+                        <p className="font-medium text-white mt-2">SMS Text</p>
+                        <p className="text-xs text-indigo-300">Send text message</p>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Outreach Type */}
               <div>
                 <label className="block text-sm font-medium text-indigo-200 mb-2">Outreach Type</label>
@@ -520,47 +693,51 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
                 </div>
               </div>
 
-              {/* Date/Time */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-indigo-200 mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={scheduledDate}
-                    onChange={(e) => setScheduledDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+              {/* Date/Time - Only show when scheduling */}
+              {!sendNowMode && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-indigo-200 mb-2">Date</label>
+                    <input
+                      type="date"
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-indigo-200 mb-2">Time</label>
+                    <input
+                      type="time"
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-indigo-200 mb-2">Time</label>
-                  <input
-                    type="time"
-                    value={scheduledTime}
-                    onChange={(e) => setScheduledTime(e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
+              )}
 
-              {/* Priority */}
-              <div>
-                <label className="block text-sm font-medium text-indigo-200 mb-2">
-                  Priority: {priority}/10
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={priority}
-                  onChange={(e) => setPriority(parseInt(e.target.value))}
-                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="flex justify-between text-xs text-indigo-300 mt-1">
-                  <span>Low priority</span>
-                  <span>High priority</span>
+              {/* Priority - Only show when scheduling */}
+              {!sendNowMode && (
+                <div>
+                  <label className="block text-sm font-medium text-indigo-200 mb-2">
+                    Priority: {priority}/10
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={priority}
+                    onChange={(e) => setPriority(parseInt(e.target.value))}
+                    className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-indigo-300 mt-1">
+                    <span>Low priority</span>
+                    <span>High priority</span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Custom Message */}
               <div>
@@ -579,30 +756,55 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
               {/* Actions */}
               <div className="flex gap-3 pt-4">
                 <button
+                  type="button"
                   onClick={() => setShowScheduleModal(false)}
                   className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-colors"
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={scheduleOutreach}
-                  disabled={scheduling || selectedMembers.length === 0 || !scheduledDate}
-                  className="flex-1 px-4 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  {scheduling ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Scheduling...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      Schedule {selectedMembers.length} Outreach{selectedMembers.length > 1 ? 'es' : ''}
-                    </>
-                  )}
-                </button>
+                {sendNowMode ? (
+                  <button
+                    type="button"
+                    onClick={() => sendNow()}
+                    disabled={sendingNowId !== null || selectedMembers.length === 0}
+                    className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    {sendingNowId !== null ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Send Now to {selectedMembers.length} Member{selectedMembers.length > 1 ? 's' : ''}
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={scheduleOutreach}
+                    disabled={scheduling || selectedMembers.length === 0 || !scheduledDate}
+                    className="flex-1 px-4 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    {scheduling ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Scheduling...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Schedule {selectedMembers.length} Outreach{selectedMembers.length > 1 ? 'es' : ''}
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
