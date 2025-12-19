@@ -74,7 +74,7 @@ serve(async (req) => {
             )
           `)
           .eq('team_id', team_id)
-          .order('scheduled_time', { ascending: true })
+          .order('scheduled_for', { ascending: true })
 
         // Apply filters if provided
         if (filters?.status) {
@@ -102,9 +102,9 @@ serve(async (req) => {
           user_id: item.user_id,
           email: item.profiles?.email || 'Unknown',
           outreach_type: item.outreach_type,
-          scheduled_time: item.scheduled_time,
+          scheduled_for: item.scheduled_for,
           status: item.status,
-          message_template: item.message_template,
+          context: item.context,
           priority: item.priority,
           created_at: item.created_at
         }))
@@ -120,7 +120,7 @@ serve(async (req) => {
           throw new Error('outreach_data is required for schedule action')
         }
 
-        const { user_ids, outreach_type, scheduled_time, message_template, priority } = outreach_data
+        const { user_ids, outreach_type, scheduled_for, context, priority } = outreach_data
 
         if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
           throw new Error('user_ids array is required')
@@ -151,11 +151,10 @@ serve(async (req) => {
           team_id,
           user_id: userId,
           outreach_type,
-          scheduled_time: scheduled_time || new Date().toISOString(),
-          message_template: message_template || null,
-          priority: priority || 'normal',
-          status: 'scheduled',
-          created_by: user.id
+          scheduled_for: scheduled_for || new Date().toISOString(),
+          context: context || null,
+          priority: priority || 1,
+          status: 'scheduled'
         }))
 
         const { data, error } = await supabase
@@ -174,7 +173,7 @@ serve(async (req) => {
             team_id,
             outreach_type,
             user_count: validUserIds.length,
-            scheduled_time
+            scheduled_for
           }
         })
 
