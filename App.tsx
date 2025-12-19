@@ -35,6 +35,7 @@ import { checkDatabaseConnection, saveDocument } from './services/storageService
 import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 import { ToastProvider } from './components/ToastContext';
 import NotificationSettings from './components/settings/NotificationSettings';
+import AgentSettings from './components/settings/AgentSettings';
 import { useSubscriptionPolling } from './hooks/useSubscriptionPolling';
 
 const App = () => {
@@ -1026,7 +1027,22 @@ const App = () => {
               >
                 <span className="text-xl">←</span> Back to Dashboard
               </button>
-              <NotificationSettings />
+              <NotificationSettings onNavigateToAgentSettings={() => setView(AppView.AGENT_SETTINGS)} />
+            </div>
+          </div>
+        );
+
+      case AppView.AGENT_SETTINGS:
+        return (
+          <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white transition-colors duration-300">
+            <div className="max-w-4xl mx-auto p-4 pt-8">
+              <button
+                onClick={() => setView(AppView.SETTINGS)}
+                className="mb-6 flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors font-medium"
+              >
+                <span className="text-xl">←</span> Back to Notification Settings
+              </button>
+              <AgentSettings />
             </div>
           </div>
         );

@@ -3,6 +3,10 @@ import { supabase } from '../../lib/supabase';
 import { UserCommPreferences } from '../../types';
 import { ClockIcon, SaveIcon, SparklesIcon } from '../Icons';
 
+interface NotificationSettingsProps {
+    onNavigateToAgentSettings?: () => void;
+}
+
 interface EmailPreferences {
     weekly_review_emails: boolean;
     milestone_emails: boolean;
@@ -24,7 +28,7 @@ const DAYS_OF_WEEK = [
     { value: 'saturday', label: 'Saturday' },
 ];
 
-export default function NotificationSettings() {
+export default function NotificationSettings({ onNavigateToAgentSettings }: NotificationSettingsProps) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [prefs, setPrefs] = useState<UserCommPreferences | null>(null);
@@ -188,6 +192,31 @@ export default function NotificationSettings() {
 
             {error && <div className="bg-red-900/30 text-red-200 p-4 rounded-lg border border-red-800">{error}</div>}
             {success && <div className="bg-green-900/30 text-green-200 p-4 rounded-lg border border-green-800">{success}</div>}
+
+            {/* AI AGENT SETTINGS LINK */}
+            <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/20 backdrop-blur-sm border border-amber-700/50 rounded-xl p-4 mb-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-500/20 rounded-full">
+                            <SparklesIcon className="w-6 h-6 text-amber-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-white">AI Agent Settings</h3>
+                            <p className="text-amber-200/70 text-sm">Control what actions your AI Coach can take on your behalf</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onNavigateToAgentSettings}
+                        className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors font-medium text-sm"
+                    >
+                        Configure
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 

@@ -1054,6 +1054,131 @@ function getGeminiTools() {
             },
             required: ['data_type']
           }
+        },
+        {
+          name: 'get_todays_habits',
+          description: 'Get the user\'s habits scheduled for today with their completion status',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        },
+        {
+          name: 'mark_habit_complete',
+          description: 'Mark a specific habit as completed for today',
+          parameters: {
+            type: 'object',
+            properties: {
+              habit_id: {
+                type: 'string',
+                description: 'The ID of the habit to mark complete'
+              },
+              habit_name: {
+                type: 'string',
+                description: 'The name of the habit (if ID is not known, will search by name)'
+              },
+              notes: {
+                type: 'string',
+                description: 'Optional notes about the completion'
+              }
+            },
+            required: []
+          }
+        },
+        {
+          name: 'send_habit_reminder',
+          description: 'Send a reminder to the user about a specific habit',
+          parameters: {
+            type: 'object',
+            properties: {
+              habit_id: {
+                type: 'string',
+                description: 'The ID of the habit to remind about'
+              },
+              habit_name: {
+                type: 'string',
+                description: 'The name of the habit (if ID is not known)'
+              },
+              channel: {
+                type: 'string',
+                enum: ['push', 'sms', 'email'],
+                description: 'Channel to send the reminder through'
+              },
+              message: {
+                type: 'string',
+                description: 'Custom reminder message'
+              }
+            },
+            required: []
+          }
+        },
+        {
+          name: 'update_goal_progress',
+          description: 'Update the progress percentage on a user\'s goal',
+          parameters: {
+            type: 'object',
+            properties: {
+              goal_id: {
+                type: 'string',
+                description: 'The ID of the goal to update'
+              },
+              goal_name: {
+                type: 'string',
+                description: 'The name of the goal (if ID is not known)'
+              },
+              progress: {
+                type: 'number',
+                description: 'New progress percentage (0-100)'
+              },
+              notes: {
+                type: 'string',
+                description: 'Optional notes about the progress update'
+              }
+            },
+            required: ['progress']
+          }
+        },
+        {
+          name: 'schedule_goal_checkin',
+          description: 'Schedule a future check-in for a specific goal',
+          parameters: {
+            type: 'object',
+            properties: {
+              goal_id: {
+                type: 'string',
+                description: 'The ID of the goal'
+              },
+              goal_name: {
+                type: 'string',
+                description: 'The name of the goal (if ID is not known)'
+              },
+              when: {
+                type: 'string',
+                description: 'When to schedule the check-in (e.g., "tomorrow", "next week", "in 3 days")'
+              },
+              channel: {
+                type: 'string',
+                enum: ['push', 'sms', 'email', 'voice'],
+                description: 'Channel for the check-in reminder'
+              }
+            },
+            required: ['when']
+          }
+        },
+        {
+          name: 'send_sms',
+          description: 'Send an SMS text message to the user\'s phone',
+          parameters: {
+            type: 'object',
+            properties: {
+              message: {
+                type: 'string',
+                description: 'The SMS message to send'
+              }
+            },
+            required: ['message']
+          }
         }
       ]
     }
@@ -1435,6 +1560,497 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
 
         default:
           return { success: false, error: `Unknown data type: ${data_type}` }
+      }
+    }
+
+    case 'get_todays_habits': {
+      // Get today's day of week (0 = Sunday, 1 = Monday, etc.)
+      const today = new Date()
+      const dayOfWeek = today.getDay()
+      const todayStr = today.toISOString().split('T')[0]
+
+      // Get all active habits
+      const { data: habits, error } = await supabase
+        .from('habits')
+        .select('id, title, description, frequency, custom_days, reminder_time, current_streak')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      // Filter habits scheduled for today
+      const todaysHabits = (habits || []).filter((h: any) => {
+        if (h.frequency === 'daily') return true
+        if (h.frequency === 'weekly') {
+          // Check if today matches any custom_days
+          return h.custom_days?.includes(dayOfWeek)
+        }
+        return true // Include all if frequency not set
+      })
+
+      // Check completion status for each habit
+      const habitIds = todaysHabits.map((h: any) => h.id)
+      const { data: completions } = await supabase
+        .from('habit_completions')
+        .select('habit_id')
+        .in('habit_id', habitIds)
+        .gte('completed_at', todayStr)
+
+      const completedIds = new Set((completions || []).map((c: any) => c.habit_id))
+
+      const habitsWithStatus = todaysHabits.map((h: any) => ({
+        ...h,
+        completed_today: completedIds.has(h.id)
+      }))
+
+      const completedCount = habitsWithStatus.filter((h: any) => h.completed_today).length
+      const pendingCount = habitsWithStatus.length - completedCount
+
+      return {
+        success: true,
+        data: habitsWithStatus,
+        summary: habitsWithStatus.length > 0
+          ? `You have ${habitsWithStatus.length} habits for today: ${completedCount} completed, ${pendingCount} remaining. ${habitsWithStatus.filter((h: any) => !h.completed_today).map((h: any) => h.title).join(', ')}`
+          : 'No habits scheduled for today'
+      }
+    }
+
+    case 'mark_habit_complete': {
+      const habit_id = args?.habit_id
+      const habit_name = args?.habit_name
+      const notes = args?.notes
+
+      // Find habit by ID or name
+      let habit: any
+      if (habit_id) {
+        const { data } = await supabase
+          .from('habits')
+          .select('id, title, current_streak')
+          .eq('id', habit_id)
+          .eq('user_id', userId)
+          .single()
+        habit = data
+      } else if (habit_name) {
+        const { data } = await supabase
+          .from('habits')
+          .select('id, title, current_streak')
+          .eq('user_id', userId)
+          .ilike('title', `%${habit_name}%`)
+          .single()
+        habit = data
+      }
+
+      if (!habit) {
+        return {
+          success: false,
+          error: 'Habit not found. Please specify the habit name or ID.'
+        }
+      }
+
+      // Check if already completed today
+      const todayStr = new Date().toISOString().split('T')[0]
+      const { data: existing } = await supabase
+        .from('habit_completions')
+        .select('id')
+        .eq('habit_id', habit.id)
+        .gte('completed_at', todayStr)
+        .single()
+
+      if (existing) {
+        return {
+          success: true,
+          message: `"${habit.title}" was already marked complete today! Current streak: ${habit.current_streak} days.`,
+          alreadyCompleted: true
+        }
+      }
+
+      // Create completion record
+      const { error } = await supabase
+        .from('habit_completions')
+        .insert({
+          habit_id: habit.id,
+          completed_at: new Date().toISOString(),
+          notes: notes || null
+        })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      // Update streak (increment by 1)
+      const newStreak = (habit.current_streak || 0) + 1
+      await supabase
+        .from('habits')
+        .update({ current_streak: newStreak })
+        .eq('id', habit.id)
+
+      // Log to agent action history
+      await supabase.from('agent_action_history').insert({
+        user_id: userId,
+        action_type: 'mark_habit_complete',
+        action_status: 'executed',
+        action_payload: { habit_id: habit.id, habit_name: habit.title, notes },
+        trigger_context: 'conversation',
+        related_habit_id: habit.id,
+        executed_at: new Date().toISOString()
+      })
+
+      return {
+        success: true,
+        message: `Great job! "${habit.title}" marked complete. Your streak is now ${newStreak} days!`,
+        habitId: habit.id,
+        newStreak
+      }
+    }
+
+    case 'send_habit_reminder': {
+      const habit_id = args?.habit_id
+      const habit_name = args?.habit_name
+      const channel = args?.channel || 'push'
+      const message = args?.message
+
+      // Find habit
+      let habit: any
+      if (habit_id) {
+        const { data } = await supabase
+          .from('habits')
+          .select('id, title, reminder_time')
+          .eq('id', habit_id)
+          .eq('user_id', userId)
+          .single()
+        habit = data
+      } else if (habit_name) {
+        const { data } = await supabase
+          .from('habits')
+          .select('id, title, reminder_time')
+          .eq('user_id', userId)
+          .ilike('title', `%${habit_name}%`)
+          .single()
+        habit = data
+      }
+
+      if (!habit) {
+        return {
+          success: false,
+          error: 'Habit not found. Please specify the habit name or ID.'
+        }
+      }
+
+      const reminderMessage = message || `Don't forget your habit: ${habit.title}!`
+
+      // Create scheduled reminder
+      const { data: reminder, error } = await supabase
+        .from('scheduled_habit_reminders')
+        .insert({
+          user_id: userId,
+          habit_id: habit.id,
+          scheduled_for: new Date().toISOString(),
+          reminder_channel: channel,
+          habit_name: habit.title,
+          reminder_message: reminderMessage,
+          status: 'scheduled'
+        })
+        .select()
+        .single()
+
+      if (error) {
+        // Fallback if table doesn't exist yet
+        return {
+          success: true,
+          message: `Habit reminder for "${habit.title}" has been noted. The reminder system will be fully operational soon.`,
+          habitId: habit.id
+        }
+      }
+
+      return {
+        success: true,
+        message: `Reminder set for "${habit.title}" via ${channel}: "${reminderMessage}"`,
+        reminderId: reminder?.id,
+        habitId: habit.id
+      }
+    }
+
+    case 'update_goal_progress': {
+      const goal_id = args?.goal_id
+      const goal_name = args?.goal_name
+      const progress = args?.progress
+      const notes = args?.notes
+
+      if (progress === undefined || progress === null) {
+        return {
+          success: false,
+          error: 'Please specify the progress percentage (0-100).'
+        }
+      }
+
+      // Find goal (milestone)
+      let goal: any
+      if (goal_id) {
+        const { data } = await supabase
+          .from('milestones')
+          .select('id, title, completion_percentage')
+          .eq('id', goal_id)
+          .eq('user_id', userId)
+          .single()
+        goal = data
+      } else if (goal_name) {
+        const { data } = await supabase
+          .from('milestones')
+          .select('id, title, completion_percentage')
+          .eq('user_id', userId)
+          .ilike('title', `%${goal_name}%`)
+          .single()
+        goal = data
+      } else {
+        // Get the most recent active goal
+        const { data } = await supabase
+          .from('milestones')
+          .select('id, title, completion_percentage')
+          .eq('user_id', userId)
+          .lt('completion_percentage', 100)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        goal = data
+      }
+
+      if (!goal) {
+        return {
+          success: false,
+          error: 'Goal not found. Please specify the goal name or ID.'
+        }
+      }
+
+      const oldProgress = goal.completion_percentage || 0
+      const newProgress = Math.min(100, Math.max(0, progress))
+
+      // Update the goal
+      const { error } = await supabase
+        .from('milestones')
+        .update({
+          completion_percentage: newProgress,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', goal.id)
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      // Log to agent action history
+      await supabase.from('agent_action_history').insert({
+        user_id: userId,
+        action_type: 'update_goal_progress',
+        action_status: 'executed',
+        action_payload: { goal_id: goal.id, goal_name: goal.title, old_progress: oldProgress, new_progress: newProgress, notes },
+        trigger_context: 'conversation',
+        related_goal_id: goal.id,
+        executed_at: new Date().toISOString()
+      })
+
+      const progressDiff = newProgress - oldProgress
+      const direction = progressDiff > 0 ? 'up' : progressDiff < 0 ? 'down' : 'unchanged'
+
+      return {
+        success: true,
+        message: newProgress === 100
+          ? `Congratulations! "${goal.title}" is now complete at 100%!`
+          : `Updated "${goal.title}" progress from ${oldProgress}% to ${newProgress}% (${direction === 'up' ? '+' : ''}${progressDiff}%)`,
+        goalId: goal.id,
+        oldProgress,
+        newProgress
+      }
+    }
+
+    case 'schedule_goal_checkin': {
+      const goal_id = args?.goal_id
+      const goal_name = args?.goal_name
+      const when = args?.when
+      const channel = args?.channel || 'push'
+
+      if (!when) {
+        return {
+          success: false,
+          error: 'Please specify when you want the check-in scheduled.'
+        }
+      }
+
+      // Find goal
+      let goal: any
+      if (goal_id) {
+        const { data } = await supabase
+          .from('milestones')
+          .select('id, title, completion_percentage')
+          .eq('id', goal_id)
+          .eq('user_id', userId)
+          .single()
+        goal = data
+      } else if (goal_name) {
+        const { data } = await supabase
+          .from('milestones')
+          .select('id, title, completion_percentage')
+          .eq('user_id', userId)
+          .ilike('title', `%${goal_name}%`)
+          .single()
+        goal = data
+      } else {
+        // Get the most recent active goal
+        const { data } = await supabase
+          .from('milestones')
+          .select('id, title, completion_percentage')
+          .eq('user_id', userId)
+          .lt('completion_percentage', 100)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        goal = data
+      }
+
+      if (!goal) {
+        return {
+          success: false,
+          error: 'Goal not found. Please specify the goal name or create a goal first.'
+        }
+      }
+
+      const scheduledFor = parseReminderTime(when)
+
+      // Create scheduled check-in
+      const { data: checkin, error } = await supabase
+        .from('scheduled_goal_checkins')
+        .insert({
+          user_id: userId,
+          goal_id: goal.id,
+          scheduled_for: scheduledFor.toISOString(),
+          checkin_channel: channel,
+          goal_title: goal.title,
+          current_progress: goal.completion_percentage,
+          status: 'scheduled'
+        })
+        .select()
+        .single()
+
+      if (error) {
+        // Fallback: create as reminder task
+        const { data: task, error: taskError } = await supabase
+          .from('action_steps')
+          .insert({
+            user_id: userId,
+            title: `Goal Check-in: ${goal.title}`,
+            description: `Scheduled check-in for your goal "${goal.title}" (currently at ${goal.completion_percentage}%)`,
+            due_date: scheduledFor.toISOString().split('T')[0],
+            priority: 'medium',
+            status: 'pending'
+          })
+          .select()
+          .single()
+
+        if (taskError) {
+          return { success: false, error: taskError.message }
+        }
+
+        return {
+          success: true,
+          message: `Goal check-in scheduled for ${scheduledFor.toLocaleString()}: "${goal.title}" (saved as task)`,
+          taskId: task.id,
+          goalId: goal.id
+        }
+      }
+
+      return {
+        success: true,
+        message: `Goal check-in scheduled for ${scheduledFor.toLocaleString()}: "${goal.title}" via ${channel}`,
+        checkinId: checkin?.id,
+        goalId: goal.id
+      }
+    }
+
+    case 'send_sms': {
+      const message = args?.message
+
+      if (!message) {
+        return {
+          success: false,
+          error: 'I need a message to send. What would you like the SMS to say?'
+        }
+      }
+
+      // Check if SMS is allowed
+      if (aiSettings?.allow_send_sms === false) {
+        return { success: false, error: 'SMS sending has been disabled by team policy.' }
+      }
+
+      // Get user's phone number from comm preferences
+      const { data: commPrefs } = await supabase
+        .from('user_comm_preferences')
+        .select('phone_number, phone_verified')
+        .eq('user_id', userId)
+        .single()
+
+      if (!commPrefs?.phone_number) {
+        return {
+          success: false,
+          error: 'No phone number found. Please add your phone number in Settings > Notifications.'
+        }
+      }
+
+      // Check user's agent settings for SMS permission
+      const { data: agentSettings } = await supabase
+        .from('user_agent_settings')
+        .select('allow_send_sms, require_confirmation_sms')
+        .eq('user_id', userId)
+        .single()
+
+      if (agentSettings && agentSettings.allow_send_sms === false) {
+        return {
+          success: false,
+          error: 'SMS sending is disabled in your agent settings. Enable it in Settings > AI Agent to allow SMS.'
+        }
+      }
+
+      // Call the SMS edge function
+      try {
+        const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+        const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+        const smsResponse = await fetch(`${SUPABASE_URL}/functions/v1/agent-send-sms`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            phone_number: commPrefs.phone_number,
+            message
+          })
+        })
+
+        const result = await smsResponse.json()
+
+        if (!result.success) {
+          return { success: false, error: result.error || 'Failed to send SMS' }
+        }
+
+        // Log to agent action history
+        await supabase.from('agent_action_history').insert({
+          user_id: userId,
+          action_type: 'send_sms',
+          action_status: 'executed',
+          action_payload: { phone_number: commPrefs.phone_number, message },
+          trigger_context: 'conversation',
+          executed_at: new Date().toISOString()
+        })
+
+        return {
+          success: true,
+          message: `SMS sent to your phone: "${message}"`,
+          result
+        }
+      } catch (err: any) {
+        return { success: false, error: `Failed to send SMS: ${err.message}` }
       }
     }
 

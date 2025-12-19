@@ -25,6 +25,7 @@ export enum AppView {
   MANAGER_DASHBOARD = 'MANAGER_DASHBOARD', // Enterprise team management
   MDALS_LAB = 'MDALS_LAB', // MDALS Engine Test Panel (Development)
   SETTINGS = 'SETTINGS', // User Settings
+  AGENT_SETTINGS = 'AGENT_SETTINGS', // AI Agent Settings (Phase 7)
 }
 
 // Guided Onboarding State (v1.7 - Draft Plan Review)
@@ -297,6 +298,149 @@ export interface UserCommPreferences {
   smart_optimization_enabled: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// ============================================
+// AI AGENT SETTINGS TYPES
+// ============================================
+
+export type AgentReminderChannel = 'push' | 'sms' | 'email' | 'voice';
+export type AgentReminderTiming = 'before' | 'at_time' | 'after';
+export type AgentCheckinFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
+export type AgentProactiveFrequency = 'daily' | 'weekly' | 'biweekly';
+export type AgentActionType = 'send_email' | 'send_sms' | 'voice_call' | 'create_task' | 'schedule_reminder' | 'mark_habit_complete' | 'update_goal_progress';
+export type AgentActionStatus = 'pending' | 'confirmed' | 'executed' | 'failed' | 'cancelled';
+export type AgentTriggerContext = 'conversation' | 'scheduled' | 'proactive';
+export type ReminderStatus = 'scheduled' | 'sent' | 'failed' | 'skipped' | 'snoozed';
+export type CheckinStatus = 'scheduled' | 'sent' | 'completed' | 'failed' | 'skipped';
+export type ConfirmationMethod = 'voice' | 'ui' | 'auto';
+
+export interface UserAgentSettings {
+  id: string;
+  user_id: string;
+
+  // Master toggle
+  agent_actions_enabled: boolean;
+
+  // Granular action permissions
+  allow_send_email: boolean;
+  allow_send_sms: boolean;
+  allow_voice_calls: boolean;
+  allow_create_tasks: boolean;
+  allow_schedule_reminders: boolean;
+
+  // Habit reminder settings
+  habit_reminders_enabled: boolean;
+  habit_reminder_channel: AgentReminderChannel;
+  habit_reminder_timing: AgentReminderTiming;
+  habit_reminder_minutes_before: number;
+
+  // Goal check-in settings
+  goal_checkins_enabled: boolean;
+  goal_checkin_frequency: AgentCheckinFrequency;
+  goal_checkin_channel: AgentReminderChannel;
+  goal_checkin_day_of_week: number; // 0=Sunday, 1=Monday, etc.
+  goal_checkin_time: string;
+
+  // Proactive outreach settings
+  allow_proactive_outreach: boolean;
+  proactive_outreach_frequency: AgentProactiveFrequency;
+  proactive_topics: string[];
+
+  // Confirmation requirements
+  require_confirmation_email: boolean;
+  require_confirmation_sms: boolean;
+  require_confirmation_voice: boolean;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentActionHistory {
+  id: string;
+  user_id: string;
+  session_id?: string;
+
+  // Action details
+  action_type: AgentActionType;
+  action_status: AgentActionStatus;
+  action_payload: Record<string, any>;
+
+  // Results
+  result_payload?: Record<string, any>;
+  error_message?: string;
+
+  // Confirmation tracking
+  requires_confirmation: boolean;
+  confirmed_at?: string;
+  confirmed_via?: ConfirmationMethod;
+
+  // Context
+  trigger_context?: AgentTriggerContext;
+  related_habit_id?: string;
+  related_goal_id?: string;
+
+  // Timestamps
+  created_at: string;
+  executed_at?: string;
+}
+
+export interface ScheduledHabitReminder {
+  id: string;
+  user_id: string;
+  habit_id: string;
+
+  // Schedule info
+  scheduled_for: string;
+  reminder_channel: AgentReminderChannel;
+
+  // Content
+  habit_name: string;
+  reminder_message?: string;
+
+  // Status tracking
+  status: ReminderStatus;
+  sent_at?: string;
+  error_message?: string;
+
+  // Snooze tracking
+  snoozed_until?: string;
+  snooze_count: number;
+
+  // Link to action history
+  action_history_id?: string;
+
+  // Timestamps
+  created_at: string;
+}
+
+export interface ScheduledGoalCheckin {
+  id: string;
+  user_id: string;
+  goal_id: string;
+
+  // Schedule info
+  scheduled_for: string;
+  checkin_channel: AgentReminderChannel;
+
+  // Content
+  goal_title: string;
+  checkin_message?: string;
+  current_progress?: number;
+
+  // Status tracking
+  status: CheckinStatus;
+  sent_at?: string;
+  completed_at?: string;
+  user_response?: string;
+  error_message?: string;
+
+  // Link to action history
+  action_history_id?: string;
+
+  // Timestamps
+  created_at: string;
 }
 
 export interface Habit {
