@@ -80,10 +80,23 @@ const TeamMemberAdmin: React.FC<Props> = ({ onClose }) => {
           role,
           is_active,
           joined_at,
-          profiles:user_id (email),
           teams (name)
         `)
         .order('joined_at', { ascending: false });
+
+      // Fetch emails separately to avoid FK ambiguity
+      const userIds = (membersData || []).map((m: any) => m.user_id).filter(Boolean);
+      let emailMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', userIds);
+        emailMap = (profilesData || []).reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.email;
+          return acc;
+        }, {});
+      }
 
       if (membersError) throw membersError;
 
@@ -94,7 +107,7 @@ const TeamMemberAdmin: React.FC<Props> = ({ onClose }) => {
         role: m.role,
         is_active: m.is_active,
         joined_at: m.joined_at,
-        email: m.profiles?.email || 'Unknown',
+        email: emailMap[m.user_id] || 'Unknown',
         team_name: m.teams?.name || 'Unknown Team'
       }));
 

@@ -138,6 +138,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
 
       // Load team members - platform admins can see all, others see their team only
       let teamMembers: any[] = [];
+      let profilesMap: Record<string, { email: string; credits: number }> = {};
 
       // Only query team members if user has a team OR is platform admin viewing all
       if (memberData?.team_id || isAdmin) {
@@ -145,10 +146,6 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
           .from('team_members')
           .select(`
             *,
-            profiles:user_id (
-              email,
-              credits
-            ),
             teams (name)
           `);
 
@@ -174,6 +171,19 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         } else {
           teamMembers = data || [];
         }
+
+        // Fetch profiles separately to avoid FK ambiguity
+        const userIds = teamMembers.map((m: any) => m.user_id).filter(Boolean);
+        if (userIds.length > 0) {
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, email, credits')
+            .in('id', userIds);
+          profilesMap = (profilesData || []).reduce((acc: Record<string, { email: string; credits: number }>, p: any) => {
+            acc[p.id] = { email: p.email || '', credits: p.credits || 0 };
+            return acc;
+          }, {});
+        }
       }
 
       // Transform member data
@@ -189,7 +199,8 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         else if (daysSinceActive > 3) status = 'at_risk';
 
         // Extract name from email (before @) as display name
-        const email = member.profiles?.email || '';
+        const profile = profilesMap[member.user_id] || { email: '', credits: 0 };
+        const email = profile.email;
         const displayName = email ? email.split('@')[0] : 'Team Member';
 
         return {
@@ -206,7 +217,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
           completion_rate: member.completion_rate || 0,
           last_active: member.last_active_at,
           status,
-          credits: member.profiles?.credits ?? 0
+          credits: profile.credits
         };
       });
 

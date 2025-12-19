@@ -58,12 +58,7 @@ const EngagementAlerts: React.FC<EngagementAlertsProps> = ({
     try {
       let query = supabase
         .from('engagement_alerts')
-        .select(`
-          *,
-          profiles:user_id (
-            email
-          )
-        `)
+        .select('*')
         .eq('team_id', teamId)
         .order('created_at', { ascending: false });
 
@@ -79,10 +74,24 @@ const EngagementAlerts: React.FC<EngagementAlertsProps> = ({
 
       if (fetchError) throw fetchError;
 
+      // Fetch profiles separately to avoid FK ambiguity
+      const userIds = (data || []).map((a: any) => a.user_id).filter(Boolean);
+      let emailMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', userIds);
+        emailMap = (profilesData || []).reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.email || '';
+          return acc;
+        }, {});
+      }
+
       const alertsWithNames = (data || []).map((alert: any) => ({
         ...alert,
-        user_email: alert.profiles?.email || '',
-        user_name: alert.profiles?.email?.split('@')[0] || 'User'
+        user_email: emailMap[alert.user_id] || '',
+        user_name: emailMap[alert.user_id]?.split('@')[0] || 'User'
       }));
 
       setAlerts(alertsWithNames);

@@ -81,12 +81,7 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
       // Load outreach queue
       let query = supabase
         .from('voice_outreach_queue')
-        .select(`
-          *,
-          profiles:user_id (
-            email
-          )
-        `)
+        .select('*')
         .order('scheduled_for', { ascending: true });
 
       // Filter by team members
@@ -108,10 +103,24 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
 
       if (queueError) throw queueError;
 
+      // Fetch profiles separately to avoid FK ambiguity
+      const queueUserIds = (queueData || []).map((item: any) => item.user_id).filter(Boolean);
+      let emailMap: Record<string, string> = {};
+      if (queueUserIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', queueUserIds);
+        emailMap = (profilesData || []).reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.email || '';
+          return acc;
+        }, {});
+      }
+
       const queueWithNames = (queueData || []).map((item: any) => ({
         ...item,
-        user_email: item.profiles?.email || '',
-        user_name: item.profiles?.email?.split('@')[0] || 'User'
+        user_email: emailMap[item.user_id] || '',
+        user_name: emailMap[item.user_id]?.split('@')[0] || 'User'
       }));
 
       setOutreachQueue(queueWithNames);
@@ -119,23 +128,30 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
       // Load team members for scheduling
       const { data: membersData, error: membersError } = await supabase
         .from('team_members')
-        .select(`
-          user_id,
-          role,
-          current_streak,
-          profiles:user_id (
-            email
-          )
-        `)
+        .select('user_id, role, current_streak')
         .eq('team_id', teamId)
         .eq('is_active', true);
 
       if (membersError) throw membersError;
 
+      // Fetch profiles for team members
+      const memberUserIds = (membersData || []).map((m: any) => m.user_id).filter(Boolean);
+      let memberEmailMap: Record<string, string> = {};
+      if (memberUserIds.length > 0) {
+        const { data: memberProfilesData } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', memberUserIds);
+        memberEmailMap = (memberProfilesData || []).reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.email || '';
+          return acc;
+        }, {});
+      }
+
       const members = (membersData || []).map((m: any) => ({
         user_id: m.user_id,
-        email: m.profiles?.email || '',
-        name: m.profiles?.email?.split('@')[0] || 'User',
+        email: memberEmailMap[m.user_id] || '',
+        name: memberEmailMap[m.user_id]?.split('@')[0] || 'User',
         current_streak: m.current_streak || 0,
         role: m.role
       }));

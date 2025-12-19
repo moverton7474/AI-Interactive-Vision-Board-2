@@ -58,19 +58,29 @@ const TeamKnowledgeView: React.FC = () => {
     setError(null);
 
     try {
-      // Get team members with their knowledge stats
+      // Get team members
       const { data: members, error: membersError } = await supabase
         .from('team_members')
-        .select(`
-          user_id,
-          profiles:user_id (email)
-        `)
+        .select('user_id')
         .eq('is_active', true);
 
       if (membersError) throw membersError;
 
       // Get knowledge sources for all team members
       const userIds = members?.map(m => m.user_id) || [];
+
+      // Fetch profiles separately to avoid FK ambiguity
+      let emailMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', userIds);
+        emailMap = (profilesData || []).reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.email || '';
+          return acc;
+        }, {});
+      }
 
       const { data: sources, error: sourcesError } = await supabase
         .from('user_knowledge_sources')
@@ -102,7 +112,7 @@ const TeamKnowledgeView: React.FC = () => {
       const memberMap: Record<string, MemberKnowledge> = {};
 
       members?.forEach(m => {
-        const email = (m.profiles as any)?.email || 'Unknown';
+        const email = emailMap[m.user_id] || 'Unknown';
         memberMap[m.user_id] = {
           user_id: m.user_id,
           email,

@@ -248,21 +248,35 @@ const TeamCommunications: React.FC<Props> = ({ teamId, teamName, isPlatformAdmin
     setLoadingRecipients(true);
 
     try {
-      // Query team_members with profiles to get emails
+      // Query team_members
       const { data: members, error } = await supabase
         .from('team_members')
-        .select('user_id, role, is_active, profiles:user_id(email)')
+        .select('user_id, role, is_active')
         .eq('team_id', teamId)
         .eq('is_active', true);
 
       if (error) throw error;
+
+      // Fetch profiles separately to avoid FK ambiguity
+      const userIds = (members || []).map((m: any) => m.user_id).filter(Boolean);
+      let emailMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', userIds);
+        emailMap = (profilesData || []).reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.email || '';
+          return acc;
+        }, {});
+      }
 
       // Filter by roles
       const filtered = (members || [])
         .filter((m: any) => recipientFilter.roles.includes(m.role))
         .map((m: any) => ({
           user_id: m.user_id,
-          email: m.profiles?.email || '',
+          email: emailMap[m.user_id] || '',
           role: m.role,
           status: 'active'
         }));

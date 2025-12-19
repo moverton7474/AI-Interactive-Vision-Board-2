@@ -1,7 +1,8 @@
 -- ============================================
 -- FIX: Voice Outreach Queue and Engagement Alerts
 -- Migration: 20251219_fix_outreach_relationships
--- Description: Adds missing team_id column and foreign keys for PostgREST joins
+-- Description: Adds missing team_id column for team-based access control
+-- Note: Profiles are queried separately in code to avoid FK ambiguity issues
 -- ============================================
 
 -- 1. Add team_id column to voice_outreach_queue (missing from original schema)
@@ -12,60 +13,16 @@ ADD COLUMN IF NOT EXISTS team_id UUID REFERENCES teams(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_voice_outreach_queue_team_id
 ON voice_outreach_queue(team_id, scheduled_for) WHERE status = 'pending';
 
--- 2. Add foreign keys to profiles table for PostgREST joins
--- These allow the frontend to do joins like: profiles:user_id (email)
+-- 2. Remove any profiles FKs that cause PostgREST ambiguity
+-- (Tables already have FK to auth.users, adding profiles FK creates "multiple relationships" error)
+ALTER TABLE team_members
+DROP CONSTRAINT IF EXISTS team_members_user_id_profiles_fkey;
 
--- For voice_outreach_queue
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'voice_outreach_queue_user_id_profiles_fkey'
-        AND table_name = 'voice_outreach_queue'
-    ) THEN
-        -- First verify profiles table has matching IDs
-        ALTER TABLE voice_outreach_queue
-        ADD CONSTRAINT voice_outreach_queue_user_id_profiles_fkey
-        FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE;
-    END IF;
-EXCEPTION
-    WHEN others THEN
-        RAISE NOTICE 'Could not add voice_outreach_queue FK to profiles: %', SQLERRM;
-END $$;
+ALTER TABLE voice_outreach_queue
+DROP CONSTRAINT IF EXISTS voice_outreach_queue_user_id_profiles_fkey;
 
--- For engagement_alerts
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'engagement_alerts_user_id_profiles_fkey'
-        AND table_name = 'engagement_alerts'
-    ) THEN
-        ALTER TABLE engagement_alerts
-        ADD CONSTRAINT engagement_alerts_user_id_profiles_fkey
-        FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE;
-    END IF;
-EXCEPTION
-    WHEN others THEN
-        RAISE NOTICE 'Could not add engagement_alerts FK to profiles: %', SQLERRM;
-END $$;
-
--- For team_members (if not exists)
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'team_members_user_id_profiles_fkey'
-        AND table_name = 'team_members'
-    ) THEN
-        ALTER TABLE team_members
-        ADD CONSTRAINT team_members_user_id_profiles_fkey
-        FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE;
-    END IF;
-EXCEPTION
-    WHEN others THEN
-        RAISE NOTICE 'Could not add team_members FK to profiles: %', SQLERRM;
-END $$;
+ALTER TABLE engagement_alerts
+DROP CONSTRAINT IF EXISTS engagement_alerts_user_id_profiles_fkey;
 
 -- 3. Update RLS policies for voice_outreach_queue to include team_id checks
 DROP POLICY IF EXISTS "Team managers can view outreach queue" ON voice_outreach_queue;
@@ -129,19 +86,5 @@ USING (
         AND pr.is_active = true
     )
 );
-
--- Verify the constraints exist
-DO $$
-DECLARE
-    constraint_count INT;
-BEGIN
-    SELECT COUNT(*) INTO constraint_count
-    FROM information_schema.table_constraints tc
-    WHERE tc.constraint_type = 'FOREIGN KEY'
-    AND tc.table_name IN ('voice_outreach_queue', 'engagement_alerts', 'team_members')
-    AND tc.constraint_name LIKE '%profiles_fkey';
-
-    RAISE NOTICE 'Created % foreign key constraints to profiles table', constraint_count;
-END $$;
 
 COMMENT ON COLUMN voice_outreach_queue.team_id IS 'Team this outreach belongs to, for manager access control';
