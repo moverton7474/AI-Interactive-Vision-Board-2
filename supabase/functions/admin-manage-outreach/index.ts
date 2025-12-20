@@ -358,20 +358,24 @@ serve(async (req) => {
           }
         }
 
-        // Get user's phone number from profiles
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('phone, email, full_name')
-          .eq('id', outreach.user_id)
+        // Get user's phone number from user_comm_preferences
+        const { data: commPrefs, error: commError } = await supabase
+          .from('user_comm_preferences')
+          .select('phone_number')
+          .eq('user_id', outreach.user_id)
           .single()
 
-        if (profileError || !profile) {
-          throw new Error('User profile not found')
+        if (commError || !commPrefs) {
+          throw new Error('User communication preferences not found - please configure phone in settings')
         }
 
-        if (!profile.phone) {
-          throw new Error(`User ${profile.email || 'unknown'} does not have a phone number configured`)
+        if (!commPrefs.phone_number) {
+          throw new Error(`User does not have a phone number configured`)
         }
+
+        // Get user email for personalization
+        const { data: userData } = await supabase.auth.admin.getUserById(outreach.user_id)
+        const userEmail = userData?.user?.email
 
         // Mark as processing
         await supabase
@@ -404,7 +408,7 @@ serve(async (req) => {
         // Prepare message context
         const messageContext = outreach.context?.message || ''
         const outreachType = outreach.outreach_type
-        const userName = profile.full_name || profile.email?.split('@')[0] || 'there'
+        const userName = userEmail?.split('@')[0] || 'there'
 
         // Default messages based on outreach type
         const defaultMessages: Record<string, string> = {
@@ -430,7 +434,7 @@ serve(async (req) => {
             const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`
 
             const formData = new URLSearchParams()
-            formData.append('To', profile.phone)
+            formData.append('To', commPrefs.phone_number)
             formData.append('From', TWILIO_PHONE_NUMBER)
             formData.append('Body', message)
 
@@ -449,7 +453,7 @@ serve(async (req) => {
               throw new Error(twilioResult.message || 'Twilio SMS failed')
             }
 
-            responseMessage = `SMS sent to ${profile.phone}`
+            responseMessage = `SMS sent to ${commPrefs.phone_number}`
           } else {
             // Make Twilio API call for voice
             const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -465,7 +469,7 @@ serve(async (req) => {
             const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`
 
             const formData = new URLSearchParams()
-            formData.append('To', profile.phone)
+            formData.append('To', commPrefs.phone_number)
             formData.append('From', TWILIO_PHONE_NUMBER)
             formData.append('Twiml', twiml)
 
@@ -484,7 +488,7 @@ serve(async (req) => {
               throw new Error(twilioResult.message || 'Twilio call failed')
             }
 
-            responseMessage = `Voice call initiated to ${profile.phone}`
+            responseMessage = `Voice call initiated to ${commPrefs.phone_number}`
           }
 
           // Mark as completed
@@ -497,7 +501,7 @@ serve(async (req) => {
                 sid: twilioResult.sid,
                 status: twilioResult.status,
                 channel: sendChannel,
-                to: profile.phone
+                to: commPrefs.phone_number
               }
             })
             .eq('id', outreach_id)
