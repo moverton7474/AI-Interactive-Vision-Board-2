@@ -1,12 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { allHeaders, handleCors, rateLimitResponse } from '../_shared/cors.ts'
+import { checkRateLimitWithAlert, RATE_LIMITS, getClientIp, getRateLimitHeaders } from '../_shared/rate-limit.ts'
 
 declare const Deno: any;
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 /**
  * Send SMS via Twilio
@@ -17,12 +14,9 @@ const corsHeaders = {
  * - Message templates for common notifications
  */
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      status: 200,
-      headers: { ...corsHeaders, 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
-    })
-  }
+  // Handle CORS preflight
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
 
   try {
     const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID')
@@ -37,6 +31,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+
+    // Rate limiting - 10 SMS per minute per IP (stricter than default API)
+    const clientIp = getClientIp(req)
+    const rateLimitResult = await checkRateLimitWithAlert(
+      supabase,
+      clientIp,
+      { maxRequests: 10, windowSeconds: 60, keyType: 'ip' },
+      'send-sms'
+    )
+
+    if (!rateLimitResult.allowed) {
+      console.warn(`Rate limit exceeded for IP ${clientIp} on send-sms`)
+      return rateLimitResponse(rateLimitResult.resetIn)
+    }
 
     const body = await req.json()
     const { to, userId, message, template, templateData } = body
@@ -128,14 +136,19 @@ serve(async (req) => {
         status: twilioData.status,
         to: recipientPhone
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      {
+        headers: {
+          ...allHeaders,
+          ...getRateLimitHeaders(rateLimitResult)
+        }
+      }
     )
 
   } catch (error: any) {
     console.error('Send SMS error:', error.message)
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      { headers: allHeaders, status: 400 }
     )
   }
 })

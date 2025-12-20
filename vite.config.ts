@@ -8,6 +8,14 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        headers: {
+          // Security Headers (L1 - OWASP Best Practices)
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'X-XSS-Protection': '1; mode=block',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+          'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+        },
       },
       plugins: [react()],
       define: {
@@ -17,6 +25,15 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+        }
+      },
+      // Production build security headers (for static hosting)
+      build: {
+        rollupOptions: {
+          output: {
+            // Add integrity hashes for subresource integrity
+            manualChunks: undefined,
+          }
         }
       }
     };

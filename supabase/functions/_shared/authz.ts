@@ -388,6 +388,172 @@ export async function logAudit(
 }
 
 // ============================================
+// Security Logging Helpers
+// ============================================
+
+/**
+ * Log a data access event for security monitoring
+ *
+ * @param supabase - Supabase client with service role
+ * @param ctx - Authorization context
+ * @param accessedUserId - User whose data was accessed
+ * @param resourceType - Type of resource accessed
+ * @param resourceId - ID of the resource
+ * @param accessType - Type of access (view, create, update, delete)
+ * @param success - Whether access was successful
+ * @param errorMessage - Error message if access failed
+ */
+export async function logDataAccess(
+  supabase: SupabaseClient,
+  ctx: AuthzContext,
+  accessedUserId: string | null,
+  resourceType: 'vision_board' | 'document' | 'profile' | 'financial' | 'habit' | 'goal_plan',
+  resourceId: string,
+  accessType: 'view' | 'create' | 'update' | 'delete',
+  success: boolean = true,
+  errorMessage?: string,
+  metadata?: Record<string, any>
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('data_access_logs')
+      .insert({
+        user_id: ctx.userId,
+        accessed_user_id: accessedUserId,
+        resource_type: resourceType,
+        resource_id: resourceId,
+        access_type: accessType,
+        success,
+        error_message: errorMessage,
+        metadata: metadata || {}
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Failed to log data access:', error);
+      return null;
+    }
+
+    return data?.id;
+  } catch (err) {
+    console.error('Data access logging error:', err);
+    return null;
+  }
+}
+
+/**
+ * Create a security alert for suspicious activity
+ *
+ * @param supabase - Supabase client with service role
+ * @param alertType - Type of security alert
+ * @param severity - Alert severity
+ * @param userId - User who triggered the alert
+ * @param targetUserId - User who was targeted
+ * @param description - Description of the alert
+ * @param details - Additional details
+ */
+export async function createSecurityAlert(
+  supabase: SupabaseClient,
+  alertType: 'cross_account_access' | 'unusual_activity' | 'auth_failure' | 'rate_limit_exceeded',
+  severity: 'low' | 'medium' | 'high' | 'critical',
+  userId: string | null,
+  targetUserId: string | null,
+  description: string,
+  details?: Record<string, any>
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('security_alerts')
+      .insert({
+        alert_type: alertType,
+        severity,
+        user_id: userId,
+        target_user_id: targetUserId,
+        description,
+        details: details || {}
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Failed to create security alert:', error);
+      return null;
+    }
+
+    return data?.id;
+  } catch (err) {
+    console.error('Security alert creation error:', err);
+    return null;
+  }
+}
+
+/**
+ * Verify resource ownership and log cross-account access attempts
+ *
+ * @param supabase - Supabase client
+ * @param ctx - Authorization context
+ * @param resourceUserId - User who owns the resource
+ * @param resourceType - Type of resource
+ * @param resourceId - ID of the resource
+ * @returns true if access is allowed, false otherwise
+ */
+export async function verifyOwnershipWithLogging(
+  supabase: SupabaseClient,
+  ctx: AuthzContext,
+  resourceUserId: string,
+  resourceType: 'vision_board' | 'document' | 'profile' | 'financial' | 'habit' | 'goal_plan',
+  resourceId: string
+): Promise<boolean> {
+  // Platform admins can access any resource
+  if (ctx.platformRole === 'platform_admin') {
+    await logDataAccess(
+      supabase, ctx, resourceUserId, resourceType, resourceId, 'view', true,
+      undefined, { admin_access: true }
+    );
+    return true;
+  }
+
+  // Support agents can view (not modify) any resource
+  if (ctx.platformRole === 'support_agent') {
+    await logDataAccess(
+      supabase, ctx, resourceUserId, resourceType, resourceId, 'view', true,
+      undefined, { support_access: true }
+    );
+    return true;
+  }
+
+  // Check if user owns the resource
+  if (ctx.userId !== resourceUserId) {
+    // Log the cross-account access attempt
+    await logDataAccess(
+      supabase, ctx, resourceUserId, resourceType, resourceId, 'view', false,
+      'Cross-account access denied'
+    );
+
+    // Create a security alert
+    await createSecurityAlert(
+      supabase,
+      'cross_account_access',
+      'high',
+      ctx.userId,
+      resourceUserId,
+      `User attempted to access another user's ${resourceType}`,
+      { resource_id: resourceId, resource_type: resourceType }
+    );
+
+    return false;
+  }
+
+  // Access allowed - log successful access
+  await logDataAccess(
+    supabase, ctx, resourceUserId, resourceType, resourceId, 'view', true
+  );
+
+  return true;
+}
+
+// ============================================
 // Response Helpers
 // ============================================
 

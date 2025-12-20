@@ -289,13 +289,87 @@ const VisionHero: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* Progress Ring */}
+            {/* Progress Ring - Desktop */}
             {progress && (
               <div className="hidden md:block ml-4 bg-navy-800/50 p-4 rounded-2xl border border-gold-500/20">
                 <CircularProgress percentage={overallProgress} />
               </div>
             )}
           </div>
+
+          {/* Progress Breakdown - Mobile & Desktop */}
+          {progress && (progress.tasksTotal > 0 || progress.habitsTotal > 0) && (
+            <div className="mt-4 pt-4 border-t border-gold-500/10">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Tasks Progress */}
+                <div className="bg-navy-800/40 rounded-xl p-3 border border-gold-500/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">Today's Tasks</span>
+                    <span className="text-xs font-bold text-white">{progress.tasksCompleted}/{progress.tasksTotal}</span>
+                  </div>
+                  <div className="h-2 bg-navy-900 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-status-success to-emerald-400 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${progress.tasksTotal > 0 ? (progress.tasksCompleted / progress.tasksTotal) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Habits Progress */}
+                <div className="bg-navy-800/40 rounded-xl p-3 border border-gold-500/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">Daily Habits</span>
+                    <span className="text-xs font-bold text-white">{progress.habitsCompleted}/{progress.habitsTotal}</span>
+                  </div>
+                  <div className="h-2 bg-navy-900 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-gold-500 to-gold-400 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${progress.habitsTotal > 0 ? (progress.habitsCompleted / progress.habitsTotal) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Streak */}
+                <div className="bg-navy-800/40 rounded-xl p-3 border border-gold-500/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">Current Streak</span>
+                    <span className="text-lg">🔥</span>
+                  </div>
+                  <div className="text-xl font-bold text-gold-400">
+                    {progress.streakDays} <span className="text-xs font-normal text-gray-400">days</span>
+                  </div>
+                </div>
+
+                {/* Overall Progress - Mobile Only (replaces hidden ring) */}
+                <div className="bg-navy-800/40 rounded-xl p-3 border border-gold-500/10 md:hidden">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">Overall</span>
+                    <span className="text-xs font-bold text-gold-400">Phase {phase}</span>
+                  </div>
+                  <div className="text-xl font-bold text-white">
+                    {overallProgress}%
+                  </div>
+                </div>
+
+                {/* Phase Info - Desktop Only */}
+                <div className="hidden md:block bg-navy-800/40 rounded-xl p-3 border border-gold-500/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">Ascension Phase</span>
+                    <span className="text-lg">✨</span>
+                  </div>
+                  <div className="text-sm font-bold text-gold-400">
+                    {label}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {phase === 1 && 'Building your foundation'}
+                    {phase === 2 && 'Gaining momentum'}
+                    {phase === 3 && 'Strong progress'}
+                    {phase === 4 && 'Near mastery'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

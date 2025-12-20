@@ -1,9 +1,9 @@
 # VISIONARY AI — MASTER PRODUCT & DEVELOPMENT ROADMAP
 
-**Version:** 2.5
+**Version:** 2.6
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 17, 2025
+**Last Updated:** December 19, 2025
 
 ---
 
@@ -33,6 +33,7 @@ Enable ambitious professionals, executives, athletes, families, and teams to ach
 | **Apple Watch Integration** | Wearable coaching with habit triggers and micro-check-ins | ✅ Production |
 | **Knowledge Base (RAG)** | Personal context ingestion from documents, conversations, and user history | ✅ Production |
 | **Weekly AI Reviews** | Automated progress summaries with wins, blockers, and AI insights | ✅ Production |
+| **Enterprise Security** | RLS hardening, rate limiting, security headers, audit logging | ✅ Production |
 
 ---
 
@@ -112,10 +113,22 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 2. Development Roadmap & Status
 
-**Current Version:** v2.5 (December 2025)
-**Status:** v1.0-v2.0 COMPLETE. Voice Coach, Manager Dashboard, and Vision Board Engine all production ready.
+**Current Version:** v2.6 (December 2025)
+**Status:** v1.0-v2.5 COMPLETE. Security hardening, Voice Coach, Manager Dashboard, and Vision Board Engine all production ready.
 
 ### 🎉 Recent Major Achievements (December 2025)
+
+**Enterprise Security Hardening (December 19, 2025):**
+- ✅ Comprehensive RLS policy audit and hardening across 18+ tables
+- ✅ Storage bucket security (removed public access, user-scoped paths)
+- ✅ Rate limiting infrastructure with database-backed persistence
+- ✅ Security headers (OWASP best practices) on all endpoints
+- ✅ Security audit logging (data_access_logs, security_alerts tables)
+- ✅ Cross-account access detection with real-time alerts
+- ✅ Foreign key constraints for data integrity
+- ✅ Rate limit violation tracking and IP blocking capability
+- ✅ Fixed critical data bleeding vulnerability in App.tsx
+- ✅ Defense-in-depth authorization with verifyOwnershipWithLogging()
 
 **Voice Coach & Agentic Capabilities (December 17, 2025):**
 - ✅ Voice Coach with full agentic capabilities and function calling
@@ -342,6 +355,79 @@ graph TD
         DB --> Profiles[User Profiles]
     end
 ```
+
+### v2.5 — Gemini Model Updates ✅ COMPLETED
+
+**Theme:** AI Model Optimization & Error Handling
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Gemini 2.0 Flash Exp** | Updated to gemini-2.0-flash-exp for primary chat operations | ✅ Deployed |
+| **Voice Coach Resilience** | Error handling for missing AI settings tables | ✅ Deployed |
+| **Model Fallback Chain** | Multi-model fallback for image generation reliability | ✅ Deployed |
+
+### v2.6 — Enterprise Security Hardening ✅ COMPLETED
+
+**Theme:** Production-Grade Security & Compliance
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **RLS Policy Hardening** | Comprehensive Row Level Security across 18+ tables | ✅ Deployed |
+| **Storage Bucket Security** | User-scoped paths, removed public access | ✅ Deployed |
+| **Rate Limiting** | Database-backed rate limiting with IP tracking | ✅ Deployed |
+| **Security Headers** | OWASP best practices (X-Frame-Options, CSP, etc.) | ✅ Deployed |
+| **Audit Logging** | data_access_logs and security_alerts tables | ✅ Deployed |
+| **Cross-Account Detection** | Real-time alerts for suspicious access patterns | ✅ Deployed |
+| **Defense-in-Depth** | verifyOwnershipWithLogging() authorization layer | ✅ Deployed |
+| **Data Bleeding Fix** | Critical App.tsx vulnerability patched | ✅ Deployed |
+| **FK Constraints** | Foreign key integrity for user ownership | ✅ Deployed |
+| **Rate Limit Violations** | Tracking and automatic IP blocking capability | ✅ Deployed |
+
+**Security Implementation Files:**
+- `supabase/migrations/20251219_comprehensive_security_hardening.sql`
+- `supabase/migrations/20251219_rate_limiting.sql`
+- `supabase/functions/_shared/rate-limit.ts`
+- `supabase/functions/_shared/authz.ts` (security logging helpers)
+- `supabase/functions/_shared/cors.ts` (security headers)
+- `vite.config.ts` (dev server security headers)
+
+### v2.7 — Voice Coach Enhancement (ElevenLabs Integration) 🔲 PLANNED
+
+**Theme:** 2025 Best-in-Class Voice AI Capabilities
+
+> **Upgrade the Voice Coach** from browser-based TTS to ElevenLabs' industry-leading voice AI for natural, human-like coaching conversations.
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **ElevenLabs TTS Integration** | Replace browser TTS with ElevenLabs for natural voice output | 🔲 Planned |
+| **Custom Coach Voice** | Dedicated AI coach voice persona (warm, encouraging, professional) | 🔲 Planned |
+| **Real-Time Streaming** | Low-latency voice streaming for natural conversation flow | 🔲 Planned |
+| **Voice Cloning (Premium)** | Allow users to clone their own voice for affirmations | 🔲 Planned |
+| **Multi-Language Support** | Coach in user's preferred language (Spanish, French, etc.) | 🔲 Planned |
+| **Emotion Detection** | Analyze user voice for sentiment and adapt coaching style | 🔲 Planned |
+| **Conversational AI Mode** | Full duplex conversation with interruption handling | 🔲 Planned |
+| **Voice Memory** | Remember user preferences and conversation context | 🔲 Planned |
+
+**Technical Architecture:**
+- User Speech → Web Speech API → Gemini AI (reasoning) → ElevenLabs (voice output)
+- AMIE Context + RAG integration for personalized responses
+- Voice Personas: "Coach Maya" (warm female), "Coach James" (professional male), Custom (Elite tier)
+
+**New Edge Functions Required:**
+- `elevenlabs-tts` - Text-to-speech conversion with voice selection
+- `elevenlabs-stream` - Real-time voice streaming for conversations
+- `voice-persona-settings` - User voice preferences management
+
+**Environment Secrets Required:**
+- `ELEVENLABS_API_KEY`
+- `ELEVENLABS_COACH_VOICE_ID`
+
+**Pricing Tier Integration:**
+| Tier | Voice Features |
+|------|---------------|
+| Free | Browser TTS only |
+| Pro | ElevenLabs standard voices |
+| Elite | Custom voice cloning + all languages |
 
 ### v3.0 — Marketplace & Certification 🔲 FUTURE
 
@@ -1537,8 +1623,8 @@ Current credit model feels transactional. Recommended hybrid approach:
 ## 10. Quick Reference: Next Actions
 
 ### ✅ Recently Completed (December 2025)
-1. ✅ Applied all database schemas (v1.0-v2.0) - 40+ tables
-2. ✅ Deployed 56 Edge Functions covering all core features
+1. ✅ Applied all database schemas (v1.0-v2.6) - 40+ tables
+2. ✅ Deployed 63 Edge Functions covering all core features
 3. ✅ Implemented AMIE Identity Engine with psychological coaching
 4. ✅ Built Executive Workbook with Ghostwriter AI feature
 5. ✅ Deployed Apple Watch integration functions
@@ -1555,26 +1641,47 @@ Current credit model feels transactional. Recommended hybrid approach:
 16. ✅ Credit Management for platform admins
 17. ✅ Resend email integration
 18. ✅ Weekly Review UI components
+19. ✅ **Enterprise Security Hardening (v2.6)** - RLS, rate limiting, security headers
+20. ✅ **Fixed critical data bleeding vulnerability** in App.tsx
+21. ✅ **Audit logging infrastructure** - data_access_logs, security_alerts
+22. ✅ **Rate limiting with DB persistence** - tested and verified working
+23. ✅ **Security headers on all endpoints** - OWASP best practices
 
-### 🔴 Critical - This Week
-1. 🔲 Verify Stripe webhook endpoint in Dashboard
-2. 🔲 Test end-to-end payment flow with test cards
-3. 🔲 Load testing for 100+ concurrent users
-4. 🔲 Security audit of edge functions
+### 🔴 LAUNCH CRITICAL - Core User Journey
+> **Focus:** Goal Definition → Vision Board → Detailed Plan → Print Products → AI Coach Execution
 
-### 🟡 High Priority - Next 2 Weeks
-5. 🔲 Build AMIE theme selection UI component
-6. 🔲 Implement master prompt Q&A wizard
-7. 🔲 Build knowledge source upload interface
-8. 🔲 Implement "My Systems" dashboard UI
-9. 🔲 Create resource feed display (Active Feed)
+1. 🔲 **Onboarding Flow Polish** - Streamline goal capture to vision generation
+2. 🔲 **Vision Board UX Refinement** - Ensure smooth image generation experience
+3. 🔲 **Action Plan Review UI** - Make plan approval workflow intuitive
+4. 🔲 **Print Products Integration** - Verify end-to-end Stripe + Prodigi flow
+5. 🔲 **Voice Coach Accessibility** - Ensure "Talk to Coach" is discoverable
+6. 🔲 Verify Stripe webhook endpoint in Dashboard
+7. 🔲 Test end-to-end payment flow with test cards
 
-### 🟢 Medium Priority - Next Month
-10. 🔲 Google Calendar API integration for SOP sync
-11. 🔲 Complete Plaid balance retrieval implementation
-12. 🔲 Integrate Cost of Living API
-13. 🔲 Gemini Live Voice (real-time bidirectional) - optional
-14. 🔲 Video Generation (Veo) - future feature
+### 🟡 High Priority - User Experience
+8. 🔲 Build AMIE theme selection UI component
+9. 🔲 Implement master prompt Q&A wizard
+10. 🔲 Build knowledge source upload interface
+11. 🔲 Dashboard quick actions for core journey
+12. 🔲 Progress visualization for goal tracking
+
+### 🟢 Medium Priority - Platform Enhancement
+13. 🔲 Implement "My Systems" dashboard UI
+14. 🔲 Create resource feed display (Active Feed)
+15. 🔲 Google Calendar API integration for SOP sync
+16. 🔲 Complete Plaid balance retrieval implementation
+17. 🔲 Load testing for 100+ concurrent users
+18. 🔲 Penetration testing (L3 - external security firm)
+
+### 🔵 Future Enhancements (v2.7+)
+19. 🔲 **ElevenLabs Voice Integration (v2.7)** - Natural AI coach voices
+20. 🔲 Custom Voice Personas - "Coach Maya" & "Coach James"
+21. 🔲 Voice Cloning for Elite tier - Personalized affirmations
+22. 🔲 Multi-Language Voice Support
+23. 🔲 Gemini Live Voice (real-time bidirectional)
+24. 🔲 Video Generation (Veo)
+25. 🔲 Templates Marketplace (v3.0)
+26. 🔲 Certified Coach Ecosystem (v3.0)
 
 ---
 
