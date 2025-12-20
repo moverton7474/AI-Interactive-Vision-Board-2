@@ -4,6 +4,8 @@ import { UserAgentSettings, AgentActionHistory, PendingAgentAction, AgentActionR
 import { SaveIcon, SparklesIcon, ClockIcon } from '../Icons';
 import { useAgentActions } from '../../hooks/useAgentActions';
 import PendingActionCard from './PendingActionCard';
+import ActionFeedbackButton from './ActionFeedbackButton';
+import CalendarConnection from './CalendarConnection';
 
 const DAYS_OF_WEEK = [
     { value: 0, label: 'Sunday' },
@@ -59,6 +61,7 @@ const defaultSettings: Partial<UserAgentSettings> & {
 export default function AgentSettings() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
     const [settings, setSettings] = useState<Partial<UserAgentSettings> & {
         confidence_threshold?: number;
         auto_approve_low_risk?: boolean;
@@ -88,6 +91,8 @@ export default function AgentSettings() {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
+
+            setUserId(user.id);
 
             // Fetch agent settings
             const { data: settingsData, error: settingsError } = await supabase
@@ -804,6 +809,12 @@ export default function AgentSettings() {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
+                                            {/* Feedback buttons */}
+                                            <ActionFeedbackButton
+                                                actionId={action.id}
+                                                actionType={action.action_type}
+                                                onFeedbackSubmitted={fetchData}
+                                            />
                                             <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(action.action_status)}`}>
                                                 {action.action_status}
                                             </span>
@@ -865,6 +876,22 @@ export default function AgentSettings() {
                         </div>
                     )}
                 </div>
+
+                {/* CALENDAR INTEGRATION CARD */}
+                {userId && (
+                    <div className={`transition-opacity ${!settings.agent_actions_enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <CalendarConnection
+                            userId={userId}
+                            onConnectionChange={(connected) => {
+                                // Could refresh settings or show notification
+                                if (connected) {
+                                    setSuccess('Calendar connected successfully!');
+                                    setTimeout(() => setSuccess(null), 3000);
+                                }
+                            }}
+                        />
+                    </div>
+                )}
 
             </div>
 
