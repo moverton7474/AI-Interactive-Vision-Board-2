@@ -1107,3 +1107,230 @@ export interface MdalsGeneratePlanResponse {
   days: MdalsLearningPlanDay[];
   error?: string;
 }
+
+// ============================================
+// AGENTIC EXECUTION TYPES (Phase 1)
+// ============================================
+
+// Risk Levels for Agent Actions
+export type AgentActionRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export const ACTION_RISK_LEVELS: Record<string, AgentActionRiskLevel> = {
+  'get_user_data': 'low',
+  'get_todays_habits': 'low',
+  'create_task': 'low',
+  'schedule_reminder': 'medium',
+  'mark_habit_complete': 'medium',
+  'update_goal_progress': 'medium',
+  'send_email': 'high',
+  'send_sms': 'high',
+  'voice_call': 'high',
+  'make_voice_call': 'high',
+  'send_email_to_contact': 'critical',
+  'create_calendar_event': 'medium',
+};
+
+// Extended User Agent Settings
+export interface UserAgentSettingsExtended extends UserAgentSettings {
+  // Confidence settings
+  require_high_confidence: boolean;
+  confidence_threshold: number; // 0.5 - 0.95
+
+  // Risk auto-approval
+  auto_approve_low_risk: boolean;
+  auto_approve_medium_risk: boolean;
+}
+
+// Team AI Settings Extensions
+export interface TeamAISettings {
+  id: string;
+  team_id: string;
+  coach_name: string;
+  coach_tone: string;
+  blocked_topics: string[];
+  required_disclaimers: string[];
+  custom_instructions: string;
+  enable_sentiment_alerts: boolean;
+  sentiment_alert_threshold: number;
+  enable_crisis_detection: boolean;
+  crisis_escalation_email: string;
+  crisis_keywords: string[];
+  max_session_duration_minutes: number;
+  max_sessions_per_day: number;
+  cooldown_between_sessions_minutes: number;
+  allow_send_email: boolean;
+  allow_create_tasks: boolean;
+  allow_schedule_reminders: boolean;
+  allow_access_user_data: boolean;
+  require_confirmation: boolean;
+  default_voice: string;
+  default_voice_speed: number;
+  // New confidence policy fields
+  min_confidence_threshold: number;
+  allow_user_auto_approve_low: boolean;
+  allow_user_auto_approve_medium: boolean;
+  allow_user_auto_approve_high: boolean;
+  require_admin_approval_critical: boolean;
+  allow_send_sms: boolean;
+  allow_voice_calls: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Pending Actions (for confirmation flow)
+export type PendingActionStatus = 'pending_confirmation' | 'confirmed' | 'cancelled' | 'expired' | 'executed';
+
+export interface PendingAgentAction {
+  id: string;
+  user_id: string;
+  session_id?: string;
+  action_type: AgentActionType;
+  action_payload: Record<string, any>;
+  status: PendingActionStatus;
+  confidence_score?: number;
+  risk_level: AgentActionRiskLevel;
+  expires_at: string;
+  confirmed_at?: string;
+  cancelled_at?: string;
+  executed_at?: string;
+  result_payload?: Record<string, any>;
+  error_message?: string;
+  created_at: string;
+}
+
+// Execution Traces (for observability)
+export type TraceType = 'llm_call' | 'tool_call' | 'tool_result' | 'decision_point' | 'confirmation_request' | 'user_response';
+
+export interface AgentExecutionTrace {
+  id: string;
+  session_id?: string;
+  user_id: string;
+  team_id?: string;
+  trace_type: TraceType;
+  step_number: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  latency_ms?: number;
+  model_used?: string;
+  tool_name?: string;
+  input_payload?: Record<string, any>;
+  output_payload?: Record<string, any>;
+  confidence_score?: number;
+  error?: string;
+  created_at: string;
+}
+
+// Feedback (for continuous improvement)
+export type FeedbackType = 'approved' | 'rejected' | 'edited' | 'reported' | 'thumbs_up' | 'thumbs_down';
+
+export interface AgentActionFeedback {
+  id: string;
+  action_history_id: string;
+  user_id: string;
+  team_id?: string;
+  feedback_type: FeedbackType;
+  original_payload?: Record<string, any>;
+  edited_payload?: Record<string, any>;
+  rejection_reason?: string;
+  feedback_text?: string;
+  time_to_decision_ms?: number;
+  created_at: string;
+}
+
+// Calendar Integration
+export type CalendarProvider = 'google' | 'microsoft' | 'apple';
+
+export interface UserCalendarConnection {
+  id: string;
+  user_id: string;
+  provider: CalendarProvider;
+  access_token_encrypted?: string;
+  refresh_token_encrypted?: string;
+  token_expires_at?: string;
+  calendar_id: string;
+  calendar_name?: string;
+  is_active: boolean;
+  connected_at: string;
+  last_synced_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Effective Settings (computed from user + team)
+export interface EffectiveAgentSettings {
+  agent_actions_enabled: boolean;
+  allow_send_email: boolean;
+  allow_send_sms: boolean;
+  allow_voice_calls: boolean;
+  allow_create_tasks: boolean;
+  allow_schedule_reminders: boolean;
+  allow_calendar_access: boolean;
+  confidence_threshold: number;
+  require_high_confidence: boolean;
+  auto_approve_low_risk: boolean;
+  auto_approve_medium_risk: boolean;
+  require_confirmation_email: boolean;
+  require_confirmation_sms: boolean;
+  require_confirmation_voice: boolean;
+  require_confirmation_calendar: boolean;
+}
+
+// API Response Types
+export interface AgentToolResult {
+  success: boolean;
+  data?: Record<string, any>;
+  error?: string;
+  error_code?: string;
+  needs_confirmation?: boolean;
+  pending_action_id?: string;
+  confidence_score?: number;
+  message?: string;
+  action_id?: string;
+}
+
+export interface AgentChatResponse {
+  success: boolean;
+  response: string;
+  session_id?: string;
+  actions_taken?: Array<{
+    action_type: AgentActionType;
+    status: AgentActionStatus;
+    action_id: string;
+  }>;
+  pending_actions?: PendingAgentAction[];
+  used_tools?: string[];
+  error?: string;
+  error_code?: string;
+}
+
+// Feature Flags
+export interface FeatureFlag {
+  id: string;
+  flag_name: string;
+  description?: string;
+  enabled_globally: boolean;
+  enabled_for_teams: string[];
+  enabled_for_users: string[];
+  rollout_percentage: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Error Codes
+export const AGENT_ERROR_CODES = {
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
+  RATE_LIMITED: 'RATE_LIMITED',
+  CONFIRMATION_REQUIRED: 'CONFIRMATION_REQUIRED',
+  ACTION_EXPIRED: 'ACTION_EXPIRED',
+  ACTION_NOT_FOUND: 'ACTION_NOT_FOUND',
+  QUIET_HOURS: 'QUIET_HOURS',
+  INVALID_RECIPIENT: 'INVALID_RECIPIENT',
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  LOW_CONFIDENCE: 'LOW_CONFIDENCE',
+  TEAM_POLICY_BLOCKED: 'TEAM_POLICY_BLOCKED',
+  CALENDAR_NOT_CONNECTED: 'CALENDAR_NOT_CONNECTED',
+  CALENDAR_AUTH_EXPIRED: 'CALENDAR_AUTH_EXPIRED',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+} as const;
+
+export type AgentErrorCode = typeof AGENT_ERROR_CODES[keyof typeof AGENT_ERROR_CODES];

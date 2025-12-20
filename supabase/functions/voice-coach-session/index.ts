@@ -1179,6 +1179,65 @@ function getGeminiTools() {
             },
             required: ['message']
           }
+        },
+        {
+          name: 'make_voice_call',
+          description: 'Initiate a voice call to the user for reminders, check-ins, or celebrations',
+          parameters: {
+            type: 'object',
+            properties: {
+              call_type: {
+                type: 'string',
+                enum: ['habit_reminder', 'goal_checkin', 'accountability', 'celebration', 'custom'],
+                description: 'Type of call to make'
+              },
+              message: {
+                type: 'string',
+                description: 'Custom message for the call (what AMIE should say)'
+              },
+              related_habit_id: {
+                type: 'string',
+                description: 'If this is a habit reminder, the habit ID'
+              },
+              related_goal_id: {
+                type: 'string',
+                description: 'If this is a goal check-in, the goal ID'
+              }
+            },
+            required: ['call_type']
+          }
+        },
+        {
+          name: 'confirm_pending_action',
+          description: 'Confirm and execute a previously proposed action after user approval',
+          parameters: {
+            type: 'object',
+            properties: {
+              action_id: {
+                type: 'string',
+                description: 'The ID of the pending action to confirm'
+              }
+            },
+            required: ['action_id']
+          }
+        },
+        {
+          name: 'cancel_pending_action',
+          description: 'Cancel a previously proposed action that the user declined',
+          parameters: {
+            type: 'object',
+            properties: {
+              action_id: {
+                type: 'string',
+                description: 'The ID of the pending action to cancel'
+              },
+              reason: {
+                type: 'string',
+                description: 'Reason for cancellation'
+              }
+            },
+            required: ['action_id']
+          }
         }
       ]
     }
@@ -2051,6 +2110,376 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
         }
       } catch (err: any) {
         return { success: false, error: `Failed to send SMS: ${err.message}` }
+      }
+    }
+
+    case 'make_voice_call': {
+      const call_type = args?.call_type
+      const message = args?.message
+      const related_habit_id = args?.related_habit_id
+      const related_goal_id = args?.related_goal_id
+
+      if (!call_type) {
+        return {
+          success: false,
+          error: 'I need to know what type of call to make. Options: habit_reminder, goal_checkin, accountability, celebration, or custom.'
+        }
+      }
+
+      // Check if voice calls are allowed
+      if (aiSettings?.allow_voice_calls === false) {
+        return { success: false, error: 'Voice calls have been disabled by team policy.' }
+      }
+
+      // Get user's phone number
+      const { data: commPrefs } = await supabase
+        .from('user_comm_preferences')
+        .select('phone_number, phone_verified')
+        .eq('user_id', userId)
+        .single()
+
+      if (!commPrefs?.phone_number) {
+        return {
+          success: false,
+          error: 'No phone number found. Please add your phone number in Settings > Notifications to receive voice calls.'
+        }
+      }
+
+      // Check user's agent settings for voice call permission
+      const { data: userAgentSettings } = await supabase
+        .from('user_agent_settings')
+        .select('allow_voice_calls, require_confirmation_voice_calls, confidence_threshold')
+        .eq('user_id', userId)
+        .single()
+
+      if (userAgentSettings?.allow_voice_calls === false) {
+        return {
+          success: false,
+          error: 'Voice calls are disabled in your agent settings. Enable it in Settings > AI Agent.'
+        }
+      }
+
+      // Determine risk level and if confirmation is required
+      const riskLevel = 'high' // Voice calls are high risk by default
+      const requiresConfirmation = userAgentSettings?.require_confirmation_voice_calls !== false
+
+      // Generate call message if not provided
+      let callMessage = message
+      if (!callMessage) {
+        switch (call_type) {
+          case 'habit_reminder':
+            callMessage = 'Hi! This is AMIE, your AI coach. Just a friendly reminder about your habit. Keep up the great work!'
+            break
+          case 'goal_checkin':
+            callMessage = 'Hi! This is AMIE. I wanted to check in on your progress. How are you doing with your goals?'
+            break
+          case 'accountability':
+            callMessage = 'Hi! This is AMIE. Just checking in to help you stay on track. Let\'s keep that momentum going!'
+            break
+          case 'celebration':
+            callMessage = 'Hi! This is AMIE. I wanted to celebrate your amazing progress with you! You\'re doing fantastic!'
+            break
+          default:
+            callMessage = 'Hi! This is AMIE, your AI coach. I\'m here to support you on your journey.'
+        }
+      }
+
+      if (requiresConfirmation) {
+        // Create pending action for user confirmation
+        const expiresAt = new Date()
+        expiresAt.setMinutes(expiresAt.getMinutes() + 30) // 30 min expiry
+
+        const { data: pendingAction, error: pendingError } = await supabase
+          .from('pending_agent_actions')
+          .insert({
+            user_id: userId,
+            action_type: 'make_voice_call',
+            action_payload: {
+              call_type,
+              message: callMessage,
+              phone_number: commPrefs.phone_number,
+              related_habit_id,
+              related_goal_id
+            },
+            status: 'pending',
+            risk_level: riskLevel,
+            expires_at: expiresAt.toISOString(),
+            proposed_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+
+        if (pendingError) {
+          console.error('Failed to create pending action:', pendingError)
+          // Fall through to direct execution if table doesn't exist
+        } else {
+          return {
+            success: true,
+            requiresConfirmation: true,
+            pendingActionId: pendingAction.id,
+            message: `I'd like to make a ${call_type.replace(/_/g, ' ')} call to you. The message would be: "${callMessage}". Do you want me to proceed with the call?`,
+            proposedAction: {
+              type: 'make_voice_call',
+              callType: call_type,
+              message: callMessage
+            }
+          }
+        }
+      }
+
+      // Execute the voice call directly
+      try {
+        const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+        const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+        const callResponse = await fetch(`${SUPABASE_URL}/functions/v1/agent-voice-call`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            phone_number: commPrefs.phone_number,
+            call_type,
+            message: callMessage,
+            related_habit_id,
+            related_goal_id
+          })
+        })
+
+        const result = await callResponse.json()
+
+        if (!result.success) {
+          return { success: false, error: result.error || 'Failed to initiate voice call' }
+        }
+
+        // Log to agent action history
+        await supabase.from('agent_action_history').insert({
+          user_id: userId,
+          action_type: 'make_voice_call',
+          action_status: 'executed',
+          action_payload: { call_type, message: callMessage, related_habit_id, related_goal_id },
+          trigger_context: 'conversation',
+          related_habit_id,
+          related_goal_id,
+          executed_at: new Date().toISOString()
+        })
+
+        return {
+          success: true,
+          message: `Voice call initiated! You should receive a ${call_type.replace(/_/g, ' ')} call shortly.`,
+          result
+        }
+      } catch (err: any) {
+        return { success: false, error: `Failed to initiate voice call: ${err.message}` }
+      }
+    }
+
+    case 'confirm_pending_action': {
+      const action_id = args?.action_id
+
+      if (!action_id) {
+        return {
+          success: false,
+          error: 'I need to know which action to confirm. Please provide the action ID.'
+        }
+      }
+
+      // Get the pending action
+      const { data: pendingAction, error: fetchError } = await supabase
+        .from('pending_agent_actions')
+        .select('*')
+        .eq('id', action_id)
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .single()
+
+      if (fetchError || !pendingAction) {
+        return {
+          success: false,
+          error: 'Pending action not found or already processed.'
+        }
+      }
+
+      // Check if action has expired
+      if (new Date(pendingAction.expires_at) < new Date()) {
+        await supabase
+          .from('pending_agent_actions')
+          .update({ status: 'expired' })
+          .eq('id', action_id)
+
+        return {
+          success: false,
+          error: 'This action has expired. Please request the action again.'
+        }
+      }
+
+      // Mark as confirmed
+      await supabase
+        .from('pending_agent_actions')
+        .update({
+          status: 'confirmed',
+          confirmed_at: new Date().toISOString()
+        })
+        .eq('id', action_id)
+
+      // Execute the confirmed action
+      const actionType = pendingAction.action_type
+      const actionPayload = pendingAction.action_payload
+
+      let executionResult: any
+
+      try {
+        // Re-execute the action without confirmation check
+        switch (actionType) {
+          case 'make_voice_call': {
+            const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+            const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+            const callResponse = await fetch(`${SUPABASE_URL}/functions/v1/agent-voice-call`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+              },
+              body: JSON.stringify({
+                user_id: userId,
+                phone_number: actionPayload.phone_number,
+                call_type: actionPayload.call_type,
+                message: actionPayload.message,
+                related_habit_id: actionPayload.related_habit_id,
+                related_goal_id: actionPayload.related_goal_id
+              })
+            })
+
+            executionResult = await callResponse.json()
+            break
+          }
+
+          case 'send_email':
+          case 'send_sms':
+          case 'create_calendar_event':
+            // Execute the original action type
+            executionResult = await executeAgentTool(
+              supabase,
+              userId,
+              actionType,
+              actionPayload,
+              { ...aiSettings, require_confirmation: false } // Skip confirmation loop
+            )
+            break
+
+          default:
+            executionResult = { success: false, error: `Unknown action type: ${actionType}` }
+        }
+
+        // Update pending action with execution result
+        await supabase
+          .from('pending_agent_actions')
+          .update({
+            status: executionResult.success ? 'executed' : 'failed',
+            executed_at: new Date().toISOString(),
+            execution_result: executionResult
+          })
+          .eq('id', action_id)
+
+        // Log to agent action history
+        await supabase.from('agent_action_history').insert({
+          user_id: userId,
+          action_type: actionType,
+          action_status: executionResult.success ? 'executed' : 'failed',
+          action_payload: actionPayload,
+          trigger_context: 'confirmation',
+          executed_at: new Date().toISOString()
+        })
+
+        return {
+          success: executionResult.success,
+          message: executionResult.success
+            ? `Action confirmed and executed: ${actionType.replace(/_/g, ' ')}`
+            : `Action confirmed but execution failed: ${executionResult.error}`,
+          executionResult
+        }
+      } catch (err: any) {
+        await supabase
+          .from('pending_agent_actions')
+          .update({
+            status: 'failed',
+            execution_result: { error: err.message }
+          })
+          .eq('id', action_id)
+
+        return {
+          success: false,
+          error: `Failed to execute confirmed action: ${err.message}`
+        }
+      }
+    }
+
+    case 'cancel_pending_action': {
+      const action_id = args?.action_id
+      const reason = args?.reason
+
+      if (!action_id) {
+        return {
+          success: false,
+          error: 'I need to know which action to cancel. Please provide the action ID.'
+        }
+      }
+
+      // Get the pending action
+      const { data: pendingAction, error: fetchError } = await supabase
+        .from('pending_agent_actions')
+        .select('*')
+        .eq('id', action_id)
+        .eq('user_id', userId)
+        .single()
+
+      if (fetchError || !pendingAction) {
+        return {
+          success: false,
+          error: 'Pending action not found.'
+        }
+      }
+
+      if (pendingAction.status !== 'pending') {
+        return {
+          success: false,
+          error: `Cannot cancel action. Current status: ${pendingAction.status}`
+        }
+      }
+
+      // Update to cancelled status
+      const { error: updateError } = await supabase
+        .from('pending_agent_actions')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancellation_reason: reason || 'User declined'
+        })
+        .eq('id', action_id)
+
+      if (updateError) {
+        return {
+          success: false,
+          error: `Failed to cancel action: ${updateError.message}`
+        }
+      }
+
+      // Log to agent action history
+      await supabase.from('agent_action_history').insert({
+        user_id: userId,
+        action_type: pendingAction.action_type,
+        action_status: 'cancelled',
+        action_payload: pendingAction.action_payload,
+        trigger_context: 'cancellation',
+        executed_at: new Date().toISOString()
+      })
+
+      return {
+        success: true,
+        message: `Action cancelled: ${pendingAction.action_type.replace(/_/g, ' ')}${reason ? `. Reason: ${reason}` : ''}`
       }
     }
 
