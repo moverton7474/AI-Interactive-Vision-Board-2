@@ -358,6 +358,10 @@ serve(async (req) => {
           }
         }
 
+        // Get user email first for better error messages
+        const { data: userData } = await supabase.auth.admin.getUserById(outreach.user_id)
+        const userEmail = userData?.user?.email || outreach.user_id
+
         // Get user's phone number from user_comm_preferences
         const { data: commPrefs, error: commError } = await supabase
           .from('user_comm_preferences')
@@ -366,16 +370,12 @@ serve(async (req) => {
           .single()
 
         if (commError || !commPrefs) {
-          throw new Error('User communication preferences not found - please configure phone in settings')
+          throw new Error(`User "${userEmail}" has not configured communication preferences. They need to add their phone number in Settings > Notification Settings.`)
         }
 
         if (!commPrefs.phone_number) {
-          throw new Error(`User does not have a phone number configured`)
+          throw new Error(`User "${userEmail}" has not configured a phone number. They need to add their phone in Settings > Notification Settings.`)
         }
-
-        // Get user email for personalization
-        const { data: userData } = await supabase.auth.admin.getUserById(outreach.user_id)
-        const userEmail = userData?.user?.email
 
         // Mark as processing
         await supabase

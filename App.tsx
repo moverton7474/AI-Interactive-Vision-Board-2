@@ -240,10 +240,12 @@ const App = () => {
             console.log('🔍 Loading primary vision...', { visionId: profile.primary_vision_id });
             setPrimaryVisionId(profile.primary_vision_id);
 
+            // SECURITY: Always verify user owns the vision board to prevent data bleeding
             const { data: vision, error: visionError } = await supabase
               .from('vision_boards')
               .select('image_url, prompt')
               .eq('id', profile.primary_vision_id)
+              .eq('user_id', session.user.id)
               .single();
 
             if (visionError) {

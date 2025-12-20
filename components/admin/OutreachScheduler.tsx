@@ -31,6 +31,7 @@ interface TeamMember {
   name: string;
   current_streak: number;
   role: string;
+  hasPhone: boolean; // Whether user has phone configured
 }
 
 const outreachTypes = [
@@ -140,13 +141,26 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
       // Fetch profiles for team members
       const memberUserIds = (membersData || []).map((m: any) => m.user_id).filter(Boolean);
       let memberEmailMap: Record<string, string> = {};
+      let memberPhoneMap: Record<string, boolean> = {};
+
       if (memberUserIds.length > 0) {
+        // Get email from profiles
         const { data: memberProfilesData } = await supabase
           .from('profiles')
           .select('id, email')
           .in('id', memberUserIds);
         memberEmailMap = (memberProfilesData || []).reduce((acc: Record<string, string>, p: any) => {
           acc[p.id] = p.email || '';
+          return acc;
+        }, {});
+
+        // Check which members have phone numbers configured
+        const { data: commPrefsData } = await supabase
+          .from('user_comm_preferences')
+          .select('user_id, phone_number')
+          .in('user_id', memberUserIds);
+        memberPhoneMap = (commPrefsData || []).reduce((acc: Record<string, boolean>, p: any) => {
+          acc[p.user_id] = !!p.phone_number;
           return acc;
         }, {});
       }
@@ -156,7 +170,8 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
         email: memberEmailMap[m.user_id] || '',
         name: memberEmailMap[m.user_id]?.split('@')[0] || 'User',
         current_streak: m.current_streak || 0,
-        role: m.role
+        role: m.role,
+        hasPhone: memberPhoneMap[m.user_id] || false
       }));
 
       setTeamMembers(members);
@@ -663,15 +678,24 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
                     Clear
                   </button>
                 </div>
+                {sendNowMode && teamMembers.some(m => !m.hasPhone) && (
+                  <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-2 text-yellow-200 text-xs mb-2">
+                    ⚠️ Members without 📱 need to configure their phone number in Settings before receiving calls/SMS.
+                  </div>
+                )}
                 <div className="max-h-40 overflow-y-auto bg-white/5 rounded-lg p-2 space-y-1">
                   {teamMembers.map((member) => (
                     <label
                       key={member.user_id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 cursor-pointer"
+                      className={`flex items-center gap-3 p-2 rounded-lg hover:bg-white/10 cursor-pointer ${
+                        !member.hasPhone && sendNowMode ? 'opacity-50' : ''
+                      }`}
+                      title={!member.hasPhone ? 'No phone number configured' : ''}
                     >
                       <input
                         type="checkbox"
                         checked={selectedMembers.includes(member.user_id)}
+                        disabled={!member.hasPhone && sendNowMode}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setSelectedMembers([...selectedMembers, member.user_id]);
@@ -679,10 +703,17 @@ const OutreachScheduler: React.FC<OutreachSchedulerProps> = ({
                             setSelectedMembers(selectedMembers.filter(id => id !== member.user_id));
                           }
                         }}
-                        className="w-4 h-4 rounded border-white/20 bg-white/10 text-indigo-500 focus:ring-indigo-500"
+                        className="w-4 h-4 rounded border-white/20 bg-white/10 text-indigo-500 focus:ring-indigo-500 disabled:opacity-50"
                       />
                       <div className="flex-1">
-                        <p className="text-white text-sm">{member.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white text-sm">{member.name}</p>
+                          {member.hasPhone ? (
+                            <span className="text-green-400 text-xs" title="Phone configured">📱</span>
+                          ) : (
+                            <span className="text-red-400 text-xs" title="No phone number">⚠️</span>
+                          )}
+                        </div>
                         <p className="text-indigo-300 text-xs">{member.email}</p>
                       </div>
                       {member.current_streak > 0 && (

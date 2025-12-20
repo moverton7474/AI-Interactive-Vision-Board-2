@@ -312,9 +312,11 @@ async function customizeProduct(supabase: any, userId: string, body: any) {
   if (product.personalization_fields.includes('vision_image') ||
       product.personalization_fields.includes('vision_images') ||
       product.personalization_fields.includes('vision_board_id')) {
+    // SECURITY: Always filter by user_id to prevent data bleeding
     const { data: visions } = await supabase
       .from('vision_boards')
       .select('id, prompt, image_url, is_favorite')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(10)
 

@@ -28,10 +28,68 @@ const DAYS_OF_WEEK = [
     { value: 'saturday', label: 'Saturday' },
 ];
 
+// Phone number validation and formatting utilities
+const formatPhoneForDisplay = (phone: string): string => {
+    // Remove all non-digits except leading +
+    const hasPlus = phone.startsWith('+');
+    const digits = phone.replace(/\D/g, '');
+
+    if (digits.length === 0) return '';
+
+    // Format as US number: +1 (XXX) XXX-XXXX
+    if (digits.length <= 1) {
+        return hasPlus ? `+${digits}` : digits;
+    } else if (digits.length <= 4) {
+        return `+${digits.slice(0, 1)} (${digits.slice(1)}`;
+    } else if (digits.length <= 7) {
+        return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4)}`;
+    } else {
+        return `+${digits.slice(0, 1)} (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 11)}`;
+    }
+};
+
+const formatPhoneForStorage = (phone: string): string => {
+    // Convert to E.164 format: +1XXXXXXXXXX
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 0) return '';
+    // Ensure it starts with +
+    return `+${digits}`;
+};
+
+const validatePhone = (phone: string): { valid: boolean; message: string } => {
+    if (!phone || phone.trim() === '') {
+        return { valid: false, message: '' }; // Empty is okay, just not validated
+    }
+
+    const digits = phone.replace(/\D/g, '');
+
+    if (digits.length < 11) {
+        return { valid: false, message: 'Phone number must include country code (e.g., +1 for US)' };
+    }
+
+    if (digits.length > 15) {
+        return { valid: false, message: 'Phone number is too long' };
+    }
+
+    // Check for valid US number (starts with 1)
+    if (digits.startsWith('1') && digits.length === 11) {
+        return { valid: true, message: 'Valid US phone number' };
+    }
+
+    // Other international formats
+    if (digits.length >= 10 && digits.length <= 15) {
+        return { valid: true, message: 'Valid international phone number' };
+    }
+
+    return { valid: false, message: 'Invalid phone number format' };
+};
+
 export default function NotificationSettings({ onNavigateToAgentSettings }: NotificationSettingsProps) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [prefs, setPrefs] = useState<UserCommPreferences | null>(null);
+    const [phoneDisplay, setPhoneDisplay] = useState('');
+    const [phoneValidation, setPhoneValidation] = useState<{ valid: boolean; message: string }>({ valid: false, message: '' });
     const [emailPrefs, setEmailPrefs] = useState<EmailPreferences>({
         weekly_review_emails: true,
         milestone_emails: true,
@@ -66,6 +124,12 @@ export default function NotificationSettings({ onNavigateToAgentSettings }: Noti
 
             if (prefData) {
                 setPrefs(prefData);
+                // Initialize phone display with formatted version
+                if (prefData.phone_number) {
+                    const formatted = formatPhoneForDisplay(prefData.phone_number);
+                    setPhoneDisplay(formatted);
+                    setPhoneValidation(validatePhone(prefData.phone_number));
+                }
             } else {
                 // Init if empty
                 const defaultPrefs = {
@@ -123,10 +187,14 @@ export default function NotificationSettings({ onNavigateToAgentSettings }: Noti
             const { data: { user } } = await supabase.auth.getUser();
             if (!user || !prefs) return;
 
+            // Format phone number to E.164 before saving
+            const formattedPhone = prefs.phone_number ? formatPhoneForStorage(prefs.phone_number) : null;
+
             // Save communication preferences
             const commUpdates = {
                 user_id: user.id,
                 ...prefs,
+                phone_number: formattedPhone,
                 updated_at: new Date().toISOString()
             };
 
@@ -304,20 +372,58 @@ export default function NotificationSettings({ onNavigateToAgentSettings }: Noti
                         <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-700 mb-4">
                             <label className="block text-sm font-medium text-white mb-2">📱 Phone Number</label>
                             <div className="flex gap-2">
-                                <input
-                                    type="tel"
-                                    placeholder="+1 (555) 123-4567"
-                                    value={prefs?.phone_number || ''}
-                                    onChange={(e) => setPrefs(prev => prev ? ({ ...prev, phone_number: e.target.value }) : null)}
-                                    className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
+                                <div className="relative flex-1">
+                                    <input
+                                        type="tel"
+                                        placeholder="+1 (555) 123-4567"
+                                        value={phoneDisplay}
+                                        onChange={(e) => {
+                                            const raw = e.target.value;
+                                            const formatted = formatPhoneForDisplay(raw);
+                                            setPhoneDisplay(formatted);
+                                            // Store the E.164 format in prefs
+                                            const e164 = formatPhoneForStorage(raw);
+                                            setPrefs(prev => prev ? ({ ...prev, phone_number: e164 }) : null);
+                                            // Validate
+                                            setPhoneValidation(validatePhone(raw));
+                                        }}
+                                        className={`w-full bg-slate-800 border rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:ring-2 outline-none pr-10 ${
+                                            phoneValidation.valid
+                                                ? 'border-green-500 focus:ring-green-500'
+                                                : phoneValidation.message
+                                                    ? 'border-red-500 focus:ring-red-500'
+                                                    : 'border-slate-600 focus:ring-indigo-500'
+                                        }`}
+                                    />
+                                    {/* Validation indicator */}
+                                    {phoneDisplay && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            {phoneValidation.valid ? (
+                                                <span className="text-green-400 text-lg">✓</span>
+                                            ) : phoneValidation.message ? (
+                                                <span className="text-red-400 text-lg">✗</span>
+                                            ) : null}
+                                        </div>
+                                    )}
+                                </div>
                                 {prefs?.phone_verified && (
-                                    <span className="flex items-center gap-1 px-3 py-2 bg-green-900/30 text-green-400 rounded-lg text-xs font-medium">
+                                    <span className="flex items-center gap-1 px-3 py-2 bg-green-900/30 text-green-400 rounded-lg text-xs font-medium whitespace-nowrap">
                                         ✓ Verified
                                     </span>
                                 )}
                             </div>
-                            <p className="text-xs text-slate-400 mt-2">Used for SMS reminders and voice calls from your AI Coach</p>
+                            {/* Validation feedback message */}
+                            {phoneValidation.message && (
+                                <p className={`text-xs mt-2 ${phoneValidation.valid ? 'text-green-400' : 'text-red-400'}`}>
+                                    {phoneValidation.message}
+                                </p>
+                            )}
+                            <p className="text-xs text-slate-400 mt-2">
+                                Enter with country code: +1 for US/Canada. Format: +1 (XXX) XXX-XXXX
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Used for SMS reminders and voice calls from your AI Coach
+                            </p>
                         </div>
 
                         <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">

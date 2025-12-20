@@ -241,22 +241,26 @@ async function generateWorkbook(supabase: any, userId: string, orderId: string) 
       .single()
 
     // Get vision boards if selected
+    // SECURITY: Also filter by user_id to prevent data bleeding (defense-in-depth with RLS)
     let visionBoards: any[] = []
     if (order.vision_board_ids?.length > 0) {
       const { data } = await supabase
         .from('vision_boards')
         .select('*')
         .in('id', order.vision_board_ids)
+        .eq('user_id', userId)
       visionBoards = data || []
     }
 
     // Get habits if selected
+    // SECURITY: Also filter by user_id to prevent data bleeding (defense-in-depth with RLS)
     let habits: any[] = []
     if (order.included_habits?.length > 0) {
       const { data } = await supabase
         .from('habits')
         .select('*')
         .in('id', order.included_habits)
+        .eq('user_id', userId)
       habits = data || []
     }
 

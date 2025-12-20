@@ -264,8 +264,15 @@ export const getVisionGallery = async (): Promise<VisionImage[]> => {
 
 export const deleteVisionImage = async (id: string): Promise<void> => {
   try {
+    // SECURITY: Verify user owns this image before deleting (defense-in-depth with RLS)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Must be authenticated to delete images');
+    }
+
+    // Only delete if user owns this vision board
     await supabase.storage.from('visions').remove([`${id}.png`]);
-    await supabase.from('vision_boards').delete().eq('id', id);
+    await supabase.from('vision_boards').delete().eq('id', id).eq('user_id', user.id);
   } catch (error) {
     console.error("Failed to delete image", error);
   }
