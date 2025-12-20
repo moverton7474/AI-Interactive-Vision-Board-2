@@ -144,6 +144,20 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ AI Settings Controls (admin-ai-settings) for platform configuration
 - ✅ Credit Management for platform admins
 
+**Phase 3: Engagement & Retention (December 19, 2025):**
+- ✅ SMS Scheduling Infrastructure - `sms-scheduler` edge function for processing scheduled reminders
+- ✅ Streak Celebration Notifications - `celebrate-streak` edge function with milestone messages (7, 14, 21, 30, 60, 90, 100, 180, 365 days)
+- ✅ Outreach Automation Rules - `process-automations` edge function for event-driven automation engine
+- ✅ Database tables: `streak_celebrations`, `scheduled_reminders`, `automation_rules`, `automation_executions`
+- ✅ Integrated streak celebrations with habit completion flow in `habit-service`
+- ✅ Default automation rules trigger for new users (streak celebrations, missed habit reminders, inactivity check-ins)
+
+**Security Hardening (December 19, 2025):**
+- ✅ Rate Limiting Infrastructure - `rate_limits`, `rate_limit_configs`, `blocked_ips`, `rate_limit_violations` tables
+- ✅ Comprehensive RLS policies for 18+ tables with Row Level Security
+- ✅ Storage bucket security policies for avatars, vision-boards, pdfs, audio
+- ✅ Platform admin functions with `is_platform_admin()` helper
+
 **Vision Board Engine Fixes (December 15-16, 2025):**
 - ✅ Safety compliance rewrite with natural language prompts
 - ✅ Critical tag/image mismatch fix for corrupted image generation

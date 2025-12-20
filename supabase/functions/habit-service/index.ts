@@ -784,39 +784,86 @@ async function checkStreakMilestone(
   habitTitle: string,
   currentStreak: number
 ) {
-  const milestones = [7, 14, 21, 30, 60, 90, 100, 365]
+  const milestones = [7, 14, 21, 30, 60, 90, 100, 180, 365]
 
   if (milestones.includes(currentStreak)) {
-    // Get user preferences
-    const { data: prefs } = await supabase
-      .from('user_comm_preferences')
-      .select('preferred_channel, phone_number')
-      .eq('user_id', userId)
-      .single()
-
     // Log milestone achievement
     console.log(`Streak milestone reached: ${habitTitle} - ${currentStreak} days`)
 
-    // Schedule celebration notification
-    await supabase
-      .from('scheduled_checkins')
-      .insert({
-        user_id: userId,
-        checkin_type: 'custom',
-        scheduled_for: new Date().toISOString(),
-        channel: prefs?.preferred_channel || 'push',
-        status: 'pending',
-        content: {
-          type: 'streak_milestone',
-          habit_id: habitId,
-          habit_title: habitTitle,
-          streak: currentStreak,
-          template: 'streak_milestone',
-          templateData: {
-            habitTitle,
+    // Call celebrate-streak function for notification handling
+    try {
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+      const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')
+
+      const celebrateResponse = await fetch(`${SUPABASE_URL}/functions/v1/celebrate-streak`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          habitId,
+          userId,
+          newStreak: currentStreak
+        })
+      })
+
+      if (celebrateResponse.ok) {
+        const result = await celebrateResponse.json()
+        console.log(`Celebration result:`, result)
+      } else {
+        console.error('Celebrate-streak call failed:', await celebrateResponse.text())
+      }
+    } catch (celebrateError) {
+      console.error('Error calling celebrate-streak:', celebrateError)
+
+      // Fallback: Insert into scheduled_checkins as backup
+      const { data: prefs } = await supabase
+        .from('user_comm_preferences')
+        .select('preferred_channel')
+        .eq('user_id', userId)
+        .single()
+
+      await supabase
+        .from('scheduled_checkins')
+        .insert({
+          user_id: userId,
+          checkin_type: 'custom',
+          scheduled_for: new Date().toISOString(),
+          channel: prefs?.preferred_channel || 'push',
+          status: 'pending',
+          content: {
+            type: 'streak_milestone',
+            habit_id: habitId,
+            habit_title: habitTitle,
             streak: currentStreak
           }
-        }
+        })
+    }
+
+    // Also trigger automation rules for streak milestones
+    try {
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+      const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')
+
+      await fetch(`${SUPABASE_URL}/functions/v1/process-automations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+          trigger_type: 'streak_milestone',
+          user_id: userId,
+          trigger_data: {
+            habit_id: habitId,
+            habit_title: habitTitle,
+            streak: currentStreak
+          }
+        })
       })
+    } catch (automationError) {
+      console.error('Error triggering automations:', automationError)
+    }
   }
 }
