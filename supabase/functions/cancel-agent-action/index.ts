@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createTracer } from "../_shared/agent-tracing.ts";
 
 declare const Deno: any;
 
@@ -48,6 +49,9 @@ serve(async (req) => {
     const userId = user.id;
     const { action_id, reason, feedback } = await req.json();
 
+    // Initialize tracer for observability
+    const tracer = createTracer(supabase, userId);
+
     if (!action_id) {
       throw new Error('action_id is required');
     }
@@ -90,6 +94,17 @@ serve(async (req) => {
       throw new Error(`Failed to cancel action: ${updateError.message}`);
     }
 
+    // Calculate time to decision for analytics
+    const timeToDecisionMs = Date.now() - new Date(pendingAction.created_at).getTime();
+
+    // Trace user cancellation response
+    await tracer.traceUserResponse({
+      actionType: pendingAction.action_type,
+      response: 'cancelled',
+      feedback: { reason, ...feedback },
+      timeToDecisionMs,
+    });
+
     // Log to agent action history
     await supabase.from('agent_action_history').insert({
       user_id: userId,
@@ -97,10 +112,13 @@ serve(async (req) => {
       action_status: 'cancelled',
       action_payload: pendingAction.action_payload,
       trigger_context: 'cancellation',
+      confidence_score: pendingAction.confidence_score,
+      risk_level: pendingAction.risk_level,
       executed_at: new Date().toISOString()
     });
 
     // Record feedback if provided (helps improve AI suggestions)
+    const categorizedReason = categorizeRejection(reason);
     if (feedback) {
       await supabase.from('agent_action_feedback').insert({
         user_id: userId,
@@ -108,7 +126,8 @@ serve(async (req) => {
         feedback_type: 'rejection',
         rating: feedback.rating,
         comment: feedback.comment || reason,
-        rejection_reason: categorizeRejection(reason),
+        rejection_reason: categorizedReason,
+        time_to_decision_ms: timeToDecisionMs,
         created_at: new Date().toISOString()
       });
     } else if (reason) {
@@ -118,22 +137,23 @@ serve(async (req) => {
         action_id: action_id,
         feedback_type: 'rejection',
         comment: reason,
-        rejection_reason: categorizeRejection(reason),
+        rejection_reason: categorizedReason,
+        time_to_decision_ms: timeToDecisionMs,
         created_at: new Date().toISOString()
       });
     }
 
-    // Log execution trace for analytics
-    await supabase.from('agent_execution_traces').insert({
-      user_id: userId,
-      session_id: pendingAction.session_id,
-      trace_type: 'action_cancelled',
-      function_name: pendingAction.action_type,
-      input_data: pendingAction.action_payload,
-      output_data: { cancelled: true, reason: reason || 'User declined' },
-      duration_ms: 0,
-      created_at: new Date().toISOString()
-    }).catch(err => console.log('Trace logging failed:', err));
+    // Trace decision point for analytics
+    await tracer.traceDecisionPoint({
+      decision: 'action_cancelled',
+      factors: {
+        action_type: pendingAction.action_type,
+        risk_level: pendingAction.risk_level,
+        rejection_category: categorizedReason
+      },
+      outcome: 'rejected',
+      confidenceScore: pendingAction.confidence_score,
+    });
 
     return new Response(
       JSON.stringify({

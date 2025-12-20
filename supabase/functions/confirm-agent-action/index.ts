@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createTracer, withTiming } from "../_shared/agent-tracing.ts";
 
 declare const Deno: any;
 
@@ -22,6 +23,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  const requestStartTime = Date.now();
 
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -47,6 +50,9 @@ serve(async (req) => {
 
     const userId = user.id;
     const { action_id, feedback } = await req.json();
+
+    // Initialize tracer for observability
+    const tracer = createTracer(supabase, userId);
 
     if (!action_id) {
       throw new Error('action_id is required');
@@ -102,13 +108,51 @@ serve(async (req) => {
       })
       .eq('id', action_id);
 
-    // Execute the action
+    // Execute the action with tracing
     const actionType = pendingAction.action_type;
     const actionPayload = pendingAction.action_payload;
     let executionResult: any;
 
+    // Trace user confirmation response
+    const confirmationTime = Date.now() - new Date(pendingAction.created_at).getTime();
+    await tracer.traceUserResponse({
+      actionType,
+      response: 'confirmed',
+      feedback: feedback || undefined,
+      timeToDecisionMs: confirmationTime,
+    });
+
     try {
+      // Trace tool call start
+      await tracer.traceToolCall({
+        toolName: 'action_executor',
+        functionName: actionType,
+        inputData: actionPayload,
+        confidenceScore: pendingAction.confidence_score,
+      });
+
+      const executionStart = Date.now();
       executionResult = await executeAction(supabase, userId, actionType, actionPayload);
+      const executionDuration = Date.now() - executionStart;
+
+      // Trace tool result
+      await tracer.traceToolResult({
+        toolName: 'action_executor',
+        functionName: actionType,
+        outputData: executionResult,
+        durationMs: executionDuration,
+        error: executionResult.success ? undefined : executionResult.error,
+      });
+
+      // Trace action executed
+      await tracer.traceActionExecuted({
+        actionType,
+        inputData: actionPayload,
+        outputData: executionResult,
+        durationMs: executionDuration,
+        success: executionResult.success,
+        error: executionResult.success ? undefined : executionResult.error,
+      });
 
       // Update pending action with result
       await supabase
@@ -127,6 +171,8 @@ serve(async (req) => {
         action_status: executionResult.success ? 'executed' : 'failed',
         action_payload: actionPayload,
         trigger_context: 'confirmation',
+        confidence_score: pendingAction.confidence_score,
+        risk_level: pendingAction.risk_level,
         executed_at: new Date().toISOString()
       });
 
@@ -138,12 +184,21 @@ serve(async (req) => {
           feedback_type: 'confirmation',
           rating: feedback.rating,
           comment: feedback.comment,
+          time_to_decision_ms: confirmationTime,
           created_at: new Date().toISOString()
         });
       }
 
     } catch (execError: any) {
       console.error('Action execution error:', execError);
+
+      // Trace error
+      await tracer.traceError({
+        errorCode: 'EXECUTION_FAILED',
+        errorMessage: execError.message,
+        context: { actionType, actionPayload },
+        functionName: actionType,
+      });
 
       await supabase
         .from('pending_agent_actions')
