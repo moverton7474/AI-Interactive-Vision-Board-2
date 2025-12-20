@@ -897,6 +897,525 @@ async function traceExecution(
 
 ---
 
+---
+
+## User & Admin Management Implementation Plan
+
+This section details how new agentic features will be managed through both **user-level settings** (individual user control) and **admin-level settings** (team/organization control).
+
+### Existing Management Infrastructure
+
+#### User Settings Dashboard (`components/settings/AgentSettings.tsx`)
+
+**Currently Manages:**
+| Setting Category | Fields | Status |
+|-----------------|--------|--------|
+| Master Control | `agent_actions_enabled` | ✅ Implemented |
+| Action Permissions | `allow_send_email`, `allow_send_sms`, `allow_voice_calls`, `allow_create_tasks`, `allow_schedule_reminders` | ✅ Implemented |
+| Confirmation Requirements | `require_confirmation_email`, `require_confirmation_sms`, `require_confirmation_voice` | ✅ Implemented |
+| Habit Reminders | `habit_reminders_enabled`, `habit_reminder_channel`, `habit_reminder_timing`, `habit_reminder_minutes_before` | ✅ Implemented |
+| Goal Check-ins | `goal_checkins_enabled`, `goal_checkin_frequency`, `goal_checkin_channel`, `goal_checkin_day_of_week`, `goal_checkin_time` | ✅ Implemented |
+| Proactive Outreach | `allow_proactive_outreach`, `proactive_outreach_frequency`, `proactive_topics` | ✅ Implemented |
+| Action History | Read-only list of recent actions | ✅ Implemented |
+
+#### Admin Settings Dashboard (`components/admin/AICoachSettings.tsx`)
+
+**Currently Manages:**
+| Setting Category | Fields | Status |
+|-----------------|--------|--------|
+| Coach Personality | `coach_name`, `coach_tone`, `custom_instructions` | ✅ Implemented |
+| Topic Guardrails | `blocked_topics[]` | ✅ Implemented |
+| Safety Controls | `enable_sentiment_alerts`, `sentiment_alert_threshold`, `enable_crisis_detection`, `crisis_escalation_email`, `crisis_keywords[]` | ✅ Implemented |
+| Session Limits | `max_session_duration_minutes`, `max_sessions_per_day`, `cooldown_between_sessions_minutes` | ✅ Implemented |
+| Agentic Capabilities | `allow_send_email`, `allow_create_tasks`, `allow_schedule_reminders`, `allow_access_user_data`, `require_confirmation` | ✅ Implemented |
+| Voice Settings | `default_voice`, `default_voice_speed` | ✅ Implemented |
+
+---
+
+### Phase 1 UI Additions: User Settings
+
+#### 1.1 Confidence & Trust Settings (NEW CARD)
+
+**Location:** `components/settings/AgentSettings.tsx`
+
+**New UI Section:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 🎯 AI Confidence Settings                                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ ☑ Require high confidence before actions                        │
+│   Only execute when AI is highly confident                      │
+│                                                                 │
+│ Confidence Threshold: [=====●=======] 70%                       │
+│   Slider: 50% ────────────────────── 95%                        │
+│                                                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│                                                                 │
+│ Risk-Based Auto-Approval                                        │
+│                                                                 │
+│ ☑ Auto-approve LOW risk actions                                 │
+│   (View data, create tasks)                                     │
+│                                                                 │
+│ ☐ Auto-approve MEDIUM risk actions                              │
+│   (Mark habits complete, update progress)                       │
+│                                                                 │
+│ ⚠️ HIGH risk actions always require confirmation                │
+│   (Emails, SMS, Voice calls)                                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Database Fields:**
+```sql
+-- Add to user_agent_settings
+require_high_confidence BOOLEAN DEFAULT false,
+confidence_threshold DECIMAL(3,2) DEFAULT 0.7,
+auto_approve_low_risk BOOLEAN DEFAULT true,
+auto_approve_medium_risk BOOLEAN DEFAULT false
+```
+
+#### 1.2 Action History Enhancement (ENHANCE EXISTING)
+
+**Current:** Simple list of recent actions
+**Enhanced:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 📊 Agent Action History                              [Export]   │
+├─────────────────────────────────────────────────────────────────┤
+│ Filter: [All ▼]  [Last 7 days ▼]  [🔍 Search...]               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ 📧 Send Email                                  ✅ Executed      │
+│    To: john@example.com | Subject: Weekly Progress              │
+│    Dec 19, 2025 at 2:30 PM | Confidence: 92%                   │
+│    [View Details] [👍] [👎]                                     │
+│                                                                 │
+│ 💬 Send SMS                                    ⏳ Pending       │
+│    Habit reminder for "Morning Meditation"                      │
+│    Dec 19, 2025 at 9:00 AM | Confidence: 78%                   │
+│    [Approve] [Reject] [Edit & Send]                            │
+│                                                                 │
+│ 📞 Voice Call                                  ❌ Cancelled     │
+│    Goal check-in call                                          │
+│    Dec 18, 2025 at 4:00 PM | Reason: User declined             │
+│    [View Details]                                               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**New Features:**
+- Filtering by action type, status, date range
+- Export to CSV/JSON
+- Inline feedback buttons (👍/👎) for executed actions
+- Edit capability for pending actions
+- Confidence score display
+
+#### 1.3 Calendar Connection (Phase 2)
+
+**New UI Section:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 📅 Calendar Integration                                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ Connect your calendar to let AI schedule events for you.       │
+│                                                                 │
+│ Google Calendar                          [🔗 Connect]          │
+│   Status: Not connected                                         │
+│                                                                 │
+│ ─────────────────────────────────────────────────────────────── │
+│                                                                 │
+│ When connected, AI Coach can:                                   │
+│ • Check your availability before suggesting times               │
+│ • Create goal check-in appointments                             │
+│ • Schedule habit time blocks                                    │
+│ • Set reminders for important deadlines                        │
+│                                                                 │
+│ ☑ Require confirmation before creating events                   │
+│ ☑ Only schedule during working hours (9am-6pm)                 │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Phase 1 UI Additions: Admin Settings
+
+#### 2.1 Team-Wide Confidence Overrides (NEW CARD)
+
+**Location:** `components/admin/AICoachSettings.tsx`
+
+**New UI Section:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 🎯 AI Confidence & Risk Policies                    [Team]      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ Minimum Confidence Threshold                                    │
+│ [=====●===========] 60%                                         │
+│ Users cannot set their threshold below this value              │
+│                                                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│                                                                 │
+│ Risk Level Policies                                             │
+│                                                                 │
+│ ☑ Allow users to auto-approve LOW risk actions                 │
+│ ☐ Allow users to auto-approve MEDIUM risk actions              │
+│ ☐ Allow users to auto-approve HIGH risk actions                │
+│   (Not recommended - security risk)                            │
+│                                                                 │
+│ ⚠️ CRITICAL risk actions (send to external contacts)           │
+│   always require admin approval                                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Database Fields (team_ai_settings):**
+```sql
+-- Add to team_ai_settings
+min_confidence_threshold DECIMAL(3,2) DEFAULT 0.5,
+allow_user_auto_approve_low BOOLEAN DEFAULT true,
+allow_user_auto_approve_medium BOOLEAN DEFAULT false,
+allow_user_auto_approve_high BOOLEAN DEFAULT false,
+require_admin_approval_critical BOOLEAN DEFAULT true
+```
+
+#### 2.2 Team Action Monitoring Dashboard (NEW TAB)
+
+**New Admin Tab: "Agent Activity"**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 📊 Team Agent Activity                              [Export]    │
+├─────────────────────────────────────────────────────────────────┤
+│ Time Range: [Last 7 days ▼]  Team: [All Members ▼]             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ Summary                                                         │
+│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │
+│ │   156    │ │   142    │ │    8     │ │    6     │            │
+│ │ Actions  │ │ Approved │ │ Rejected │ │  Failed  │            │
+│ │ Requested│ │ (91%)    │ │  (5%)    │ │  (4%)    │            │
+│ └──────────┘ └──────────┘ └──────────┘ └──────────┘            │
+│                                                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│                                                                 │
+│ By Action Type                      By User                     │
+│ ├─ 📧 Email: 45 (29%)               ├─ John D.: 34 actions     │
+│ ├─ 📝 Tasks: 52 (33%)               ├─ Sarah M.: 28 actions    │
+│ ├─ ⏰ Reminders: 38 (24%)           ├─ Mike L.: 22 actions     │
+│ ├─ 💬 SMS: 15 (10%)                 └─ [View All...]           │
+│ └─ 📞 Calls: 6 (4%)                                            │
+│                                                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│                                                                 │
+│ Recent Activity Feed                        [🔄 Auto-refresh]   │
+│                                                                 │
+│ 2:45 PM  John D. ► Email sent (Confirmed)                      │
+│ 2:30 PM  Sarah M. ► Task created (Auto-approved)               │
+│ 2:15 PM  Mike L. ► SMS rejected by user                        │
+│ 1:58 PM  John D. ► Voice call failed (quiet hours)             │
+│ [Load more...]                                                  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.3 Observability Dashboard (NEW TAB - Phase 2)
+
+**New Admin Tab: "AI Observability"**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔍 AI Agent Observability                                       │
+├─────────────────────────────────────────────────────────────────┤
+│ Session: [Select session ▼]  User: [All ▼]  Date: [Today ▼]    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ Performance Metrics                                             │
+│ ┌───────────────────┐ ┌───────────────────┐                    │
+│ │ Avg Response Time │ │ Token Usage Today │                    │
+│ │     1.2s          │ │    45,230 tokens  │                    │
+│ │ ↓ 15% from avg    │ │ $0.45 estimated   │                    │
+│ └───────────────────┘ └───────────────────┘                    │
+│                                                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│                                                                 │
+│ Session Trace: session_abc123                                   │
+│                                                                 │
+│ ┌─ Step 1: LLM Call (450ms)                                    │
+│ │  Model: gemini-2.0-flash-exp                                 │
+│ │  Input: 1,245 tokens | Output: 312 tokens                    │
+│ │  [Expand to see full prompt/response]                        │
+│ │                                                               │
+│ ├─ Step 2: Tool Call - get_user_data (89ms)                    │
+│ │  Status: ✅ Success                                           │
+│ │  [View payload]                                               │
+│ │                                                               │
+│ ├─ Step 3: Tool Call - send_email (pending)                    │
+│ │  Status: ⏳ Awaiting confirmation                             │
+│ │  Confidence: 78%                                              │
+│ │  [View payload] [Force approve] [Force reject]                │
+│ │                                                               │
+│ └─ Step 4: LLM Call (380ms)                                    │
+│    Generating confirmation message...                           │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 2.4 Feedback Analytics (NEW TAB - Phase 3)
+
+**New Admin Tab: "Feedback & Learning"**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 📈 Agent Feedback Analytics                                     │
+├─────────────────────────────────────────────────────────────────┤
+│ Time Range: [Last 30 days ▼]                                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│ User Satisfaction                                               │
+│                                                                 │
+│ Overall Approval Rate: ████████████░░░░ 78%                    │
+│                                                                 │
+│ By Action Type:                                                 │
+│ Email     ████████████████░░ 89% approved                      │
+│ Tasks     ████████████████░░ 92% approved                      │
+│ Reminders ██████████████░░░░ 85% approved                      │
+│ SMS       ████████████░░░░░░ 71% approved                      │
+│ Calls     ████████░░░░░░░░░░ 52% approved                      │
+│                                                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│                                                                 │
+│ Common Rejection Reasons                                        │
+│                                                                 │
+│ 1. "Wrong recipient" - 23 occurrences                          │
+│    → Consider: Add recipient confirmation step                  │
+│                                                                 │
+│ 2. "Message too formal" - 18 occurrences                       │
+│    → Consider: Adjust coach tone for emails                     │
+│                                                                 │
+│ 3. "Wrong time" - 12 occurrences                               │
+│    → Consider: Better quiet hours detection                     │
+│                                                                 │
+│ [Export Feedback Data]                                          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Database Schema Additions for Management Features
+
+```sql
+-- =====================================================
+-- Phase 1: User-Level Management Schema Additions
+-- =====================================================
+
+-- Add confidence and risk settings to user_agent_settings
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS
+  require_high_confidence BOOLEAN DEFAULT false;
+
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS
+  confidence_threshold DECIMAL(3,2) DEFAULT 0.7;
+
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS
+  auto_approve_low_risk BOOLEAN DEFAULT true;
+
+ALTER TABLE user_agent_settings ADD COLUMN IF NOT EXISTS
+  auto_approve_medium_risk BOOLEAN DEFAULT false;
+
+-- Add confidence score to action history
+ALTER TABLE agent_action_history ADD COLUMN IF NOT EXISTS
+  confidence_score DECIMAL(3,2);
+
+-- =====================================================
+-- Phase 1: Admin-Level Management Schema Additions
+-- =====================================================
+
+-- Add team-wide confidence policies to team_ai_settings
+ALTER TABLE team_ai_settings ADD COLUMN IF NOT EXISTS
+  min_confidence_threshold DECIMAL(3,2) DEFAULT 0.5;
+
+ALTER TABLE team_ai_settings ADD COLUMN IF NOT EXISTS
+  allow_user_auto_approve_low BOOLEAN DEFAULT true;
+
+ALTER TABLE team_ai_settings ADD COLUMN IF NOT EXISTS
+  allow_user_auto_approve_medium BOOLEAN DEFAULT false;
+
+ALTER TABLE team_ai_settings ADD COLUMN IF NOT EXISTS
+  allow_user_auto_approve_high BOOLEAN DEFAULT false;
+
+ALTER TABLE team_ai_settings ADD COLUMN IF NOT EXISTS
+  require_admin_approval_critical BOOLEAN DEFAULT true;
+
+-- Allow SMS and voice at team level
+ALTER TABLE team_ai_settings ADD COLUMN IF NOT EXISTS
+  allow_send_sms BOOLEAN DEFAULT false;
+
+ALTER TABLE team_ai_settings ADD COLUMN IF NOT EXISTS
+  allow_voice_calls BOOLEAN DEFAULT false;
+
+-- =====================================================
+-- Phase 2: Observability Schema
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS agent_execution_traces (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID,
+  user_id UUID REFERENCES auth.users(id),
+  team_id UUID, -- For admin filtering
+  trace_type TEXT CHECK (trace_type IN ('llm_call', 'tool_call', 'tool_result', 'decision_point')),
+  step_number INTEGER,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  latency_ms INTEGER,
+  model_used TEXT,
+  tool_name TEXT,
+  input_payload JSONB,
+  output_payload JSONB,
+  error TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for admin queries
+CREATE INDEX IF NOT EXISTS idx_traces_team_id ON agent_execution_traces(team_id);
+CREATE INDEX IF NOT EXISTS idx_traces_created_at ON agent_execution_traces(created_at DESC);
+
+-- RLS for admin access
+ALTER TABLE agent_execution_traces ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own traces" ON agent_execution_traces
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view team traces" ON agent_execution_traces
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM team_members
+      WHERE team_members.user_id = auth.uid()
+      AND team_members.team_id = agent_execution_traces.team_id
+      AND team_members.role IN ('admin', 'owner')
+    )
+  );
+
+-- =====================================================
+-- Phase 3: Feedback Schema
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS agent_action_feedback (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  action_history_id UUID REFERENCES agent_action_history(id),
+  user_id UUID REFERENCES auth.users(id),
+  team_id UUID, -- For admin analytics
+  feedback_type TEXT CHECK (feedback_type IN ('approved', 'rejected', 'edited', 'reported', 'thumbs_up', 'thumbs_down')),
+  original_payload JSONB,
+  edited_payload JSONB,
+  rejection_reason TEXT,
+  feedback_text TEXT, -- Free-form user feedback
+  time_to_decision_ms INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes for analytics
+CREATE INDEX IF NOT EXISTS idx_feedback_team_id ON agent_action_feedback(team_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_type ON agent_action_feedback(feedback_type);
+CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON agent_action_feedback(created_at DESC);
+
+-- RLS
+ALTER TABLE agent_action_feedback ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own feedback" ON agent_action_feedback
+  FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view team feedback" ON agent_action_feedback
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM team_members
+      WHERE team_members.user_id = auth.uid()
+      AND team_members.team_id = agent_action_feedback.team_id
+      AND team_members.role IN ('admin', 'owner')
+    )
+  );
+```
+
+---
+
+### UI Component Files to Create/Modify
+
+| Component | Type | Purpose | Phase |
+|-----------|------|---------|-------|
+| `AgentSettings.tsx` | MODIFY | Add confidence settings card, enhance action history | Phase 1 |
+| `AgentSettings/ConfidenceSettings.tsx` | CREATE | Confidence & risk auto-approval UI | Phase 1 |
+| `AgentSettings/ActionHistoryEnhanced.tsx` | CREATE | Filterable, exportable action history with feedback | Phase 1 |
+| `AgentSettings/CalendarConnection.tsx` | CREATE | Google Calendar OAuth flow UI | Phase 2 |
+| `AICoachSettings.tsx` | MODIFY | Add confidence policies card | Phase 1 |
+| `admin/AgentActivityDashboard.tsx` | CREATE | Team action monitoring dashboard | Phase 1 |
+| `admin/AgentObservability.tsx` | CREATE | Session traces, performance metrics | Phase 2 |
+| `admin/AgentFeedbackAnalytics.tsx` | CREATE | Feedback aggregation, insights | Phase 3 |
+
+---
+
+### Permission Inheritance Model
+
+The system follows a hierarchical permission model:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     PLATFORM DEFAULTS                           │
+│  (Set in code, cannot be changed by anyone)                    │
+│  • CRITICAL actions always need confirmation                    │
+│  • Rate limits enforced                                         │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                   TEAM/ADMIN SETTINGS                           │
+│  (Set by team admins in AICoachSettings)                       │
+│  • Can RESTRICT user options                                    │
+│  • Cannot EXPAND beyond platform defaults                       │
+│  Example: "Users cannot auto-approve medium risk"               │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                    USER SETTINGS                                │
+│  (Set by individual users in AgentSettings)                    │
+│  • Can only enable options allowed by team                      │
+│  • More restrictive = always allowed                            │
+│  Example: "I want confirmation on ALL actions"                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Enforcement Logic:**
+```typescript
+function getEffectiveSettings(userSettings: UserSettings, teamSettings: TeamSettings): EffectiveSettings {
+  return {
+    // Confidence: User's threshold, but not below team minimum
+    confidence_threshold: Math.max(
+      userSettings.confidence_threshold,
+      teamSettings.min_confidence_threshold
+    ),
+
+    // Auto-approve: Only if both team and user allow
+    auto_approve_low_risk:
+      teamSettings.allow_user_auto_approve_low &&
+      userSettings.auto_approve_low_risk,
+
+    auto_approve_medium_risk:
+      teamSettings.allow_user_auto_approve_medium &&
+      userSettings.auto_approve_medium_risk,
+
+    // Actions: Must be enabled at both levels
+    allow_send_email:
+      teamSettings.allow_send_email &&
+      userSettings.allow_send_email,
+
+    // ... etc
+  };
+}
+```
+
+---
+
 ## Conclusion (Updated)
 
 The Vision AI Coach agentic execution plan has been validated against **2025 enterprise AI agent best practices** from industry leaders including Microsoft, LangChain, McKinsey, Deloitte, and ISACA.
