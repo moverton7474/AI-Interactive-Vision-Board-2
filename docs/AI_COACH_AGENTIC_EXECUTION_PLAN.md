@@ -2182,56 +2182,310 @@ const AgentActivityDashboard = dynamic(
 
 ## Updated Implementation Roadmap
 
-### Sprint 1: Core Infrastructure (Week 1-2)
-- [ ] Add TypeScript types to `types.ts`
-- [ ] Create feature flags table and utility
-- [ ] Extend `user_agent_settings` with confidence fields
-- [ ] Extend `team_ai_settings` with policy fields
-- [ ] Create `pending_agent_actions` table
-- [ ] Implement `getEffectiveSettings()` function
-- [ ] Add confidence/risk types and constants
+### Executive Roadmap Summary
 
-### Sprint 2: Backend Enhancements (Week 3-4)
-- [ ] Add voice call tool to `getGeminiTools()`
-- [ ] Implement confirmation flow in `executeAgentTool()`
-- [ ] Add function calling to `amie-psychological-coach`
-- [ ] Create `confirm-agent-action` edge function
-- [ ] Create `cancel-agent-action` edge function
-- [ ] Enable realtime for pending actions
-- [ ] Implement error handling patterns
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    AI COACH AGENTIC EXECUTION ROADMAP                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PHASE 1: FOUNDATION          PHASE 2: ENHANCE           PHASE 3: SCALE    │
+│  ══════════════════          ═══════════════           ═══════════════     │
+│                                                                             │
+│  Sprint 1-2                   Sprint 3-4                Sprint 5-6          │
+│  ┌─────────────┐              ┌─────────────┐           ┌─────────────┐     │
+│  │ Database    │              │ Frontend    │           │ Calendar    │     │
+│  │ Schema      │──────────────│ Components  │───────────│ Integration │     │
+│  │ + Types     │              │ + Realtime  │           │ + Feedback  │     │
+│  └─────────────┘              └─────────────┘           └─────────────┘     │
+│         │                            │                         │            │
+│         ▼                            ▼                         ▼            │
+│  ┌─────────────┐              ┌─────────────┐           ┌─────────────┐     │
+│  │ Backend     │              │ Testing     │           │ Rollout     │     │
+│  │ Functions   │──────────────│ + Observ.   │───────────│ + Polish    │     │
+│  │ + Tools     │              │ Dashboard   │           │ 10%→100%    │     │
+│  └─────────────┘              └─────────────┘           └─────────────┘     │
+│                                                                             │
+│  ════════════════════════════════════════════════════════════════════════   │
+│  MILESTONE 1              MILESTONE 2                  MILESTONE 3          │
+│  Internal Alpha           Beta Release                 GA Release           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-### Sprint 3: Frontend Updates (Week 5-6)
-- [ ] Add confidence settings card to `AgentSettings.tsx`
-- [ ] Enhance action history with filtering/export
-- [ ] Create `useAgentActions` realtime hook
-- [ ] Implement pending action cards with confirm/cancel
-- [ ] Add loading states and optimistic updates
-- [ ] Add confidence policies card to `AICoachSettings.tsx`
+---
 
-### Sprint 4: Observability & Testing (Week 7-8)
-- [ ] Create `agent_execution_traces` table
-- [ ] Add tracing to all tool executions
-- [ ] Create Admin Agent Activity Dashboard
-- [ ] Write unit tests for effective settings
-- [ ] Write integration tests for confirmation flow
-- [ ] Write E2E tests for critical paths
-- [ ] Performance testing and optimization
+### Sprint 1: Core Infrastructure
 
-### Sprint 5: Calendar & Feedback (Week 9-10)
-- [ ] Implement Google Calendar OAuth flow
-- [ ] Create calendar event tool
-- [ ] Add availability checking tool
-- [ ] Create `agent_action_feedback` table
-- [ ] Add feedback buttons to action history
-- [ ] Create Admin Feedback Analytics dashboard
+**Duration:** 2 weeks
+**Goal:** Establish database schema and TypeScript foundation
+**Dependencies:** None (starting point)
 
-### Sprint 6: Polish & Rollout (Week 11-12)
-- [ ] Internal team testing with feature flags
-- [ ] Fix bugs from testing
-- [ ] Documentation and training materials
-- [ ] Gradual rollout (10% → 25% → 50% → 100%)
-- [ ] Monitor metrics and alerts
-- [ ] Post-launch optimization
+| Task | Owner | Priority | Files Affected |
+|------|-------|----------|----------------|
+| Add TypeScript types to `types.ts` | Frontend | P0 | `types.ts` |
+| Create feature flags table | Backend | P0 | `supabase/migrations/` |
+| Extend `user_agent_settings` schema | Backend | P0 | `supabase/migrations/` |
+| Extend `team_ai_settings` schema | Backend | P0 | `supabase/migrations/` |
+| Create `pending_agent_actions` table | Backend | P0 | `supabase/migrations/` |
+| Implement `getEffectiveSettings()` | Backend | P1 | `supabase/functions/_shared/` |
+| Add ACTION_RISK_LEVELS constant | Shared | P1 | `types.ts`, edge functions |
+
+**Deliverables:**
+- [ ] All Phase 1 migrations applied to staging
+- [ ] TypeScript types compile without errors
+- [ ] Feature flags utility tested locally
+
+**Success Criteria:**
+- Schema changes backward-compatible
+- No breaking changes to existing queries
+- RLS policies verified
+
+---
+
+### Sprint 2: Backend Enhancements
+
+**Duration:** 2 weeks
+**Goal:** Enable agentic execution with confirmation flow
+**Dependencies:** Sprint 1 complete
+
+| Task | Owner | Priority | Files Affected |
+|------|-------|----------|----------------|
+| Add voice call to `getGeminiTools()` | Backend | P0 | `voice-coach-session/index.ts` |
+| Implement confirmation flow | Backend | P0 | `voice-coach-session/index.ts` |
+| Add function calling to text chat | Backend | P0 | `amie-psychological-coach/index.ts` |
+| Create `confirm-agent-action` function | Backend | P0 | NEW: `confirm-agent-action/index.ts` |
+| Create `cancel-agent-action` function | Backend | P0 | NEW: `cancel-agent-action/index.ts` |
+| Enable Supabase Realtime | Backend | P1 | `supabase/migrations/` |
+| Implement AgentError class | Backend | P1 | `supabase/functions/_shared/` |
+
+**Deliverables:**
+- [ ] Voice call tool working in voice sessions
+- [ ] Text chat can execute agent actions
+- [ ] Confirmation flow tested end-to-end
+- [ ] Error responses standardized
+
+**Success Criteria:**
+- High-risk actions require confirmation
+- Low-risk actions auto-execute per settings
+- All actions logged to `agent_action_history`
+
+**🚩 MILESTONE 1: Internal Alpha**
+- Core agentic execution working
+- Internal team can test via feature flags
+
+---
+
+### Sprint 3: Frontend Updates
+
+**Duration:** 2 weeks
+**Goal:** User-facing settings and action management UI
+**Dependencies:** Sprint 2 complete
+
+| Task | Owner | Priority | Files Affected |
+|------|-------|----------|----------------|
+| Add confidence settings card | Frontend | P0 | `AgentSettings.tsx` |
+| Enhance action history component | Frontend | P0 | `AgentSettings.tsx` |
+| Create `useAgentActions` hook | Frontend | P0 | NEW: `hooks/useAgentActions.ts` |
+| Pending action cards (confirm/cancel) | Frontend | P0 | NEW: `PendingActionCard.tsx` |
+| Loading states & optimistic updates | Frontend | P1 | Multiple components |
+| Add confidence policies to admin | Frontend | P1 | `AICoachSettings.tsx` |
+
+**Deliverables:**
+- [ ] Users can configure confidence threshold
+- [ ] Users can view/manage pending actions
+- [ ] Real-time updates working
+- [ ] Admins can set team policies
+
+**Success Criteria:**
+- Settings save and load correctly
+- Pending actions update in real-time
+- No UI regressions in existing settings
+
+---
+
+### Sprint 4: Observability & Testing
+
+**Duration:** 2 weeks
+**Goal:** Production readiness with monitoring and test coverage
+**Dependencies:** Sprint 3 complete
+
+| Task | Owner | Priority | Files Affected |
+|------|-------|----------|----------------|
+| Create `agent_execution_traces` table | Backend | P0 | `supabase/migrations/` |
+| Add tracing to tool executions | Backend | P0 | All edge functions |
+| Create Agent Activity Dashboard | Frontend | P1 | NEW: `admin/AgentActivityDashboard.tsx` |
+| Unit tests for `getEffectiveSettings` | QA | P0 | `__tests__/` |
+| Integration tests for confirmation | QA | P0 | `__tests__/` |
+| E2E tests for critical paths | QA | P1 | `e2e/` |
+| Performance/load testing | QA | P2 | N/A |
+
+**Deliverables:**
+- [ ] Observability dashboard for admins
+- [ ] 80%+ test coverage on new code
+- [ ] Performance benchmarks documented
+- [ ] Error tracking integrated (Sentry)
+
+**Success Criteria:**
+- All tests passing in CI
+- P95 latency < 2s for tool execution
+- No memory leaks in realtime subscriptions
+
+**🚩 MILESTONE 2: Beta Release**
+- Feature-complete for Phase 1
+- Ready for limited external testing
+
+---
+
+### Sprint 5: Calendar & Feedback
+
+**Duration:** 2 weeks
+**Goal:** Calendar integration and feedback collection
+**Dependencies:** Sprint 4 complete (can run parallel partially)
+
+| Task | Owner | Priority | Files Affected |
+|------|-------|----------|----------------|
+| Google Calendar OAuth flow | Backend | P0 | NEW: `google-calendar-connect/` |
+| Create calendar event tool | Backend | P0 | NEW: `google-calendar-create-event/` |
+| Availability checking tool | Backend | P1 | NEW: `google-calendar-availability/` |
+| Create `agent_action_feedback` table | Backend | P0 | `supabase/migrations/` |
+| Feedback buttons in action history | Frontend | P0 | `AgentSettings.tsx` |
+| Admin Feedback Analytics | Frontend | P1 | NEW: `admin/AgentFeedbackAnalytics.tsx` |
+| Calendar connection UI | Frontend | P0 | NEW: `CalendarConnection.tsx` |
+
+**Deliverables:**
+- [ ] Users can connect Google Calendar
+- [ ] AI can create calendar events (with confirmation)
+- [ ] Feedback collection working
+- [ ] Admin can view feedback analytics
+
+**Success Criteria:**
+- OAuth refresh tokens working
+- Calendar events created correctly
+- Feedback data flowing to analytics
+
+---
+
+### Sprint 6: Polish & Rollout
+
+**Duration:** 2 weeks
+**Goal:** Production deployment with gradual rollout
+**Dependencies:** Sprint 5 complete
+
+| Task | Owner | Priority | Files Affected |
+|------|-------|----------|----------------|
+| Internal team testing | QA | P0 | N/A |
+| Bug fixes from testing | All | P0 | Various |
+| Documentation | Tech Writer | P1 | `docs/` |
+| User training materials | Product | P1 | External |
+| Rollout 10% | DevOps | P0 | Feature flags |
+| Monitor & iterate | All | P0 | N/A |
+| Rollout 25% → 50% → 100% | DevOps | P0 | Feature flags |
+
+**Rollout Schedule:**
+```
+Week 11:
+├── Day 1-2: Internal testing (feature flag: internal team only)
+├── Day 3-4: Fix critical bugs
+├── Day 5: Rollout 10% of users
+
+Week 12:
+├── Day 1: Monitor metrics, fix issues
+├── Day 2: Rollout 25%
+├── Day 3: Monitor, fix
+├── Day 4: Rollout 50%
+├── Day 5: Full rollout 100%
+```
+
+**Deliverables:**
+- [ ] Zero critical bugs
+- [ ] Documentation complete
+- [ ] 100% rollout achieved
+- [ ] Success metrics dashboard live
+
+**Success Criteria:**
+- < 0.1% error rate
+- > 70% user adoption (of those who see it)
+- NPS > 50 for agentic features
+
+**🚩 MILESTONE 3: GA Release**
+- Full production deployment
+- All users have access
+
+---
+
+### Risk Mitigation
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| OAuth token refresh failures | Medium | High | Implement retry logic, alert on failures |
+| Realtime connection drops | Low | Medium | Reconnection logic, fallback polling |
+| High-risk action executed without consent | Low | Critical | Defense-in-depth: HITL + risk categorization |
+| Performance degradation | Medium | Medium | Caching, lazy loading, monitoring |
+| User confusion on confirmation UX | Medium | Low | User testing, clear UI copy |
+
+---
+
+### Success Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Agentic feature adoption | > 50% of active users | Feature flag analytics |
+| Actions per user per week | > 3 | `agent_action_history` count |
+| Confirmation approval rate | > 80% | Pending action conversions |
+| Action error rate | < 1% | Failed actions / total actions |
+| User satisfaction (NPS) | > 50 | Post-action survey |
+| P95 action latency | < 2 seconds | Execution traces |
+
+---
+
+### Dependencies Map
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     CRITICAL PATH                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  types.ts ──┬──► migrations ──┬──► voice-coach-session         │
+│             │                 │                                 │
+│             │                 ├──► amie-psychological-coach     │
+│             │                 │                                 │
+│             └──► AgentSettings.tsx ──► useAgentActions.ts       │
+│                                                                 │
+│  ════════════════════════════════════════════════════════════   │
+│                                                                 │
+│  PARALLEL WORKSTREAMS:                                          │
+│                                                                 │
+│  [Backend]                    [Frontend]                        │
+│  ─────────                    ──────────                        │
+│  Sprint 1-2                   Sprint 3                          │
+│  Edge functions               UI Components                     │
+│       │                            │                            │
+│       └────────────┬───────────────┘                            │
+│                    │                                            │
+│                    ▼                                            │
+│               [Testing]                                         │
+│               Sprint 4                                          │
+│                    │                                            │
+│                    ▼                                            │
+│  [Calendar]  ◄────────────►  [Feedback]                        │
+│  Sprint 5                    Sprint 5                           │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Post-Launch Roadmap (Future Phases)
+
+| Phase | Feature | Priority | Target |
+|-------|---------|----------|--------|
+| 4.1 | Microsoft Calendar / Apple Calendar | P2 | Q2 |
+| 4.2 | Multi-step workflows | P2 | Q2 |
+| 4.3 | Email to external contacts | P3 | Q3 |
+| 4.4 | Slack/Teams notifications | P2 | Q2 |
+| 4.5 | Smart scheduling (optimal times) | P3 | Q3 |
+| 4.6 | Multi-agent orchestration | P3 | Q4 |
 
 ---
 
