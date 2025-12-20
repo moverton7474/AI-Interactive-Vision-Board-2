@@ -197,19 +197,77 @@ const Gallery: React.FC<Props> = ({ onSelect, onSetPrimary, primaryVisionId, onN
             </svg>
           </button>
 
-          <div className="flex flex-col items-center gap-4 max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={lightboxImage.url}
-              alt={lightboxImage.prompt}
-              className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl"
-            />
+          <div className="flex flex-col lg:flex-row items-start gap-6 max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
+            {/* Vision Image */}
+            <div className="flex-shrink-0">
+              <img
+                src={lightboxImage.url}
+                alt={lightboxImage.prompt}
+                className="max-w-full lg:max-w-[60vw] max-h-[60vh] object-contain rounded-lg shadow-2xl"
+              />
+            </div>
 
-            {/* Prompt display */}
-            <p className="text-white/80 text-sm text-center max-w-2xl px-4">
-              {lightboxImage.prompt}
-            </p>
+            {/* Reflection Panel */}
+            <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 max-w-md w-full space-y-5">
+              <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                <svg className="w-5 h-5 text-gold-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                Reflect on Your Vision
+              </h3>
 
-            {/* Action buttons */}
+              {/* Vision prompt */}
+              <div>
+                <p className="text-white/60 text-xs uppercase tracking-wider mb-1">Your Vision</p>
+                <p className="text-white/90 text-sm">
+                  {lightboxImage.prompt}
+                </p>
+              </div>
+
+              {/* Reflection prompts */}
+              <div className="space-y-4">
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gold-400 text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <span>💭</span> Why This Matters
+                  </p>
+                  <p className="text-white/70 text-sm italic">
+                    What makes this vision meaningful to you? What emotions does it evoke?
+                  </p>
+                </div>
+
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-emerald-400 text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <span>✨</span> How Life Will Feel
+                  </p>
+                  <p className="text-white/70 text-sm italic">
+                    Imagine living this reality. How does your day-to-day feel different?
+                  </p>
+                </div>
+
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-blue-400 text-xs uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <span>💰</span> What Must Be True Financially
+                  </p>
+                  <p className="text-white/70 text-sm italic">
+                    What financial milestones enable this vision to become reality?
+                  </p>
+                </div>
+              </div>
+
+              {/* Print reminder */}
+              <div className="bg-gradient-to-r from-gold-500/20 to-amber-500/20 border border-gold-500/30 rounded-lg p-3">
+                <p className="text-gold-300 text-xs font-medium flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print this vision and display it where you'll see it daily
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons below */}
+          <div className="mt-4">
             <div className="flex flex-wrap gap-3 mt-2 justify-center">
               {onSetPrimary && (
                 <button

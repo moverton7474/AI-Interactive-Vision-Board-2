@@ -6,6 +6,7 @@ import ExecutionPanel from './ExecutionPanel';
 import QuickActions from './QuickActions';
 import WorkbookOrderModal from '../WorkbookOrderModal';
 import PrintOrderModal from '../PrintOrderModal';
+import VoiceCoachWidget from '../VoiceCoachWidget';
 
 // Data types
 interface VisionData {
@@ -64,6 +65,7 @@ const DashboardV2: React.FC<Props> = ({
   // Modal states
   const [showWorkbookModal, setShowWorkbookModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showVoiceCoach, setShowVoiceCoach] = useState(false);
 
   // Re-engagement banner state (only dismiss for current session)
   const [showOnboardingBanner, setShowOnboardingBanner] = useState(true);
@@ -515,6 +517,45 @@ const DashboardV2: React.FC<Props> = ({
           onClose={() => setShowPrintModal(false)}
         />
       )}
+
+      {/* Floating Voice Coach Widget - Always accessible */}
+      <div className="fixed bottom-6 right-6 z-50">
+        {showVoiceCoach ? (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowVoiceCoach(false)}
+              className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg z-10 transition-colors"
+              title="Close Voice Coach"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="bg-white rounded-2xl shadow-2xl overflow-hidden w-[380px] max-h-[600px]">
+              <VoiceCoachWidget />
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowVoiceCoach(true)}
+            className="group relative bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
+            title="Talk to your AI Coach"
+          >
+            {/* Animated pulse ring */}
+            <span className="absolute inset-0 rounded-full bg-indigo-500 animate-ping opacity-25"></span>
+            {/* Microphone icon */}
+            <svg className="w-7 h-7 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+            {/* Tooltip on hover */}
+            <span className="absolute bottom-full right-0 mb-2 px-3 py-1 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+              Talk to Coach 🎙️
+            </span>
+          </button>
+        )}
+      </div>
     </div>
   );
 };
