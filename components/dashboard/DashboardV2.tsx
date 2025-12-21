@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { AppView, ActionTask } from '../../types';
 import VisionHero from './VisionHero';
@@ -54,6 +54,7 @@ const DashboardV2: React.FC<Props> = ({
   userId,
   userEmail,
   userName,
+  userRole,
   onNavigate,
   onRefineVision,
   primaryVision,
@@ -74,12 +75,15 @@ const DashboardV2: React.FC<Props> = ({
 
   // Data states
   const [vision, setVision] = useState<VisionData | null>(null);
-  const [progress, setProgress] = useState<VisionProgress | null>(null);
   const [todayTasks, setTodayTasks] = useState<ActionTask[]>([]);
   const [upcomingTasks, setUpcomingTasks] = useState<ActionTask[]>([]);
   const [habits, setHabits] = useState<HabitData[]>([]);
   const [todayFocus, setTodayFocus] = useState<string | undefined>();
   const [themeName, setThemeName] = useState<string | undefined>();
+
+  // Ref to prevent duplicate fetches
+  const fetchInProgress = useRef(false);
+  const hasFetched = useRef(false);
 
   // Fetch active vision
   const fetchActiveVision = useCallback(async () => {
@@ -257,8 +261,8 @@ const DashboardV2: React.FC<Props> = ({
     }
   }, [userId]);
 
-  // Calculate progress stats
-  const calculateProgress = useCallback((): VisionProgress => {
+  // Calculate progress stats using useMemo (no separate useEffect needed)
+  const progress = useMemo((): VisionProgress => {
     const tasksCompleted = todayTasks.filter(t => t.isCompleted).length;
     const habitsCompleted = habits.filter(h => h.completedToday).length;
     const maxStreak = habits.reduce((max, h) => Math.max(max, h.streak), 0);
@@ -272,27 +276,37 @@ const DashboardV2: React.FC<Props> = ({
     };
   }, [todayTasks, habits]);
 
-  // Update progress when data changes
+  // Initial data fetch - runs once on mount
   useEffect(() => {
-    setProgress(calculateProgress());
-  }, [calculateProgress]);
+    // Prevent duplicate fetches (React StrictMode double-mount protection)
+    if (hasFetched.current || fetchInProgress.current) {
+      return;
+    }
 
-  // Initial data fetch
-  useEffect(() => {
     const loadDashboard = async () => {
+      fetchInProgress.current = true;
       setIsLoading(true);
-      await Promise.all([
-        // Only fetch vision from DB if no primaryVision prop provided
-        primaryVision ? Promise.resolve() : fetchActiveVision(),
-        fetchTodayTasks(),
-        fetchHabits(),
-        fetchThemeData()
-      ]);
-      setIsLoading(false);
+
+      try {
+        await Promise.all([
+          // Only fetch vision from DB if no primaryVision prop provided
+          primaryVision ? Promise.resolve() : fetchActiveVision(),
+          fetchTodayTasks(),
+          fetchHabits(),
+          fetchThemeData()
+        ]);
+        hasFetched.current = true;
+      } catch (error) {
+        console.error('Dashboard load error:', error);
+      } finally {
+        setIsLoading(false);
+        fetchInProgress.current = false;
+      }
     };
 
     loadDashboard();
-  }, [fetchActiveVision, fetchTodayTasks, fetchHabits, fetchThemeData, primaryVision]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]); // Only depend on userId - callbacks are stable because they only depend on userId
 
   // Use primaryVision prop if provided (from App.tsx state)
   useEffect(() => {
@@ -306,17 +320,20 @@ const DashboardV2: React.FC<Props> = ({
     }
   }, [primaryVision]);
 
-  // Toggle task completion
+  // Toggle task completion - uses functional updates to avoid state dependency
   const handleToggleTask = useCallback(async (taskId: string) => {
-    const task = todayTasks.find(t => t.id === taskId);
-    if (!task) return;
+    let newCompleted: boolean | undefined;
 
-    const newCompleted = !task.isCompleted;
+    // Optimistic update with functional state to get current value
+    setTodayTasks(prev => {
+      const task = prev.find(t => t.id === taskId);
+      if (!task) return prev;
+      newCompleted = !task.isCompleted;
+      return prev.map(t => t.id === taskId ? { ...t, isCompleted: newCompleted! } : t);
+    });
 
-    // Optimistic update
-    setTodayTasks(prev =>
-      prev.map(t => t.id === taskId ? { ...t, isCompleted: newCompleted } : t)
-    );
+    // If task wasn't found, newCompleted will be undefined
+    if (newCompleted === undefined) return;
 
     try {
       const { error } = await supabase
@@ -332,19 +349,24 @@ const DashboardV2: React.FC<Props> = ({
         prev.map(t => t.id === taskId ? { ...t, isCompleted: !newCompleted } : t)
       );
     }
-  }, [todayTasks]);
+  }, []); // No dependencies needed - uses functional updates
 
-  // Toggle habit completion
+  // Toggle habit completion - uses functional updates to avoid state dependency
   const handleToggleHabit = useCallback(async (habitId: string) => {
-    const habit = habits.find(h => h.id === habitId);
-    if (!habit) return;
+    let wasCompleted: boolean | undefined;
+    let currentStreak = 0;
 
-    const wasCompleted = habit.completedToday;
+    // Optimistic update with functional state to get current values
+    setHabits(prev => {
+      const habit = prev.find(h => h.id === habitId);
+      if (!habit) return prev;
+      wasCompleted = habit.completedToday;
+      currentStreak = habit.streak || 0;
+      return prev.map(h => h.id === habitId ? { ...h, completedToday: !wasCompleted } : h);
+    });
 
-    // Optimistic update
-    setHabits(prev =>
-      prev.map(h => h.id === habitId ? { ...h, completedToday: !wasCompleted } : h)
-    );
+    // If habit wasn't found, wasCompleted will be undefined
+    if (wasCompleted === undefined) return;
 
     try {
       if (wasCompleted) {
@@ -377,7 +399,7 @@ const DashboardV2: React.FC<Props> = ({
         const { error: streakError } = await supabase
           .from('habits')
           .update({
-            current_streak: (habit.streak || 0) + 1,
+            current_streak: currentStreak + 1,
             last_completed: new Date().toISOString()
           })
           .eq('id', habitId);
@@ -391,7 +413,7 @@ const DashboardV2: React.FC<Props> = ({
         prev.map(h => h.id === habitId ? { ...h, completedToday: wasCompleted } : h)
       );
     }
-  }, [habits]);
+  }, []); // No dependencies needed - uses functional updates
 
   // Handle focus update
   const handleSetFocus = useCallback(async (focus: string) => {
@@ -459,7 +481,7 @@ const DashboardV2: React.FC<Props> = ({
         {/* Band 1: Vision Hero */}
         <VisionHero
           vision={vision}
-          progress={progress || undefined}
+          progress={progress}
           userName={displayName}
           themeName={themeName}
           onUpdateVision={() => onNavigate(AppView.GALLERY)}
