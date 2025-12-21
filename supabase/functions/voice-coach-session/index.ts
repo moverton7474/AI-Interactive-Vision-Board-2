@@ -1396,7 +1396,7 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
     case 'create_task': {
       const title = args?.title
       const description = args?.description
-      const due_date = args?.due_date
+      const due_date_raw = args?.due_date
       const priority = args?.priority
 
       // Validate required args
@@ -1407,7 +1407,38 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
         }
       }
 
-      // Get user's primary vision to associate task
+      // Parse due_date - handle relative dates like "today", "tomorrow"
+      let parsedDueDate: string | null = null
+      if (due_date_raw) {
+        const lowerDate = due_date_raw.toLowerCase().trim()
+        const now = new Date()
+
+        if (lowerDate === 'today') {
+          parsedDueDate = now.toISOString().split('T')[0]
+        } else if (lowerDate === 'tomorrow') {
+          const tomorrow = new Date(now)
+          tomorrow.setDate(tomorrow.getDate() + 1)
+          parsedDueDate = tomorrow.toISOString().split('T')[0]
+        } else if (lowerDate.includes('next week')) {
+          const nextWeek = new Date(now)
+          nextWeek.setDate(nextWeek.getDate() + 7)
+          parsedDueDate = nextWeek.toISOString().split('T')[0]
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(due_date_raw)) {
+          // Already in YYYY-MM-DD format
+          parsedDueDate = due_date_raw
+        } else {
+          // Try to parse as date
+          const parsed = new Date(due_date_raw)
+          if (!isNaN(parsed.getTime())) {
+            parsedDueDate = parsed.toISOString().split('T')[0]
+          } else {
+            // Default to today if can't parse
+            parsedDueDate = now.toISOString().split('T')[0]
+          }
+        }
+      }
+
+      // Get user's primary vision to associate task (optional)
       const { data: vision } = await supabase
         .from('visions')
         .select('id')
@@ -1415,31 +1446,44 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
         .eq('is_primary', true)
         .single()
 
-      const visionId = vision?.id
+      // Build the insert object - only include vision_id if it exists
+      const insertData: any = {
+        user_id: userId,
+        title,
+        description: description || '',
+        priority: priority || 'medium',
+        status: 'pending',
+        created_at: new Date().toISOString()
+      }
+
+      // Only add vision_id if user has a vision
+      if (vision?.id) {
+        insertData.vision_id = vision.id
+      }
+
+      // Only add due_date if we have one
+      if (parsedDueDate) {
+        insertData.due_date = parsedDueDate
+      }
+
+      console.log('[create_task] Inserting task:', JSON.stringify(insertData))
 
       // Create action step (task)
       const { data: task, error } = await supabase
         .from('action_steps')
-        .insert({
-          user_id: userId,
-          vision_id: visionId,
-          title,
-          description: description || '',
-          due_date: due_date || null,
-          priority: priority || 'medium',
-          status: 'pending',
-          created_at: new Date().toISOString()
-        })
+        .insert(insertData)
         .select()
         .single()
 
       if (error) {
-        return { success: false, error: error.message }
+        console.error('[create_task] Error:', error.message, error.details, error.hint)
+        return { success: false, error: `Failed to create task: ${error.message}` }
       }
 
+      const dueDateDisplay = parsedDueDate || ''
       return {
         success: true,
-        message: `Task created: "${title}"${due_date ? ` due ${due_date}` : ''}`,
+        message: `Task created: "${title}"${dueDateDisplay ? ` due ${dueDateDisplay}` : ''}`,
         taskId: task.id
       }
     }
