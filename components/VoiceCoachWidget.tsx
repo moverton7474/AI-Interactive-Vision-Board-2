@@ -71,9 +71,35 @@ const VoiceCoachWidget: React.FC = () => {
 
             recognitionRef.current.onerror = (event: any) => {
                 console.error('Speech recognition error:', event.error);
-                setError(event.error === 'not-allowed'
-                    ? 'Microphone access denied. Please enable it in your browser settings.'
-                    : 'Voice recognition error. Please try again.');
+                // Provide specific error messages based on error type
+                let errorMessage: string;
+                switch (event.error) {
+                    case 'not-allowed':
+                        errorMessage = 'Microphone access denied. Please enable it in your browser settings.';
+                        break;
+                    case 'no-speech':
+                        // Don't show error for no-speech, just reset
+                        setIsListening(false);
+                        setStatus('idle');
+                        return;
+                    case 'audio-capture':
+                        errorMessage = 'No microphone found. Please connect a microphone and try again.';
+                        break;
+                    case 'network':
+                        errorMessage = 'Network error. Please check your internet connection and try again.';
+                        break;
+                    case 'aborted':
+                        // User or system aborted - don't show error
+                        setIsListening(false);
+                        setStatus('idle');
+                        return;
+                    case 'service-not-allowed':
+                        errorMessage = 'Voice recognition service not available. Please try again later.';
+                        break;
+                    default:
+                        errorMessage = 'Voice recognition error. Please try again.';
+                }
+                setError(errorMessage);
                 setIsListening(false);
                 setStatus('idle');
             };
