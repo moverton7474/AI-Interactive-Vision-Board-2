@@ -1397,7 +1397,6 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
       const title = args?.title
       const description = args?.description
       const due_date_raw = args?.due_date
-      const priority = args?.priority
 
       // Validate required args
       if (!title) {
@@ -1438,27 +1437,14 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
         }
       }
 
-      // Get user's primary vision to associate task (optional)
-      const { data: vision } = await supabase
-        .from('visions')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('is_primary', true)
-        .single()
-
-      // Build the insert object - only include vision_id if it exists
+      // Build the insert object for action_tasks table
       const insertData: any = {
         user_id: userId,
         title,
         description: description || '',
-        priority: priority || 'medium',
-        status: 'pending',
+        type: 'task',
+        is_completed: false,
         created_at: new Date().toISOString()
-      }
-
-      // Only add vision_id if user has a vision
-      if (vision?.id) {
-        insertData.vision_id = vision.id
       }
 
       // Only add due_date if we have one
@@ -1468,9 +1454,9 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
 
       console.log('[create_task] Inserting task:', JSON.stringify(insertData))
 
-      // Create action step (task)
+      // Create action task (using correct table name)
       const { data: task, error } = await supabase
-        .from('action_steps')
+        .from('action_tasks')
         .insert(insertData)
         .select()
         .single()
@@ -1503,7 +1489,7 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
       // Parse the "when" into a timestamp
       const scheduledFor = parseReminderTime(when)
 
-      // Create scheduled notification - use action_steps as fallback if scheduled_checkins doesn't exist
+      // Create scheduled notification - use action_tasks as fallback if scheduled_checkins doesn't exist
       try {
         const { data: reminder, error } = await supabase
           .from('scheduled_checkins')
@@ -1522,14 +1508,15 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
           // If table doesn't exist, create as a task instead
           if (error.message.includes('does not exist') || error.code === '42P01') {
             const { data: task, error: taskError } = await supabase
-              .from('action_steps')
+              .from('action_tasks')
               .insert({
                 user_id: userId,
                 title: `Reminder: ${message}`,
                 description: `Scheduled reminder for ${scheduledFor.toLocaleString()}`,
                 due_date: scheduledFor.toISOString().split('T')[0],
-                priority: 'medium',
-                status: 'pending'
+                type: 'reminder',
+                is_completed: false,
+                created_at: new Date().toISOString()
               })
               .select()
               .single()
@@ -1555,14 +1542,15 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
       } catch (err: any) {
         // Fallback: create as task
         const { data: task, error: taskError } = await supabase
-          .from('action_steps')
+          .from('action_tasks')
           .insert({
             user_id: userId,
             title: `Reminder: ${message}`,
             description: `Scheduled reminder for ${scheduledFor.toLocaleString()}`,
             due_date: scheduledFor.toISOString().split('T')[0],
-            priority: 'medium',
-            status: 'pending'
+            type: 'reminder',
+            is_completed: false,
+            created_at: new Date().toISOString()
           })
           .select()
           .single()
@@ -1625,10 +1613,10 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
 
         case 'tasks': {
           const { data: tasks } = await supabase
-            .from('action_steps')
-            .select('id, title, status, due_date')
+            .from('action_tasks')
+            .select('id, title, is_completed, due_date, type')
             .eq('user_id', userId)
-            .in('status', ['pending', 'in_progress'])
+            .eq('is_completed', false)
             .order('due_date', { ascending: true })
             .limit(10)
 
@@ -1643,18 +1631,20 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
 
         case 'vision': {
           const { data: vision } = await supabase
-            .from('visions')
-            .select('id, title, description, dream_location, target_date')
+            .from('vision_boards')
+            .select('id, prompt, image_url, is_favorite, created_at')
             .eq('user_id', userId)
-            .eq('is_primary', true)
+            .eq('is_favorite', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .single()
 
           return {
             success: true,
             data: vision || null,
             summary: vision
-              ? `Your vision: "${vision.title}" - ${vision.description || vision.dream_location || 'Your dream retirement'}`
-              : 'No vision set yet'
+              ? `Your vision board: "${vision.prompt}" (created ${new Date(vision.created_at).toLocaleDateString()})`
+              : 'No vision board set yet'
           }
         }
 
@@ -1667,11 +1657,11 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
             .eq('is_active', true)
 
           const { data: tasks } = await supabase
-            .from('action_steps')
-            .select('status')
+            .from('action_tasks')
+            .select('is_completed')
             .eq('user_id', userId)
 
-          const completedTasks = tasks?.filter((t: any) => t.status === 'completed').length || 0
+          const completedTasks = tasks?.filter((t: any) => t.is_completed === true).length || 0
           const totalTasks = tasks?.length || 0
           const avgStreak = habits?.length
             ? Math.round(habits.reduce((sum: number, h: any) => sum + (h.current_streak || 0), 0) / habits.length)
@@ -2067,14 +2057,15 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
       if (error) {
         // Fallback: create as reminder task
         const { data: task, error: taskError } = await supabase
-          .from('action_steps')
+          .from('action_tasks')
           .insert({
             user_id: userId,
             title: `Goal Check-in: ${goal.title}`,
             description: `Scheduled check-in for your goal "${goal.title}" (currently at ${goal.completion_percentage}%)`,
             due_date: scheduledFor.toISOString().split('T')[0],
-            priority: 'medium',
-            status: 'pending'
+            type: 'checkin',
+            is_completed: false,
+            created_at: new Date().toISOString()
           })
           .select()
           .single()
