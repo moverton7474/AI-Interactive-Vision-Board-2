@@ -29,8 +29,6 @@ import MdalsTestPanel from './components/mdals/MdalsTestPanel';
 import { GuidedOnboarding } from './components/onboarding';
 import { Dashboard, DashboardV2 } from './components/dashboard';
 import { LandingPage } from './components/landing';
-import { GoalsPage, AICoachDrawer } from './components/goals';
-import useFeatureFlags, { FeatureGate } from './hooks/useFeatureFlags';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon, VisionaryLogo, VisionaryIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
@@ -38,6 +36,7 @@ import { SYSTEM_GUIDE_MD } from './lib/systemGuide';
 import { ToastProvider } from './components/ToastContext';
 import NotificationSettings from './components/settings/NotificationSettings';
 import AgentSettings from './components/settings/AgentSettings';
+import MySystems from './components/MySystems';
 import { useSubscriptionPolling } from './hooks/useSubscriptionPolling';
 
 const App = () => {
@@ -93,10 +92,6 @@ const App = () => {
   const [todayFocus, setTodayFocus] = useState<string | undefined>();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [showAICoachDrawer, setShowAICoachDrawer] = useState(false);
-
-  // Feature flags hook
-  const { isFeatureEnabled, isLoading: featureFlagsLoading } = useFeatureFlags();
 
   // Profile loading guard to prevent duplicate fetches
   const [profileLoadingInProgress, setProfileLoadingInProgress] = useState(false);
@@ -1055,15 +1050,20 @@ const App = () => {
           </div>
         );
 
-      case AppView.GOALS:
-        return session?.user ? (
-          <GoalsPage
-            userId={session.user.id}
-            onNavigate={setView}
-            onOpenAICoach={() => setShowAICoachDrawer(true)}
-            generateActionPlan={generateActionPlan}
-          />
-        ) : null;
+      case AppView.MY_SYSTEMS:
+        return (
+          <div className="min-h-screen">
+            <div className="fixed top-4 left-4 z-50">
+              <button
+                onClick={() => setView(AppView.DASHBOARD)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm text-white rounded-lg hover:bg-white/20 transition-colors"
+              >
+                <span>←</span> Back to Dashboard
+              </button>
+            </div>
+            <MySystems />
+          </div>
+        );
 
       case AppView.GUIDED_ONBOARDING:
         return session?.user ? (
@@ -1603,11 +1603,6 @@ const App = () => {
                 <button onClick={() => setView(AppView.DASHBOARD)} className={`text-sm font-medium transition-colors ${view === AppView.DASHBOARD ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Ascension
                 </button>
-                {isFeatureEnabled('goals_page') && (
-                  <button onClick={() => setView(AppView.GOALS)} className={`text-sm font-medium transition-colors ${view === AppView.GOALS ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
-                    Goals
-                  </button>
-                )}
                 <button onClick={() => setView(AppView.VISION_BOARD)} className={`text-sm font-medium transition-colors ${view === AppView.VISION_BOARD ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Visualize
                 </button>
@@ -1690,13 +1685,6 @@ const App = () => {
                 <button onClick={() => { setView(AppView.DASHBOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.DASHBOARD ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <VisionaryIcon size={16} color={view === AppView.DASHBOARD ? '#C5A572' : '#9CA3AF'} /> Ascension
                 </button>
-                {isFeatureEnabled('goals_page') && (
-                  <button onClick={() => { setView(AppView.GOALS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.GOALS ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg> Goals
-                  </button>
-                )}
                 <button onClick={() => { setView(AppView.VISION_BOARD); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.VISION_BOARD ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <SparklesIcon className="w-4 h-4" /> Visualize
                 </button>
@@ -1830,12 +1818,6 @@ const App = () => {
             }}
           />
         )}
-
-        {/* AI Coach Drawer */}
-        <AICoachDrawer
-          isOpen={showAICoachDrawer}
-          onClose={() => setShowAICoachDrawer(false)}
-        />
       </div>
     </ToastProvider>
   );

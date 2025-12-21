@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import ConnectBank from './ConnectBank';
 
 interface Props {
   onBack?: () => void;
@@ -27,7 +28,7 @@ interface TeamsInstallation {
   };
 }
 
-type ActiveTab = 'slack' | 'teams';
+type ActiveTab = 'slack' | 'teams' | 'bank';
 
 /**
  * AppsIntegration - Manage Slack and Microsoft Teams connections
@@ -57,6 +58,10 @@ const SlackIntegration: React.FC<Props> = ({ onBack }) => {
   const [teamsEveningSummary, setTeamsEveningSummary] = useState(true);
   const [teamsGoalReminders, setTeamsGoalReminders] = useState(false);
   const [teamsReminderTime, setTeamsReminderTime] = useState('08:00');
+
+  // Bank/Plaid state
+  const [bankConnected, setBankConnected] = useState(false);
+  const [bankAccountData, setBankAccountData] = useState<any>(null);
 
   useEffect(() => {
     checkAllStatuses();
@@ -673,7 +678,7 @@ const SlackIntegration: React.FC<Props> = ({ onBack }) => {
       )}
 
       {/* Connection Status Overview */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className={`p-4 rounded-xl border-2 ${slackConnected ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
           <div className="flex items-center gap-3">
             <SlackIcon />
@@ -692,6 +697,17 @@ const SlackIntegration: React.FC<Props> = ({ onBack }) => {
               <p className="font-medium text-navy-900">Teams</p>
               <p className={`text-sm ${teamsConnected ? 'text-green-600' : 'text-gray-500'}`}>
                 {teamsConnected ? 'Connected' : 'Not connected'}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className={`p-4 rounded-xl border-2 ${bankConnected ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🏦</span>
+            <div>
+              <p className="font-medium text-navy-900">Bank</p>
+              <p className={`text-sm ${bankConnected ? 'text-green-600' : 'text-gray-500'}`}>
+                {bankConnected ? 'Connected' : 'Not connected'}
               </p>
             </div>
           </div>
@@ -726,10 +742,36 @@ const SlackIntegration: React.FC<Props> = ({ onBack }) => {
             Microsoft Teams
           </div>
         </button>
+        <button
+          onClick={() => setActiveTab('bank')}
+          className={`pb-3 px-1 font-medium transition-colors ${
+            activeTab === 'bank'
+              ? 'text-navy-900 border-b-2 border-navy-900'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🏦</span>
+            Bank Account
+          </div>
+        </button>
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'slack' ? renderSlackTab() : renderTeamsTab()}
+      {activeTab === 'slack' && renderSlackTab()}
+      {activeTab === 'teams' && renderTeamsTab()}
+      {activeTab === 'bank' && (
+        <div className="bg-white rounded-2xl shadow-lg p-8">
+          <ConnectBank
+            onConnect={(accountData) => {
+              setBankConnected(true);
+              setBankAccountData(accountData);
+              setSuccessMessage('Bank account connected successfully!');
+              setTimeout(() => setSuccessMessage(null), 3000);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

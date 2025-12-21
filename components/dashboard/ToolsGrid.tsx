@@ -44,6 +44,14 @@ const ToolsGrid: React.FC<Props> = ({ userRole, onNavigate }) => {
       color: 'from-cyan-500 to-teal-500'
     },
     {
+      id: 'systems',
+      title: 'My Systems',
+      description: 'Accounts, automations & more',
+      icon: '🏦',
+      view: AppView.MY_SYSTEMS,
+      color: 'from-emerald-500 to-green-500'
+    },
+    {
       id: 'teams',
       title: 'Teams',
       description: 'Team leaderboards & challenges',

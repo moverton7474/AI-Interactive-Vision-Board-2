@@ -27,12 +27,14 @@ export enum AppView {
   MDALS_LAB = 'MDALS_LAB', // MDALS Engine Test Panel (Development)
   SETTINGS = 'SETTINGS', // User Settings
   AGENT_SETTINGS = 'AGENT_SETTINGS', // AI Agent Settings (Phase 7)
+  MY_SYSTEMS = 'MY_SYSTEMS', // Connected accounts, automations, integrations
 }
 
 // Guided Onboarding State (v1.7 - Draft Plan Review)
 export type OnboardingStep =
   | 'THEME'
   | 'COACH_INTRO'
+  | 'MASTER_PROMPT_QNA'    // Identity questionnaire for personalized coaching
   | 'VISION_CAPTURE'
   | 'PHOTO_UPLOAD'
   | 'FINANCIAL_TARGET'
@@ -47,6 +49,7 @@ export interface OnboardingState {
   currentStep: OnboardingStep;
   themeId?: string;
   themeName?: string;
+  masterPromptResponses?: MasterPromptResponse[]; // Q&A responses for personalized coaching
   visionText?: string;
   photoRefId?: string;
   identityDescription?: string; // Description of user's appearance for AI image generation

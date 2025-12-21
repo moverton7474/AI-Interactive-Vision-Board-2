@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { OnboardingStep, OnboardingState, ActionTask, AppView } from '../../types';
+import { OnboardingStep, OnboardingState, ActionTask, AppView, MasterPromptResponse } from '../../types';
 import OnboardingLayout from './OnboardingLayout';
 import ThemeSelectorStep from './ThemeSelectorStep';
 import CoachIntroStep from './CoachIntroStep';
+import MasterPromptQnA from '../MasterPromptQnA';
 import VisionCaptureStep from './VisionCaptureStep';
 import PhotoUploadStep from './PhotoUploadStep';
 import FinancialTargetStep from './FinancialTargetStep';
@@ -33,6 +34,7 @@ interface Props {
 const STEPS: OnboardingStep[] = [
   'THEME',
   'COACH_INTRO',
+  'MASTER_PROMPT_QNA',
   'VISION_CAPTURE',
   'PHOTO_UPLOAD',
   'FINANCIAL_TARGET',
@@ -51,6 +53,10 @@ const STEP_CONFIG: Record<OnboardingStep, { title: string; subtitle: string }> =
   COACH_INTRO: {
     title: 'Meet Your Coach',
     subtitle: 'Your personalized guide for this journey'
+  },
+  MASTER_PROMPT_QNA: {
+    title: 'Tell Us About Yourself',
+    subtitle: 'Help us personalize your coaching experience'
   },
   VISION_CAPTURE: {
     title: 'Capture Your Vision',
@@ -166,6 +172,9 @@ const GuidedOnboarding: React.FC<Props> = ({
         return !!state.themeId;
       case 'COACH_INTRO':
         return true;
+      case 'MASTER_PROMPT_QNA':
+        // Q&A step auto-advances via onComplete callback
+        return true;
       case 'VISION_CAPTURE':
         return !!state.visionText && state.visionText.length >= 20;
       case 'PHOTO_UPLOAD':
@@ -230,6 +239,20 @@ const GuidedOnboarding: React.FC<Props> = ({
           <CoachIntroStep
             themeId={state.themeId}
             themeName={state.themeName}
+          />
+        );
+
+      case 'MASTER_PROMPT_QNA':
+        return (
+          <MasterPromptQnA
+            themeId={state.themeId || ''}
+            themeName={state.themeName}
+            onComplete={(responses: MasterPromptResponse[]) => {
+              updateState({ masterPromptResponses: responses });
+              goNext();
+            }}
+            onSkip={goNext}
+            onBack={goBack}
           />
         );
 

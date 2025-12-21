@@ -7,7 +7,7 @@
  * @module useFeatureFlags
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { FeatureFlagName, UserCohort, FeatureFlag, UserFeatureFlag } from '../types';
@@ -86,11 +86,21 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
   const [userId, setUserId] = useState<string | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
 
+  // Refs to prevent infinite loops and duplicate fetches
+  const fetchInProgress = useRef(false);
+  const hasFetched = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+
   // ============================================
   // Data Fetching
   // ============================================
 
-  const fetchFeatureFlags = useCallback(async (session: Session | null) => {
+  const fetchFeatureFlags = useCallback(async (session: Session | null, forceRefresh = false) => {
+    // Prevent duplicate concurrent fetches
+    if (fetchInProgress.current) {
+      return;
+    }
+
     if (!session?.user) {
       // Keep default flags for non-authenticated users
       setUserCohorts(['all_users']);
@@ -101,11 +111,14 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
     const currentUserId = session.user.id;
     setUserId(currentUserId);
 
-    // Check cache
-    if (Date.now() - lastFetchTime < CACHE_DURATION && flags.size > 0) {
+    // Check cache using ref (not state to avoid re-render loop)
+    const now = Date.now();
+    if (!forceRefresh && hasFetched.current && (now - lastFetchTimeRef.current < CACHE_DURATION)) {
       setIsLoading(false);
       return;
     }
+
+    fetchInProgress.current = true;
 
     try {
       // Fetch user's feature flags using the RPC function
@@ -115,21 +128,29 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
       if (featuresError) {
         console.error('Error fetching user features:', featuresError);
         // Fall back to fetching all flags with default values
+        // Use is_enabled instead of is_active (updated schema)
         const { data: allFlags } = await supabase
           .from('feature_flags')
-          .select('name, default_enabled')
-          .eq('is_active', true);
+          .select('name, is_enabled')
+          .eq('is_enabled', true);
 
         const flagMap = new Map<FeatureFlagName, boolean>();
         const details: FeatureFlagStatus[] = [];
 
         (allFlags || []).forEach((flag: any) => {
-          flagMap.set(flag.name as FeatureFlagName, flag.default_enabled);
+          flagMap.set(flag.name as FeatureFlagName, flag.is_enabled ?? true);
           details.push({
             name: flag.name as FeatureFlagName,
-            isEnabled: flag.default_enabled,
+            isEnabled: flag.is_enabled ?? true,
             source: 'default'
           });
+        });
+
+        // Merge with default flags to ensure core features work
+        Object.entries(DEFAULT_FLAGS).forEach(([key, value]) => {
+          if (!flagMap.has(key as FeatureFlagName)) {
+            flagMap.set(key as FeatureFlagName, value);
+          }
         });
 
         setFlags(flagMap);
@@ -147,30 +168,46 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
           });
         });
 
+        // Merge with default flags
+        Object.entries(DEFAULT_FLAGS).forEach(([key, value]) => {
+          if (!flagMap.has(key as FeatureFlagName)) {
+            flagMap.set(key as FeatureFlagName, value);
+          }
+        });
+
         setFlags(flagMap);
         setFlagDetails(details);
       }
 
-      // Fetch user's cohorts
-      const { data: cohortData } = await supabase
-        .from('user_cohorts')
-        .select('cohort')
-        .eq('user_id', currentUserId)
-        .or('expires_at.is.null,expires_at.gt.now()');
+      // Fetch user's cohorts (with error handling for missing table)
+      try {
+        const { data: cohortData } = await supabase
+          .from('user_cohorts')
+          .select('cohort')
+          .eq('user_id', currentUserId)
+          .or('expires_at.is.null,expires_at.gt.now()');
 
-      const cohorts = (cohortData || []).map((c: any) => c.cohort as UserCohort);
-      if (cohorts.length === 0) {
-        cohorts.push('all_users');
+        const cohorts = (cohortData || []).map((c: any) => c.cohort as UserCohort);
+        if (cohorts.length === 0) {
+          cohorts.push('all_users');
+        }
+        setUserCohorts(cohorts);
+      } catch {
+        // user_cohorts table might not exist - use default
+        setUserCohorts(['all_users']);
       }
-      setUserCohorts(cohorts);
 
-      setLastFetchTime(Date.now());
+      lastFetchTimeRef.current = Date.now();
+      setLastFetchTime(lastFetchTimeRef.current);
+      hasFetched.current = true;
     } catch (error) {
       console.error('Error in fetchFeatureFlags:', error);
+      // On error, keep default flags
     } finally {
       setIsLoading(false);
+      fetchInProgress.current = false;
     }
-  }, [lastFetchTime, flags.size]);
+  }, []); // No dependencies - uses refs to check cache
 
   // ============================================
   // Effects
@@ -255,7 +292,7 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
       if (targetUserId === userId) {
         setLastFetchTime(0);
         const { data: { session } } = await supabase.auth.getSession();
-        await fetchFeatureFlags(session);
+        await fetchFeatureFlags(session, true);
       }
 
       return true;
@@ -291,7 +328,7 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
       if (targetUserId === userId) {
         setLastFetchTime(0);
         const { data: { session } } = await supabase.auth.getSession();
-        await fetchFeatureFlags(session);
+        await fetchFeatureFlags(session, true);
       }
 
       return true;
@@ -321,7 +358,7 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
       if (targetUserId === userId) {
         setLastFetchTime(0);
         const { data: { session } } = await supabase.auth.getSession();
-        await fetchFeatureFlags(session);
+        await fetchFeatureFlags(session, true);
       }
 
       return true;
@@ -358,7 +395,7 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
       // Refresh flags
       setLastFetchTime(0);
       const { data: { session } } = await supabase.auth.getSession();
-      await fetchFeatureFlags(session);
+      await fetchFeatureFlags(session, true);
 
       return true;
     } catch (error) {
@@ -434,9 +471,10 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
-    setLastFetchTime(0);
+    hasFetched.current = false; // Reset to allow refetch
+    lastFetchTimeRef.current = 0;
     const { data: { session } } = await supabase.auth.getSession();
-    await fetchFeatureFlags(session);
+    await fetchFeatureFlags(session, true); // Force refresh
   }, [fetchFeatureFlags]);
 
   // ============================================
