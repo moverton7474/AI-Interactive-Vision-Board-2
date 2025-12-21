@@ -23,3 +23,12 @@ export {
   type JourneyKey,
   type LandingHeroVideosConfig
 } from './useLandingHeroVideos';
+
+export {
+  useAgentActions,
+  type UseAgentActionsOptions,
+  type UseAgentActionsReturn,
+  type PendingAgentAction,
+  type AgentActionHistory,
+  type AgentActionRiskLevel,
+} from './useAgentActions';

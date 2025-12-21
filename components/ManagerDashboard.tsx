@@ -19,6 +19,7 @@ import AICoachSettings from './admin/AICoachSettings';
 import EngagementAlerts from './admin/EngagementAlerts';
 import OutreachScheduler from './admin/OutreachScheduler';
 import FeatureFlagManager from './admin/FeatureFlagManager';
+import AgentActivityDashboard from './admin/AgentActivityDashboard';
 
 interface Props {
   onBack?: () => void;
@@ -67,7 +68,7 @@ interface Team {
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'voice_analytics' | 'ai_settings' | 'alerts' | 'outreach' | 'knowledge' | 'team_admin' | 'site_settings' | 'credits' | 'feature_flags'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'voice_analytics' | 'ai_settings' | 'alerts' | 'outreach' | 'knowledge' | 'team_admin' | 'site_settings' | 'credits' | 'feature_flags' | 'agent_activity'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
@@ -387,6 +388,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             { id: 'ai_settings', label: 'AI Settings', adminOnly: false, managerOnly: true },
             { id: 'alerts', label: 'Alerts', adminOnly: false, managerOnly: true },
             { id: 'outreach', label: 'Outreach', adminOnly: false, managerOnly: true },
+            { id: 'agent_activity', label: 'Agent Activity', adminOnly: false, managerOnly: true },
             { id: 'knowledge', label: 'Knowledge Base', adminOnly: true },
             { id: 'team_admin', label: 'Manage Members', adminOnly: true },
             { id: 'credits', label: 'Credit Management', adminOnly: true },
@@ -672,6 +674,14 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         {/* Outreach Scheduler View - Managers and Platform Admins */}
         {activeView === 'outreach' && team && (
           <OutreachScheduler
+            teamId={team.id}
+            teamName={team.name}
+          />
+        )}
+
+        {/* Agent Activity Dashboard - v2.8 Agentic Execution Observability */}
+        {activeView === 'agent_activity' && team && (
+          <AgentActivityDashboard
             teamId={team.id}
             teamName={team.name}
           />
