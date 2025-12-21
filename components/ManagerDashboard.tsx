@@ -18,6 +18,7 @@ import VoiceCoachAnalytics from './admin/VoiceCoachAnalytics';
 import AICoachSettings from './admin/AICoachSettings';
 import EngagementAlerts from './admin/EngagementAlerts';
 import OutreachScheduler from './admin/OutreachScheduler';
+import FeatureFlagManager from './admin/FeatureFlagManager';
 import AgentActivityDashboard from './admin/AgentActivityDashboard';
 
 interface Props {
@@ -67,7 +68,7 @@ interface Team {
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'voice_analytics' | 'ai_settings' | 'alerts' | 'outreach' | 'knowledge' | 'team_admin' | 'site_settings' | 'credits' | 'agent_activity'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'voice_analytics' | 'ai_settings' | 'alerts' | 'outreach' | 'knowledge' | 'team_admin' | 'site_settings' | 'credits' | 'feature_flags' | 'agent_activity'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
@@ -391,6 +392,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             { id: 'knowledge', label: 'Knowledge Base', adminOnly: true },
             { id: 'team_admin', label: 'Manage Members', adminOnly: true },
             { id: 'credits', label: 'Credit Management', adminOnly: true },
+            { id: 'feature_flags', label: 'Feature Flags', adminOnly: true },
             { id: 'site_settings', label: 'Site Settings', adminOnly: true },
           ]
             .filter(view => !view.adminOnly || isPlatformAdmin)
@@ -703,6 +705,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         {/* Credit Management View - Platform Admin Only */}
         {activeView === 'credits' && isPlatformAdmin && (
           <CreditManager />
+        )}
+
+        {/* Feature Flags View - Platform Admin Only */}
+        {activeView === 'feature_flags' && isPlatformAdmin && (
+          <FeatureFlagManager />
         )}
 
         {/* Invite Modal */}
