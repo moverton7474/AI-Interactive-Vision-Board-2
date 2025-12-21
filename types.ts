@@ -10,6 +10,7 @@ export enum AppView {
   FINANCIAL = 'FINANCIAL',
   VISION_BOARD = 'VISION_BOARD',
   GALLERY = 'GALLERY',
+  GOALS = 'GOALS', // Goals management page (v1.8)
   ACTION_PLAN = 'ACTION_PLAN',
   SHARED_VISION = 'SHARED_VISION',
   TRUST_CENTER = 'TRUST_CENTER',
@@ -163,6 +164,60 @@ export interface Milestone {
   title: string;
   tasks: ActionTask[];
   marketResearchSnippet?: string;
+}
+
+// Feature Flags System (v1.8)
+export type FeatureFlagName =
+  | 'goals_page'
+  | 'ai_coach'
+  | 'financial_dashboard'
+  | 'team_collaboration'
+  | 'voice_coach'
+  | 'print_products'
+  | 'partner_workspace'
+  | 'integrations'
+  | 'team_leaderboards'
+  | 'manager_dashboard'
+  | 'mdals_lab'
+  | 'advanced_analytics'
+  | 'beta_features';
+
+export type UserCohort = 'internal' | 'beta_testers' | 'early_adopters' | 'premium' | 'all_users';
+
+export interface FeatureFlag {
+  id: string;
+  name: FeatureFlagName;
+  displayName: string;
+  description: string;
+  defaultEnabled: boolean;
+  allowedRoles: string[]; // platform_admin, support_agent, or team roles
+  allowedCohorts: UserCohort[];
+  isActive: boolean;
+  rolloutPercentage: number; // 0-100 for gradual rollouts
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserFeatureFlag {
+  id: string;
+  userId: string;
+  featureFlagId: string;
+  featureName: FeatureFlagName;
+  isEnabled: boolean;
+  cohort?: UserCohort;
+  enabledAt?: string;
+  disabledAt?: string;
+}
+
+export interface FeatureFlagOverride {
+  id: string;
+  featureFlagId: string;
+  targetType: 'user' | 'cohort' | 'role';
+  targetId: string;
+  isEnabled: boolean;
+  createdBy: string;
+  createdAt: string;
+  expiresAt?: string;
 }
 
 export interface FinancialContext {
