@@ -49,13 +49,38 @@ export interface UseFeatureFlagsReturn {
 // Cache duration in milliseconds (2 minutes)
 const CACHE_DURATION = 2 * 60 * 1000;
 
+// Default feature flags - these are used when database flags can't be fetched
+// This ensures core features remain accessible even if the feature flag system fails
+const DEFAULT_FLAGS: Record<FeatureFlagName, boolean> = {
+  goals_page: true,
+  ai_coach: true,
+  financial_dashboard: true,
+  team_collaboration: true,
+  voice_coach: true,
+  print_products: true,
+  partner_workspace: true,
+  integrations: true,
+  team_leaderboards: true,
+  manager_dashboard: true,
+  mdals_lab: false,
+  advanced_analytics: false,
+  beta_features: false
+};
+
 // ============================================
 // Hook Implementation
 // ============================================
 
 export function useFeatureFlags(): UseFeatureFlagsReturn {
   const [isLoading, setIsLoading] = useState(true);
-  const [flags, setFlags] = useState<Map<FeatureFlagName, boolean>>(new Map());
+  // Initialize with default flags
+  const [flags, setFlags] = useState<Map<FeatureFlagName, boolean>>(() => {
+    const map = new Map<FeatureFlagName, boolean>();
+    Object.entries(DEFAULT_FLAGS).forEach(([key, value]) => {
+      map.set(key as FeatureFlagName, value);
+    });
+    return map;
+  });
   const [flagDetails, setFlagDetails] = useState<FeatureFlagStatus[]>([]);
   const [userCohorts, setUserCohorts] = useState<UserCohort[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
@@ -67,8 +92,7 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
 
   const fetchFeatureFlags = useCallback(async (session: Session | null) => {
     if (!session?.user) {
-      setFlags(new Map());
-      setFlagDetails([]);
+      // Keep default flags for non-authenticated users
       setUserCohorts(['all_users']);
       setIsLoading(false);
       return;
@@ -174,7 +198,8 @@ export function useFeatureFlags(): UseFeatureFlagsReturn {
   // ============================================
 
   const isFeatureEnabled = useCallback((featureName: FeatureFlagName): boolean => {
-    return flags.get(featureName) ?? false;
+    // First check the loaded flags, then fall back to defaults
+    return flags.get(featureName) ?? DEFAULT_FLAGS[featureName] ?? false;
   }, [flags]);
 
   const hasAnyFeature = useCallback((featureNames: FeatureFlagName[]): boolean => {
