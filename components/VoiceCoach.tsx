@@ -165,12 +165,18 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
         // If continuous mode ends unexpectedly and we're still supposed to be listening, restart
         // Use refs to get current values without causing re-renders
         if (isListeningRef.current && !isSpeakingRef.current) {
-          try {
-            recognitionRef.current.start();
-          } catch (e) {
-            setIsListening(false);
-            finalTranscript = '';
-          }
+          // Add a small delay before restarting to prevent rapid restart loops
+          setTimeout(() => {
+            if (isListeningRef.current && !isSpeakingRef.current && recognitionRef.current) {
+              try {
+                recognitionRef.current.start();
+              } catch (e) {
+                console.log('Could not restart recognition:', e);
+                setIsListening(false);
+                // Don't clear finalTranscript - preserve user's speech
+              }
+            }
+          }, 300);
         } else {
           setIsListening(false);
           finalTranscript = '';
