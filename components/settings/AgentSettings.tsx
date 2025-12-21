@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { UserAgentSettings, AgentActionHistory } from '../../types';
+import { UserAgentSettings, AgentActionHistory, PendingAgentAction, AgentActionRiskLevel } from '../../types';
 import { SaveIcon, SparklesIcon, ClockIcon } from '../Icons';
+import { useAgentActions } from '../../hooks/useAgentActions';
+import PendingActionCard from './PendingActionCard';
+import ActionFeedbackButton from './ActionFeedbackButton';
+import CalendarConnection from './CalendarConnection';
 
 const DAYS_OF_WEEK = [
     { value: 0, label: 'Sunday' },
@@ -20,7 +24,12 @@ const CHANNEL_OPTIONS = [
     { value: 'voice', label: 'Voice Call', icon: '📞' },
 ];
 
-const defaultSettings: Partial<UserAgentSettings> = {
+const defaultSettings: Partial<UserAgentSettings> & {
+    confidence_threshold?: number;
+    auto_approve_low_risk?: boolean;
+    auto_approve_medium_risk?: boolean;
+    require_high_confidence?: boolean;
+} = {
     agent_actions_enabled: false,
     allow_send_email: true,
     allow_send_sms: false,
@@ -42,15 +51,37 @@ const defaultSettings: Partial<UserAgentSettings> = {
     require_confirmation_email: true,
     require_confirmation_sms: true,
     require_confirmation_voice: true,
+    // New confidence settings
+    confidence_threshold: 0.7,
+    auto_approve_low_risk: true,
+    auto_approve_medium_risk: false,
+    require_high_confidence: true,
 };
 
 export default function AgentSettings() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [settings, setSettings] = useState<Partial<UserAgentSettings>>(defaultSettings);
+    const [userId, setUserId] = useState<string | null>(null);
+    const [settings, setSettings] = useState<Partial<UserAgentSettings> & {
+        confidence_threshold?: number;
+        auto_approve_low_risk?: boolean;
+        auto_approve_medium_risk?: boolean;
+        require_high_confidence?: boolean;
+    }>(defaultSettings);
     const [recentActions, setRecentActions] = useState<AgentActionHistory[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [historyFilter, setHistoryFilter] = useState<'all' | 'executed' | 'cancelled' | 'failed'>('all');
+
+    // Use the agent actions hook for pending actions and realtime updates
+    const {
+        pendingActions,
+        confirmAction,
+        cancelAction,
+        pendingCount,
+        hasHighRiskPending,
+        error: agentError,
+    } = useAgentActions({ enableRealtime: true });
 
     useEffect(() => {
         fetchData();
@@ -60,6 +91,8 @@ export default function AgentSettings() {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
+
+            setUserId(user.id);
 
             // Fetch agent settings
             const { data: settingsData, error: settingsError } = await supabase
@@ -166,7 +199,50 @@ export default function AgentSettings() {
             </div>
 
             {error && <div className="bg-red-900/30 text-red-200 p-4 rounded-lg border border-red-800">{error}</div>}
+            {agentError && <div className="bg-red-900/30 text-red-200 p-4 rounded-lg border border-red-800">{agentError}</div>}
             {success && <div className="bg-green-900/30 text-green-200 p-4 rounded-lg border border-green-800">{success}</div>}
+
+            {/* PENDING ACTIONS SECTION */}
+            {pendingActions.length > 0 && (
+                <div className="bg-gradient-to-br from-orange-900/30 to-red-900/30 backdrop-blur-sm border border-orange-700/50 rounded-xl p-6 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="relative">
+                                <div className="p-2 bg-orange-500/20 rounded-full">
+                                    <span className="text-2xl">🔔</span>
+                                </div>
+                                {pendingCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-red-500 text-white text-xs font-bold rounded-full">
+                                        {pendingCount}
+                                    </span>
+                                )}
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-semibold text-white">Pending Actions</h3>
+                                <p className="text-orange-200/70 text-sm">
+                                    {pendingCount} action{pendingCount !== 1 ? 's' : ''} waiting for your approval
+                                </p>
+                            </div>
+                        </div>
+                        {hasHighRiskPending && (
+                            <span className="px-3 py-1 bg-red-900/50 text-red-300 text-xs font-medium rounded-full border border-red-700/50">
+                                High Risk Pending
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="space-y-3">
+                        {pendingActions.map(action => (
+                            <PendingActionCard
+                                key={action.id}
+                                action={action}
+                                onConfirm={confirmAction}
+                                onCancel={cancelAction}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -338,6 +414,125 @@ export default function AgentSettings() {
                         <p className="text-xs text-blue-300">
                             When confirmation is required, the AI will ask for your approval during the conversation before executing the action.
                         </p>
+                    </div>
+                </div>
+
+                {/* CONFIDENCE SETTINGS CARD */}
+                <div className={`bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 md:col-span-2 transition-opacity ${!settings.agent_actions_enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-cyan-500/20 rounded-lg">
+                            <span className="text-xl">🎚️</span>
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-white">AI Confidence Settings</h3>
+                            <p className="text-slate-400 text-sm">
+                                Control how confident the AI must be before taking actions automatically.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Confidence Threshold Slider */}
+                        <div className="space-y-3">
+                            <label className="block text-sm font-medium text-slate-300">
+                                Confidence Threshold
+                            </label>
+                            <div className="flex items-center gap-4">
+                                <input
+                                    type="range"
+                                    min="50"
+                                    max="95"
+                                    step="5"
+                                    value={(settings.confidence_threshold || 0.7) * 100}
+                                    onChange={(e) => setSettings(prev => ({
+                                        ...prev,
+                                        confidence_threshold: parseInt(e.target.value) / 100
+                                    }))}
+                                    className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                />
+                                <span className="w-12 text-center text-sm font-mono text-cyan-400 bg-slate-900 px-2 py-1 rounded">
+                                    {Math.round((settings.confidence_threshold || 0.7) * 100)}%
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                Actions below this threshold will require confirmation.
+                            </p>
+                        </div>
+
+                        {/* High Confidence Requirement */}
+                        <div className="space-y-3">
+                            <label className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg cursor-pointer hover:bg-slate-900/70 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-lg">🎯</span>
+                                    <div>
+                                        <div className="text-sm font-medium text-white">Require High Confidence</div>
+                                        <div className="text-xs text-slate-400">AI must be confident before acting</div>
+                                    </div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={settings.require_high_confidence}
+                                    onChange={(e) => setSettings(prev => ({
+                                        ...prev,
+                                        require_high_confidence: e.target.checked
+                                    }))}
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                                />
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* Auto-Approve Settings */}
+                    <div className="mt-4 pt-4 border-t border-slate-700">
+                        <h4 className="text-sm font-medium text-slate-300 mb-3">
+                            Auto-Approve by Risk Level
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <label className="flex items-center justify-between p-3 bg-green-900/20 border border-green-800/30 rounded-lg cursor-pointer hover:bg-green-900/30 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-lg">🟢</span>
+                                    <div>
+                                        <div className="text-sm font-medium text-white">Low Risk Actions</div>
+                                        <div className="text-xs text-slate-400">Tasks, reminders, data queries</div>
+                                    </div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={settings.auto_approve_low_risk}
+                                    onChange={(e) => setSettings(prev => ({
+                                        ...prev,
+                                        auto_approve_low_risk: e.target.checked
+                                    }))}
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-green-500 focus:ring-green-500"
+                                />
+                            </label>
+
+                            <label className="flex items-center justify-between p-3 bg-yellow-900/20 border border-yellow-800/30 rounded-lg cursor-pointer hover:bg-yellow-900/30 transition-colors">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-lg">🟡</span>
+                                    <div>
+                                        <div className="text-sm font-medium text-white">Medium Risk Actions</div>
+                                        <div className="text-xs text-slate-400">Progress updates, habit completions</div>
+                                    </div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={settings.auto_approve_medium_risk}
+                                    onChange={(e) => setSettings(prev => ({
+                                        ...prev,
+                                        auto_approve_medium_risk: e.target.checked
+                                    }))}
+                                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-yellow-500 focus:ring-yellow-500"
+                                />
+                            </label>
+                        </div>
+
+                        <div className="mt-3 p-3 bg-orange-900/20 border border-orange-800/50 rounded-lg flex items-start gap-2">
+                            <span className="text-lg">⚠️</span>
+                            <p className="text-xs text-orange-300">
+                                <strong>High-risk actions</strong> (emails, SMS, voice calls) always require confirmation regardless of these settings.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -554,31 +749,147 @@ export default function AgentSettings() {
                     )}
                 </div>
 
-                {/* RECENT ACTIONS CARD */}
-                {recentActions.length > 0 && (
-                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 md:col-span-2">
-                        <h3 className="text-lg font-semibold text-white mb-4">Recent Agent Actions</h3>
+                {/* ENHANCED ACTION HISTORY CARD */}
+                <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 md:col-span-2">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <span className="text-xl">📋</span>
+                            <h3 className="text-lg font-semibold text-white">Action History</h3>
+                            {recentActions.length > 0 && (
+                                <span className="px-2 py-0.5 bg-slate-700 text-slate-300 text-xs rounded-full">
+                                    {recentActions.length} actions
+                                </span>
+                            )}
+                        </div>
 
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {recentActions.map(action => (
-                                <div key={action.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-lg">{getActionIcon(action.action_type)}</span>
-                                        <div>
-                                            <div className="text-sm font-medium text-white capitalize">
-                                                {action.action_type.replace(/_/g, ' ')}
-                                            </div>
-                                            <div className="text-xs text-slate-400">
-                                                {new Date(action.created_at).toLocaleString()}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(action.action_status)}`}>
-                                        {action.action_status}
-                                    </span>
-                                </div>
+                        {/* Filter Tabs */}
+                        <div className="flex items-center gap-1 bg-slate-900/50 rounded-lg p-1">
+                            {(['all', 'executed', 'cancelled', 'failed'] as const).map(filter => (
+                                <button
+                                    key={filter}
+                                    onClick={() => setHistoryFilter(filter)}
+                                    className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                                        historyFilter === filter
+                                            ? 'bg-amber-600 text-white'
+                                            : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                    }`}
+                                >
+                                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                                </button>
                             ))}
                         </div>
+                    </div>
+
+                    {recentActions.length > 0 ? (
+                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                            {recentActions
+                                .filter(action => historyFilter === 'all' || action.action_status === historyFilter)
+                                .map(action => (
+                                    <div
+                                        key={action.id}
+                                        className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg hover:bg-slate-900/70 transition-colors group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-lg">{getActionIcon(action.action_type)}</span>
+                                            <div>
+                                                <div className="text-sm font-medium text-white capitalize">
+                                                    {action.action_type.replace(/_/g, ' ')}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs text-slate-400">
+                                                    <span>{new Date(action.created_at).toLocaleString()}</span>
+                                                    {action.trigger_context && (
+                                                        <>
+                                                            <span className="text-slate-600">•</span>
+                                                            <span className="text-slate-500 capitalize">
+                                                                {action.trigger_context.replace(/_/g, ' ')}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {/* Feedback buttons */}
+                                            <ActionFeedbackButton
+                                                actionId={action.id}
+                                                actionType={action.action_type}
+                                                onFeedbackSubmitted={fetchData}
+                                            />
+                                            <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(action.action_status)}`}>
+                                                {action.action_status}
+                                            </span>
+                                            {/* Expand button for details */}
+                                            <button
+                                                className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-white transition-opacity"
+                                                title="View details"
+                                                onClick={() => {
+                                                    // Could open a modal with full action details
+                                                    console.log('Action details:', action);
+                                                }}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                            {recentActions.filter(a => historyFilter === 'all' || a.action_status === historyFilter).length === 0 && (
+                                <div className="text-center py-8 text-slate-500">
+                                    No {historyFilter === 'all' ? '' : historyFilter} actions found
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8">
+                            <div className="text-4xl mb-2">🤖</div>
+                            <p className="text-slate-400">No agent actions yet</p>
+                            <p className="text-xs text-slate-500 mt-1">
+                                Actions taken by your AI Coach will appear here
+                            </p>
+                        </div>
+                    )}
+
+                    {recentActions.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-slate-700 flex justify-between items-center">
+                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                    Executed: {recentActions.filter(a => a.action_status === 'executed').length}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                                    Cancelled: {recentActions.filter(a => a.action_status === 'cancelled').length}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                    Failed: {recentActions.filter(a => a.action_status === 'failed').length}
+                                </span>
+                            </div>
+                            <button
+                                onClick={fetchData}
+                                className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                            >
+                                Refresh
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* CALENDAR INTEGRATION CARD */}
+                {userId && (
+                    <div className={`transition-opacity ${!settings.agent_actions_enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <CalendarConnection
+                            userId={userId}
+                            onConnectionChange={(connected) => {
+                                // Could refresh settings or show notification
+                                if (connected) {
+                                    setSuccess('Calendar connected successfully!');
+                                    setTimeout(() => setSuccess(null), 3000);
+                                }
+                            }}
+                        />
                     </div>
                 )}
 

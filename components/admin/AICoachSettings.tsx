@@ -30,6 +30,14 @@ interface AISettings {
   require_confirmation: boolean;
   default_voice: string;
   default_voice_speed: number;
+  // New confidence policy fields
+  allow_send_sms: boolean;
+  allow_voice_calls: boolean;
+  min_confidence_threshold: number;
+  allow_user_auto_approve_low: boolean;
+  allow_user_auto_approve_medium: boolean;
+  allow_user_auto_approve_high: boolean;
+  require_admin_approval_critical: boolean;
 }
 
 const defaultSettings: Omit<AISettings, 'team_id'> = {
@@ -52,7 +60,15 @@ const defaultSettings: Omit<AISettings, 'team_id'> = {
   allow_access_user_data: true,
   require_confirmation: true,
   default_voice: 'default',
-  default_voice_speed: 1.0
+  default_voice_speed: 1.0,
+  // New confidence policy defaults
+  allow_send_sms: false,
+  allow_voice_calls: false,
+  min_confidence_threshold: 0.7,
+  allow_user_auto_approve_low: true,
+  allow_user_auto_approve_medium: false,
+  allow_user_auto_approve_high: false,
+  require_admin_approval_critical: true,
 };
 
 const toneOptions = [
@@ -544,6 +560,172 @@ const AICoachSettings: React.FC<AICoachSettingsProps> = ({
               />
               <div className="w-11 h-6 bg-white/10 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
             </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Confidence & Auto-Approval Policies */}
+      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span>🎚️</span> Confidence & Auto-Approval Policies
+        </h3>
+        <p className="text-indigo-200 text-sm mb-4">
+          Set team-wide policies for AI confidence thresholds and auto-approval permissions.
+        </p>
+
+        {/* Minimum Confidence Threshold */}
+        <div className="p-4 bg-white/5 rounded-lg mb-4">
+          <label className="block text-sm font-medium text-indigo-200 mb-3">
+            Minimum Confidence Threshold (Team Policy)
+          </label>
+          <div className="flex items-center gap-4">
+            <input
+              type="range"
+              min="50"
+              max="95"
+              step="5"
+              value={(settings.min_confidence_threshold || 0.7) * 100}
+              onChange={(e) => setSettings(prev => ({
+                ...prev,
+                min_confidence_threshold: parseInt(e.target.value) / 100
+              }))}
+              className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+            />
+            <span className="w-16 text-center text-sm font-mono text-cyan-400 bg-white/10 px-3 py-1 rounded">
+              {Math.round((settings.min_confidence_threshold || 0.7) * 100)}%
+            </span>
+          </div>
+          <p className="text-xs text-indigo-300 mt-2">
+            Users cannot set their confidence threshold below this team minimum.
+          </p>
+        </div>
+
+        {/* Additional Action Permissions */}
+        <div className="grid md:grid-cols-2 gap-4 mb-4">
+          <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">💬</span>
+              <div>
+                <p className="font-medium text-white">Allow SMS</p>
+                <p className="text-xs text-indigo-300">Coach can send SMS messages</p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.allow_send_sms}
+                onChange={(e) => setSettings(prev => ({ ...prev, allow_send_sms: e.target.checked }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-white/10 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">📞</span>
+              <div>
+                <p className="font-medium text-white">Allow Voice Calls</p>
+                <p className="text-xs text-indigo-300">Coach can initiate voice calls</p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.allow_voice_calls}
+                onChange={(e) => setSettings(prev => ({ ...prev, allow_voice_calls: e.target.checked }))}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-white/10 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+            </label>
+          </div>
+        </div>
+
+        {/* Auto-Approval Permissions */}
+        <div className="border-t border-white/10 pt-4">
+          <h4 className="text-sm font-medium text-indigo-200 mb-3">
+            User Auto-Approval Permissions
+          </h4>
+          <p className="text-xs text-indigo-300 mb-4">
+            Control which risk levels users are allowed to auto-approve without confirmation.
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🟢</span>
+                <div>
+                  <p className="text-sm font-medium text-white">Allow Users to Auto-Approve Low Risk</p>
+                  <p className="text-xs text-green-300">Tasks, reminders, data queries</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.allow_user_auto_approve_low}
+                  onChange={(e) => setSettings(prev => ({ ...prev, allow_user_auto_approve_low: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/10 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🟡</span>
+                <div>
+                  <p className="text-sm font-medium text-white">Allow Users to Auto-Approve Medium Risk</p>
+                  <p className="text-xs text-yellow-300">Progress updates, habit completions</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.allow_user_auto_approve_medium}
+                  onChange={(e) => setSettings(prev => ({ ...prev, allow_user_auto_approve_medium: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/10 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🟠</span>
+                <div>
+                  <p className="text-sm font-medium text-white">Allow Users to Auto-Approve High Risk</p>
+                  <p className="text-xs text-orange-300">Emails, SMS (not recommended)</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.allow_user_auto_approve_high}
+                  onChange={(e) => setSettings(prev => ({ ...prev, allow_user_auto_approve_high: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/10 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🔴</span>
+                <div>
+                  <p className="text-sm font-medium text-white">Require Admin Approval for Critical</p>
+                  <p className="text-xs text-red-300">External emails, sensitive actions</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.require_admin_approval_critical}
+                  onChange={(e) => setSettings(prev => ({ ...prev, require_admin_approval_critical: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/10 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+              </label>
+            </div>
           </div>
         </div>
       </div>

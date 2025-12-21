@@ -1,9 +1,9 @@
 # VISIONARY AI — MASTER PRODUCT & DEVELOPMENT ROADMAP
 
-**Version:** 2.6
+**Version:** 2.8
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 19, 2025
+**Last Updated:** December 21, 2025
 
 ---
 
@@ -113,10 +113,24 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ## 2. Development Roadmap & Status
 
-**Current Version:** v2.6 (December 2025)
-**Status:** v1.0-v2.5 COMPLETE. Security hardening, Voice Coach, Manager Dashboard, and Vision Board Engine all production ready.
+**Current Version:** v2.8 (December 2025)
+**Status:** v1.0-v2.8 COMPLETE. AI Coach Agentic Execution with Human-in-the-Loop confirmation, Google Calendar integration, observability tracing, and gradual rollout infrastructure all production ready.
 
 ### 🎉 Recent Major Achievements (December 2025)
+
+**AI Coach Agentic Execution (December 20-21, 2025):**
+- ✅ Human-in-the-Loop confirmation flow with pending actions table
+- ✅ Risk-based action categorization (low/medium/high/critical)
+- ✅ Confidence-based routing with configurable thresholds
+- ✅ LangSmith-style execution tracing and observability
+- ✅ Google Calendar OAuth integration (connect, events, availability)
+- ✅ Agent action feedback capture for continuous improvement
+- ✅ Feature flags system for gradual rollout
+- ✅ Pending Action Card UI with approve/cancel/expire
+- ✅ Agent Activity Dashboard for admin monitoring
+- ✅ Enhanced user_agent_settings and team_ai_settings tables
+- ✅ 5 new edge functions for calendar and action management
+- ✅ Comprehensive error tracking library
 
 **Enterprise Security Hardening (December 19, 2025):**
 - ✅ Comprehensive RLS policy audit and hardening across 18+ tables
@@ -405,7 +419,84 @@ graph TD
 - `supabase/functions/_shared/cors.ts` (security headers)
 - `vite.config.ts` (dev server security headers)
 
-### v2.7 — Voice Coach Enhancement (ElevenLabs Integration) 🔲 PLANNED
+### v2.8 — AI Coach Agentic Execution ✅ COMPLETED
+
+**Theme:** Autonomous AI Actions with Human-in-the-Loop Safety
+
+> **Enables the Vision AI Coach** to execute actions on behalf of users—sending emails, SMS, voice calls, and calendar appointments—with configurable confirmation flows, risk-based categorization, and comprehensive observability.
+
+**Implementation Sprints (December 20-21, 2025):**
+
+| Sprint | Focus | Status |
+|--------|-------|--------|
+| **Sprint 1-2** | Core Infrastructure + HITL Confirmation Flow | ✅ Completed |
+| **Sprint 3** | Frontend Components for Action Management | ✅ Completed |
+| **Sprint 4** | Observability, Tracing & Testing | ✅ Completed |
+| **Sprint 5** | Calendar Integration (Google Calendar OAuth) | ✅ Completed |
+| **Sprint 6** | Feedback Loop, Feature Flags & Gradual Rollout | ✅ Completed |
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Human-in-the-Loop Confirmation** | Pending action system with approve/cancel/expire workflow | ✅ Deployed |
+| **Risk-Based Action Categorization** | Low/Medium/High/Critical risk levels with auto-approve controls | ✅ Deployed |
+| **Confidence-Based Routing** | Actions below confidence threshold require confirmation | ✅ Deployed |
+| **Execution Tracing & Observability** | LangSmith-style tracing for all AI agent operations | ✅ Deployed |
+| **Agent Action Feedback** | Capture approvals, rejections, edits for continuous improvement | ✅ Deployed |
+| **Google Calendar OAuth Integration** | Connect, create events, check availability | ✅ Deployed |
+| **Pending Action Card UI** | Interactive cards to approve/cancel pending actions | ✅ Deployed |
+| **Agent Activity Dashboard** | Admin view of all agent actions with filtering and analytics | ✅ Deployed |
+| **Feature Flags System** | Gradual rollout with percentage-based targeting | ✅ Deployed |
+| **User Agent Settings Enhancement** | Extended settings for confidence thresholds and risk preferences | ✅ Deployed |
+| **Team AI Settings Enhancement** | Admin guardrails for minimum confidence and risk policies | ✅ Deployed |
+| **Error Tracking Library** | Structured error handling with Sentry-ready integration | ✅ Deployed |
+
+**New Database Tables (8 tables):**
+- `pending_agent_actions` - Actions awaiting user confirmation
+- `agent_execution_traces` - LangSmith-style execution traces
+- `agent_action_feedback` - User feedback on AI actions
+- `user_calendar_connections` - OAuth tokens for calendar integration
+- `feature_flags` - Gradual rollout feature flags
+- `user_agent_settings` (extended) - Confidence and risk preferences
+- `team_ai_settings` (extended) - Admin guardrails
+- `agent_action_history` (extended) - Enhanced with confidence scores
+
+**New Edge Functions (6 functions):**
+- `confirm-agent-action` - Execute approved pending action
+- `cancel-agent-action` - Cancel pending action with feedback
+- `google-calendar-connect` - OAuth flow handler
+- `google-calendar-create-event` - Create calendar events
+- `google-calendar-availability` - Check calendar availability
+
+**New Frontend Components:**
+- `components/settings/PendingActionCard.tsx` - Pending action UI
+- `components/settings/CalendarConnection.tsx` - Calendar OAuth UI
+- `components/settings/ActionFeedbackButton.tsx` - Inline feedback
+- `components/admin/AgentActivityDashboard.tsx` - Admin monitoring
+- `components/admin/AICoachSettings.tsx` (enhanced) - Team guardrails
+
+**New Shared Libraries:**
+- `supabase/functions/_shared/agent-errors.ts` - Error handling
+- `supabase/functions/_shared/agent-tracing.ts` - ExecutionTracer class
+- `lib/error-tracking.ts` - Frontend error tracking
+- `lib/feature-flags.ts` - Feature flag utilities
+- `hooks/useAgentActions.ts` - React hook for agent actions
+
+**Implementation Files:**
+- `supabase/migrations/20251220_agentic_execution_phase1.sql`
+- `supabase/migrations/20241220_sprint5_6_schema.sql`
+
+**2025 Industry Best Practices Alignment:**
+| Best Practice | Source | Status |
+|--------------|--------|--------|
+| Unique Agent Identity | ISACA Enterprise AI | ✅ Aligned |
+| Human-in-the-Loop | Permit.io HITL Guide | ✅ Aligned |
+| Action Audit Trail | McKinsey AI Playbook | ✅ Aligned |
+| Risk-Based Categorization | Microsoft Agent Factory | ✅ Aligned |
+| Observability & Tracing | LangChain State of Agents | ✅ Aligned |
+| Feedback Loop Learning | Deloitte AI Strategy | ✅ Aligned |
+| Confidence-Based Routing | Bain AI Report | ✅ Aligned |
+
+### v2.9 — Voice Coach Enhancement (ElevenLabs Integration) 🔲 PLANNED
 
 **Theme:** 2025 Best-in-Class Voice AI Capabilities
 
@@ -1161,7 +1252,16 @@ CREATE POLICY "Team members can view goals" ON team_goals
 
 ## 3. Infrastructure Status
 
-### Supabase Edge Functions (56 Active + Shared Utilities)
+### Supabase Edge Functions (68 Active + Shared Utilities)
+
+#### Agentic Execution Functions (5) — NEW v2.8
+| Function | Status | Purpose |
+|----------|--------|---------|
+| `confirm-agent-action` | ✅ Active | Execute approved pending agent action |
+| `cancel-agent-action` | ✅ Active | Cancel pending action with feedback |
+| `google-calendar-connect` | ✅ Active | Google Calendar OAuth flow handler |
+| `google-calendar-create-event` | ✅ Active | Create calendar events via AI |
+| `google-calendar-availability` | ✅ Active | Check calendar availability |
 
 #### Admin Functions (16)
 | Function | Status | Purpose |
