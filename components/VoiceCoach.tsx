@@ -113,7 +113,20 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript]);
 
-  // Initialize speech recognition if available
+  // Refs for tracking state in callbacks (to avoid stale closures)
+  const isListeningRef = useRef(isListening);
+  const isSpeakingRef = useRef(isSpeaking);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking;
+  }, [isSpeaking]);
+
+  // Initialize speech recognition ONCE on mount
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -124,7 +137,7 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
       recognitionRef.current.maxAlternatives = 1;
 
       let finalTranscript = '';
-      let silenceTimer: any = null;
+      let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 
       recognitionRef.current.onresult = (event: any) => {
         let interimTranscript = '';
@@ -144,16 +157,14 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
         // Reset silence timer - give user 3 seconds of silence before stopping
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
-          if (recognitionRef.current && isListening) {
-            // Don't auto-stop, let user click button to send
-            // But we could implement auto-send here if desired
-          }
+          // Timer callback - no action needed, user clicks button to send
         }, 3000);
       };
 
       recognitionRef.current.onend = () => {
         // If continuous mode ends unexpectedly and we're still supposed to be listening, restart
-        if (isListening && !isSpeaking) {
+        // Use refs to get current values without causing re-renders
+        if (isListeningRef.current && !isSpeakingRef.current) {
           try {
             recognitionRef.current.start();
           } catch (e) {
@@ -168,13 +179,46 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
 
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
-        // Only stop if it's a real error, not just no-speech
-        if (event.error !== 'no-speech' && event.error !== 'aborted') {
-          setIsListening(false);
+        // Handle different error types appropriately
+        switch (event.error) {
+          case 'no-speech':
+          case 'aborted':
+            // These are not real errors, just reset state quietly
+            break;
+          case 'not-allowed':
+            setError('Microphone access denied. Please enable it in your browser settings.');
+            setIsListening(false);
+            break;
+          case 'audio-capture':
+            setError('No microphone found. Please connect a microphone and try again.');
+            setIsListening(false);
+            break;
+          case 'network':
+            setError('Network error. Please check your internet connection.');
+            setIsListening(false);
+            break;
+          case 'service-not-allowed':
+            setError('Voice recognition service not available in your region.');
+            setIsListening(false);
+            break;
+          default:
+            setError('Voice recognition error. Please try again.');
+            setIsListening(false);
         }
       };
     }
-  }, [isListening, isSpeaking]);
+
+    // Cleanup on unmount
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      }
+    };
+  }, []); // Empty dependency array - only run once on mount
 
   const fetchSessions = async () => {
     try {

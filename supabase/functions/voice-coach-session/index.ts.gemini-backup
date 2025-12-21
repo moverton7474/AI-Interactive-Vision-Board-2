@@ -33,7 +33,7 @@ serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 
     // All actions require authentication
     const authHeader = req.headers.get('Authorization')
@@ -84,9 +84,9 @@ serve(async (req) => {
       case 'start':
         return await startSession(supabase, userId, body)
       case 'process':
-        return await processTranscript(supabase, userId, body, OPENAI_API_KEY)
+        return await processTranscript(supabase, userId, body, GEMINI_API_KEY)
       case 'end':
-        return await endSession(supabase, userId, body, OPENAI_API_KEY)
+        return await endSession(supabase, userId, body, GEMINI_API_KEY)
       case 'list':
         return await listSessions(supabase, userId, url.searchParams)
       case 'get':
@@ -353,7 +353,7 @@ async function startSession(supabase: any, userId: string, body: any) {
 /**
  * Process transcript and generate AI response
  */
-async function processTranscript(supabase: any, userId: string, body: any, openaiKey: string) {
+async function processTranscript(supabase: any, userId: string, body: any, geminiKey: string) {
   const { sessionId, transcript, isPartial = false } = body
 
   if (!sessionId || !transcript) {
@@ -461,63 +461,67 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
     }))
   ]
 
-  // Generate AI response using OpenAI with function calling
+  // Generate AI response using Gemini with tools
   let aiResponse = ''
   let sentiment = 0.5
   let actionsPerformed: any[] = []
 
-  console.log(`[Voice Coach] Processing transcript. OPENAI_API_KEY present: ${!!openaiKey}, key length: ${openaiKey?.length || 0}`)
+  console.log(`[Voice Coach] Processing transcript. GEMINI_API_KEY present: ${!!geminiKey}, key length: ${geminiKey?.length || 0}`)
 
-  if (openaiKey) {
+  if (geminiKey) {
     try {
-      console.log('[Voice Coach] Calling OpenAI API with', messages.length, 'messages')
+      // Convert messages to Gemini format
+      const geminiContents = messages.map((msg: any) => ({
+        role: msg.role === 'assistant' ? 'model' : msg.role === 'system' ? 'user' : 'user',
+        parts: [{ text: msg.role === 'system' ? `[System Instructions]: ${msg.content}` : msg.content }]
+      }))
 
-      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: messages,
-          tools: getOpenAITools(),
-          tool_choice: 'auto',
-          max_tokens: 500,
-          temperature: 0.7
-        })
-      })
+      console.log('[Voice Coach] Calling Gemini API with', geminiContents.length, 'messages')
 
-      const result = await openaiResponse.json()
-      console.log('[Voice Coach] OpenAI response status:', openaiResponse.status)
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: geminiContents,
+            tools: getGeminiTools(),
+            generationConfig: {
+              maxOutputTokens: 500,
+              temperature: 0.7
+            }
+          })
+        }
+      )
+
+      const result = await geminiResponse.json()
+      console.log('[Voice Coach] Gemini response status:', geminiResponse.status)
+      console.log('[Voice Coach] Gemini result:', JSON.stringify(result, null, 2))
 
       // Check for API errors
       if (result.error) {
-        console.error('[Voice Coach] OpenAI API error:', result.error)
-        throw new Error(result.error.message || 'OpenAI API error')
+        console.error('[Voice Coach] Gemini API error:', result.error)
+        throw new Error(result.error.message || 'Gemini API error')
       }
 
-      const choice = result.choices?.[0]
-      const message = choice?.message
+      const candidate = result.candidates?.[0]
+      const parts = candidate?.content?.parts || []
 
-      // Check if OpenAI wants to call functions
-      if (message?.tool_calls && message.tool_calls.length > 0) {
-        // Process each tool call
-        const toolMessages: any[] = []
+      // Check if Gemini wants to call a function
+      for (const part of parts) {
+        if (part.functionCall) {
+          console.log('Function call detected:', part.functionCall)
+          const name = part.functionCall?.name
+          const args = part.functionCall?.args || {}
 
-        for (const toolCall of message.tool_calls) {
-          const name = toolCall.function?.name
-          let args = {}
-
-          try {
-            args = JSON.parse(toolCall.function?.arguments || '{}')
-          } catch (e) {
-            console.error('Failed to parse tool arguments:', e)
+          // Validate function call has required data
+          if (!name) {
+            console.error('Function call missing name:', part.functionCall)
+            aiResponse = "I understood you want me to take an action, but I couldn't determine what to do. Could you please clarify?"
+            continue
           }
 
-          console.log('Function call detected:', name, args)
-
-          // Execute the tool with guardrails
+          // Execute the tool with guardrails - wrapped in try-catch
           let toolResult
           try {
             toolResult = await executeAgentTool(supabase, userId, name, args, aiSettings)
@@ -527,67 +531,69 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
             toolResult = { success: false, error: toolError.message || 'Tool execution failed' }
           }
 
-          // Add tool result to messages
-          toolMessages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: JSON.stringify(toolResult)
-          })
+          // Get Gemini to respond based on tool result
+          try {
+            const followUpContents = [
+              ...geminiContents,
+              {
+                role: 'model',
+                parts: [{ functionCall: part.functionCall }]
+              },
+              {
+                role: 'function',
+                parts: [{
+                  functionResponse: {
+                    name: name,
+                    response: toolResult
+                  }
+                }]
+              }
+            ]
+
+            const followUpResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: followUpContents,
+                  generationConfig: {
+                    maxOutputTokens: 300,
+                    temperature: 0.7
+                  }
+                })
+              }
+            )
+
+            const followUpResult = await followUpResponse.json()
+            aiResponse = followUpResult.candidates?.[0]?.content?.parts?.[0]?.text ||
+              (toolResult.success ? `Done! I've ${name.replace(/_/g, ' ')} for you.` : `I tried to ${name.replace(/_/g, ' ')}, but encountered an issue: ${toolResult.error || 'Unknown error'}`)
+          } catch (followUpError: any) {
+            console.error('Follow-up Gemini error:', followUpError)
+            // Generate response based on tool result
+            aiResponse = toolResult.success
+              ? `Done! I've ${name.replace(/_/g, ' ')} for you. ${toolResult.message || ''}`
+              : `I tried to ${name.replace(/_/g, ' ')}, but encountered an issue: ${toolResult.error || 'Please try again.'}`
+          }
+        } else if (part.text) {
+          aiResponse = part.text
         }
-
-        // Get OpenAI to respond based on tool results (single follow-up call)
-        try {
-          const followUpMessages = [
-            ...messages,
-            message, // The assistant message with tool_calls
-            ...toolMessages // The tool results
-          ]
-
-          const followUpResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${openaiKey}`
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o-mini',
-              messages: followUpMessages,
-              max_tokens: 300,
-              temperature: 0.7
-            })
-          })
-
-          const followUpResult = await followUpResponse.json()
-          aiResponse = followUpResult.choices?.[0]?.message?.content ||
-            (actionsPerformed[0]?.result?.success
-              ? `Done! I've completed the action for you. ${actionsPerformed[0]?.result?.message || ''}`
-              : `I tried to help, but encountered an issue: ${actionsPerformed[0]?.result?.error || 'Please try again.'}`)
-        } catch (followUpError: any) {
-          console.error('Follow-up OpenAI error:', followUpError)
-          // Generate response based on tool result
-          const lastResult = actionsPerformed[actionsPerformed.length - 1]?.result
-          aiResponse = lastResult?.success
-            ? `Done! ${lastResult.message || 'Action completed successfully.'}`
-            : `I encountered an issue: ${lastResult?.error || 'Please try again.'}`
-        }
-      } else if (message?.content) {
-        aiResponse = message.content
       }
 
       if (!aiResponse) {
-        aiResponse = message?.content || ''
+        aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
       }
 
       // Simple sentiment analysis based on keywords
       sentiment = analyzeSentiment(transcript)
     } catch (err: any) {
-      console.error('[Voice Coach] OpenAI error:', err?.message || err)
+      console.error('[Voice Coach] Gemini error:', err?.message || err)
       console.error('[Voice Coach] Full error:', JSON.stringify(err, null, 2))
       aiResponse = generateFallbackResponse(session.session_type, theme)
-      console.log('[Voice Coach] Using fallback response due to OpenAI error')
+      console.log('[Voice Coach] Using fallback response due to Gemini error')
     }
   } else {
-    console.warn('[Voice Coach] OPENAI_API_KEY not available, using fallback response')
+    console.warn('[Voice Coach] GEMINI_API_KEY not available, using fallback response')
     aiResponse = generateFallbackResponse(session.session_type, theme)
   }
 
@@ -624,7 +630,7 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
 /**
  * End session and generate summary
  */
-async function endSession(supabase: any, userId: string, body: any, openaiKey: string) {
+async function endSession(supabase: any, userId: string, body: any, geminiKey: string) {
   const { sessionId } = body
 
   if (!sessionId) {
@@ -662,7 +668,7 @@ async function endSession(supabase: any, userId: string, body: any, openaiKey: s
   let actionItems: string[] = []
   let sessionSummary = ''
 
-  if (openaiKey && userMessages.length > 0) {
+  if (geminiKey && userMessages.length > 0) {
     try {
       const summaryPrompt = `Analyze this voice coaching session and extract:
 1. Key topics discussed (max 5)
@@ -679,22 +685,23 @@ Respond in JSON format only, no markdown:
   "summary": "Brief summary here"
 }`
 
-      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: summaryPrompt }],
-          max_tokens: 500,
-          temperature: 0.3
-        })
-      })
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }],
+            generationConfig: {
+              maxOutputTokens: 500,
+              temperature: 0.3
+            }
+          })
+        }
+      )
 
-      const result = await openaiResponse.json()
-      let content = result.choices?.[0]?.message?.content || ''
+      const result = await geminiResponse.json()
+      let content = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
 
       // Clean up potential markdown code blocks
       content = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
@@ -960,315 +967,279 @@ Remember: This is a voice conversation. Keep it natural and human. You are both 
 }
 
 /**
- * Get OpenAI tools definition for agentic capabilities
- * Converted from Gemini functionDeclarations format to OpenAI function format
+ * Get Gemini tools definition for agentic capabilities
  */
-function getOpenAITools() {
+function getGeminiTools() {
   return [
     {
-      type: 'function',
-      function: {
-        name: 'send_email',
-        description: 'Send an email on behalf of the user',
-        parameters: {
-          type: 'object',
-          properties: {
-            to: {
-              type: 'string',
-              description: 'Email address of recipient (or "team" for team members)'
+      functionDeclarations: [
+        {
+          name: 'send_email',
+          description: 'Send an email on behalf of the user',
+          parameters: {
+            type: 'object',
+            properties: {
+              to: {
+                type: 'string',
+                description: 'Email address of recipient (or "team" for team members)'
+              },
+              subject: {
+                type: 'string',
+                description: 'Email subject line'
+              },
+              body: {
+                type: 'string',
+                description: 'Email body content'
+              }
             },
-            subject: {
-              type: 'string',
-              description: 'Email subject line'
+            required: ['to', 'subject', 'body']
+          }
+        },
+        {
+          name: 'create_task',
+          description: 'Create a new task or action item for the user',
+          parameters: {
+            type: 'object',
+            properties: {
+              title: {
+                type: 'string',
+                description: 'Task title'
+              },
+              description: {
+                type: 'string',
+                description: 'Task description (optional)'
+              },
+              due_date: {
+                type: 'string',
+                description: 'Due date in YYYY-MM-DD format (optional)'
+              },
+              priority: {
+                type: 'string',
+                enum: ['low', 'medium', 'high'],
+                description: 'Task priority'
+              }
             },
-            body: {
-              type: 'string',
-              description: 'Email body content'
-            }
-          },
-          required: ['to', 'subject', 'body']
+            required: ['title']
+          }
+        },
+        {
+          name: 'schedule_reminder',
+          description: 'Schedule a reminder notification for the user',
+          parameters: {
+            type: 'object',
+            properties: {
+              message: {
+                type: 'string',
+                description: 'Reminder message'
+              },
+              when: {
+                type: 'string',
+                description: 'When to send (e.g., "tomorrow at 9am", "in 2 hours", "2024-12-20 14:00")'
+              }
+            },
+            required: ['message', 'when']
+          }
+        },
+        {
+          name: 'get_user_data',
+          description: 'Get information about the user\'s goals, habits, or progress',
+          parameters: {
+            type: 'object',
+            properties: {
+              data_type: {
+                type: 'string',
+                enum: ['goals', 'habits', 'tasks', 'progress', 'vision'],
+                description: 'Type of data to retrieve'
+              }
+            },
+            required: ['data_type']
+          }
+        },
+        {
+          name: 'get_todays_habits',
+          description: 'Get the user\'s habits scheduled for today with their completion status',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        },
+        {
+          name: 'mark_habit_complete',
+          description: 'Mark a specific habit as completed for today',
+          parameters: {
+            type: 'object',
+            properties: {
+              habit_id: {
+                type: 'string',
+                description: 'The ID of the habit to mark complete'
+              },
+              habit_name: {
+                type: 'string',
+                description: 'The name of the habit (if ID is not known, will search by name)'
+              },
+              notes: {
+                type: 'string',
+                description: 'Optional notes about the completion'
+              }
+            },
+            required: []
+          }
+        },
+        {
+          name: 'send_habit_reminder',
+          description: 'Send a reminder to the user about a specific habit',
+          parameters: {
+            type: 'object',
+            properties: {
+              habit_id: {
+                type: 'string',
+                description: 'The ID of the habit to remind about'
+              },
+              habit_name: {
+                type: 'string',
+                description: 'The name of the habit (if ID is not known)'
+              },
+              channel: {
+                type: 'string',
+                enum: ['push', 'sms', 'email'],
+                description: 'Channel to send the reminder through'
+              },
+              message: {
+                type: 'string',
+                description: 'Custom reminder message'
+              }
+            },
+            required: []
+          }
+        },
+        {
+          name: 'update_goal_progress',
+          description: 'Update the progress percentage on a user\'s goal',
+          parameters: {
+            type: 'object',
+            properties: {
+              goal_id: {
+                type: 'string',
+                description: 'The ID of the goal to update'
+              },
+              goal_name: {
+                type: 'string',
+                description: 'The name of the goal (if ID is not known)'
+              },
+              progress: {
+                type: 'number',
+                description: 'New progress percentage (0-100)'
+              },
+              notes: {
+                type: 'string',
+                description: 'Optional notes about the progress update'
+              }
+            },
+            required: ['progress']
+          }
+        },
+        {
+          name: 'schedule_goal_checkin',
+          description: 'Schedule a future check-in for a specific goal',
+          parameters: {
+            type: 'object',
+            properties: {
+              goal_id: {
+                type: 'string',
+                description: 'The ID of the goal'
+              },
+              goal_name: {
+                type: 'string',
+                description: 'The name of the goal (if ID is not known)'
+              },
+              when: {
+                type: 'string',
+                description: 'When to schedule the check-in (e.g., "tomorrow", "next week", "in 3 days")'
+              },
+              channel: {
+                type: 'string',
+                enum: ['push', 'sms', 'email', 'voice'],
+                description: 'Channel for the check-in reminder'
+              }
+            },
+            required: ['when']
+          }
+        },
+        {
+          name: 'send_sms',
+          description: 'Send an SMS text message to the user\'s phone',
+          parameters: {
+            type: 'object',
+            properties: {
+              message: {
+                type: 'string',
+                description: 'The SMS message to send'
+              }
+            },
+            required: ['message']
+          }
+        },
+        {
+          name: 'make_voice_call',
+          description: 'Initiate a voice call to the user for reminders, check-ins, or celebrations',
+          parameters: {
+            type: 'object',
+            properties: {
+              call_type: {
+                type: 'string',
+                enum: ['habit_reminder', 'goal_checkin', 'accountability', 'celebration', 'custom'],
+                description: 'Type of call to make'
+              },
+              message: {
+                type: 'string',
+                description: 'Custom message for the call (what AMIE should say)'
+              },
+              related_habit_id: {
+                type: 'string',
+                description: 'If this is a habit reminder, the habit ID'
+              },
+              related_goal_id: {
+                type: 'string',
+                description: 'If this is a goal check-in, the goal ID'
+              }
+            },
+            required: ['call_type']
+          }
+        },
+        {
+          name: 'confirm_pending_action',
+          description: 'Confirm and execute a previously proposed action after user approval',
+          parameters: {
+            type: 'object',
+            properties: {
+              action_id: {
+                type: 'string',
+                description: 'The ID of the pending action to confirm'
+              }
+            },
+            required: ['action_id']
+          }
+        },
+        {
+          name: 'cancel_pending_action',
+          description: 'Cancel a previously proposed action that the user declined',
+          parameters: {
+            type: 'object',
+            properties: {
+              action_id: {
+                type: 'string',
+                description: 'The ID of the pending action to cancel'
+              },
+              reason: {
+                type: 'string',
+                description: 'Reason for cancellation'
+              }
+            },
+            required: ['action_id']
+          }
         }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'create_task',
-        description: 'Create a new task or action item for the user',
-        parameters: {
-          type: 'object',
-          properties: {
-            title: {
-              type: 'string',
-              description: 'Task title'
-            },
-            description: {
-              type: 'string',
-              description: 'Task description (optional)'
-            },
-            due_date: {
-              type: 'string',
-              description: 'Due date in YYYY-MM-DD format (optional)'
-            },
-            priority: {
-              type: 'string',
-              enum: ['low', 'medium', 'high'],
-              description: 'Task priority'
-            }
-          },
-          required: ['title']
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'schedule_reminder',
-        description: 'Schedule a reminder notification for the user',
-        parameters: {
-          type: 'object',
-          properties: {
-            message: {
-              type: 'string',
-              description: 'Reminder message'
-            },
-            when: {
-              type: 'string',
-              description: 'When to send (e.g., "tomorrow at 9am", "in 2 hours", "2024-12-20 14:00")'
-            }
-          },
-          required: ['message', 'when']
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'get_user_data',
-        description: 'Get information about the user\'s goals, habits, or progress',
-        parameters: {
-          type: 'object',
-          properties: {
-            data_type: {
-              type: 'string',
-              enum: ['goals', 'habits', 'tasks', 'progress', 'vision'],
-              description: 'Type of data to retrieve'
-            }
-          },
-          required: ['data_type']
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'get_todays_habits',
-        description: 'Get the user\'s habits scheduled for today with their completion status',
-        parameters: {
-          type: 'object',
-          properties: {},
-          required: []
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'mark_habit_complete',
-        description: 'Mark a specific habit as completed for today',
-        parameters: {
-          type: 'object',
-          properties: {
-            habit_id: {
-              type: 'string',
-              description: 'The ID of the habit to mark complete'
-            },
-            habit_name: {
-              type: 'string',
-              description: 'The name of the habit (if ID is not known, will search by name)'
-            },
-            notes: {
-              type: 'string',
-              description: 'Optional notes about the completion'
-            }
-          },
-          required: []
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'send_habit_reminder',
-        description: 'Send a reminder to the user about a specific habit',
-        parameters: {
-          type: 'object',
-          properties: {
-            habit_id: {
-              type: 'string',
-              description: 'The ID of the habit to remind about'
-            },
-            habit_name: {
-              type: 'string',
-              description: 'The name of the habit (if ID is not known)'
-            },
-            channel: {
-              type: 'string',
-              enum: ['push', 'sms', 'email'],
-              description: 'Channel to send the reminder through'
-            },
-            message: {
-              type: 'string',
-              description: 'Custom reminder message'
-            }
-          },
-          required: []
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'update_goal_progress',
-        description: 'Update the progress percentage on a user\'s goal',
-        parameters: {
-          type: 'object',
-          properties: {
-            goal_id: {
-              type: 'string',
-              description: 'The ID of the goal to update'
-            },
-            goal_name: {
-              type: 'string',
-              description: 'The name of the goal (if ID is not known)'
-            },
-            progress: {
-              type: 'number',
-              description: 'New progress percentage (0-100)'
-            },
-            notes: {
-              type: 'string',
-              description: 'Optional notes about the progress update'
-            }
-          },
-          required: ['progress']
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'schedule_goal_checkin',
-        description: 'Schedule a future check-in for a specific goal',
-        parameters: {
-          type: 'object',
-          properties: {
-            goal_id: {
-              type: 'string',
-              description: 'The ID of the goal'
-            },
-            goal_name: {
-              type: 'string',
-              description: 'The name of the goal (if ID is not known)'
-            },
-            when: {
-              type: 'string',
-              description: 'When to schedule the check-in (e.g., "tomorrow", "next week", "in 3 days")'
-            },
-            channel: {
-              type: 'string',
-              enum: ['push', 'sms', 'email', 'voice'],
-              description: 'Channel for the check-in reminder'
-            }
-          },
-          required: ['when']
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'send_sms',
-        description: 'Send an SMS text message to the user\'s phone',
-        parameters: {
-          type: 'object',
-          properties: {
-            message: {
-              type: 'string',
-              description: 'The SMS message to send'
-            }
-          },
-          required: ['message']
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'make_voice_call',
-        description: 'Initiate a voice call to the user for reminders, check-ins, or celebrations',
-        parameters: {
-          type: 'object',
-          properties: {
-            call_type: {
-              type: 'string',
-              enum: ['habit_reminder', 'goal_checkin', 'accountability', 'celebration', 'custom'],
-              description: 'Type of call to make'
-            },
-            message: {
-              type: 'string',
-              description: 'Custom message for the call (what AMIE should say)'
-            },
-            related_habit_id: {
-              type: 'string',
-              description: 'If this is a habit reminder, the habit ID'
-            },
-            related_goal_id: {
-              type: 'string',
-              description: 'If this is a goal check-in, the goal ID'
-            }
-          },
-          required: ['call_type']
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'confirm_pending_action',
-        description: 'Confirm and execute a previously proposed action after user approval',
-        parameters: {
-          type: 'object',
-          properties: {
-            action_id: {
-              type: 'string',
-              description: 'The ID of the pending action to confirm'
-            }
-          },
-          required: ['action_id']
-        }
-      }
-    },
-    {
-      type: 'function',
-      function: {
-        name: 'cancel_pending_action',
-        description: 'Cancel a previously proposed action that the user declined',
-        parameters: {
-          type: 'object',
-          properties: {
-            action_id: {
-              type: 'string',
-              description: 'The ID of the pending action to cancel'
-            },
-            reason: {
-              type: 'string',
-              description: 'Reason for cancellation'
-            }
-          },
-          required: ['action_id']
-        }
-      }
+      ]
     }
   ]
 }
@@ -1396,7 +1367,7 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
     case 'create_task': {
       const title = args?.title
       const description = args?.description
-      const due_date_raw = args?.due_date
+      const due_date = args?.due_date
       const priority = args?.priority
 
       // Validate required args
@@ -1407,38 +1378,7 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
         }
       }
 
-      // Parse due_date - handle relative dates like "today", "tomorrow"
-      let parsedDueDate: string | null = null
-      if (due_date_raw) {
-        const lowerDate = due_date_raw.toLowerCase().trim()
-        const now = new Date()
-
-        if (lowerDate === 'today') {
-          parsedDueDate = now.toISOString().split('T')[0]
-        } else if (lowerDate === 'tomorrow') {
-          const tomorrow = new Date(now)
-          tomorrow.setDate(tomorrow.getDate() + 1)
-          parsedDueDate = tomorrow.toISOString().split('T')[0]
-        } else if (lowerDate.includes('next week')) {
-          const nextWeek = new Date(now)
-          nextWeek.setDate(nextWeek.getDate() + 7)
-          parsedDueDate = nextWeek.toISOString().split('T')[0]
-        } else if (/^\d{4}-\d{2}-\d{2}$/.test(due_date_raw)) {
-          // Already in YYYY-MM-DD format
-          parsedDueDate = due_date_raw
-        } else {
-          // Try to parse as date
-          const parsed = new Date(due_date_raw)
-          if (!isNaN(parsed.getTime())) {
-            parsedDueDate = parsed.toISOString().split('T')[0]
-          } else {
-            // Default to today if can't parse
-            parsedDueDate = now.toISOString().split('T')[0]
-          }
-        }
-      }
-
-      // Get user's primary vision to associate task (optional)
+      // Get user's primary vision to associate task
       const { data: vision } = await supabase
         .from('visions')
         .select('id')
@@ -1446,44 +1386,31 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
         .eq('is_primary', true)
         .single()
 
-      // Build the insert object - only include vision_id if it exists
-      const insertData: any = {
-        user_id: userId,
-        title,
-        description: description || '',
-        priority: priority || 'medium',
-        status: 'pending',
-        created_at: new Date().toISOString()
-      }
-
-      // Only add vision_id if user has a vision
-      if (vision?.id) {
-        insertData.vision_id = vision.id
-      }
-
-      // Only add due_date if we have one
-      if (parsedDueDate) {
-        insertData.due_date = parsedDueDate
-      }
-
-      console.log('[create_task] Inserting task:', JSON.stringify(insertData))
+      const visionId = vision?.id
 
       // Create action step (task)
       const { data: task, error } = await supabase
         .from('action_steps')
-        .insert(insertData)
+        .insert({
+          user_id: userId,
+          vision_id: visionId,
+          title,
+          description: description || '',
+          due_date: due_date || null,
+          priority: priority || 'medium',
+          status: 'pending',
+          created_at: new Date().toISOString()
+        })
         .select()
         .single()
 
       if (error) {
-        console.error('[create_task] Error:', error.message, error.details, error.hint)
-        return { success: false, error: `Failed to create task: ${error.message}` }
+        return { success: false, error: error.message }
       }
 
-      const dueDateDisplay = parsedDueDate || ''
       return {
         success: true,
-        message: `Task created: "${title}"${dueDateDisplay ? ` due ${dueDateDisplay}` : ''}`,
+        message: `Task created: "${title}"${due_date ? ` due ${due_date}` : ''}`,
         taskId: task.id
       }
     }
