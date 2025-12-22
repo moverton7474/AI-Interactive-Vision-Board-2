@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
 
 interface DefaultHabit {
   id: string;
@@ -50,10 +51,25 @@ interface Props {
   themeId?: string;
   selectedHabits: string[];
   onHabitsChange: (habitIds: string[]) => void;
+  // WOW Optimization: Micro-contract props
+  userId?: string;
+  onReminderScheduled?: (reminderId: string) => void;
 }
 
-const HabitsSetupStep: React.FC<Props> = ({ themeId = 'custom', selectedHabits, onHabitsChange }) => {
+const HabitsSetupStep: React.FC<Props> = ({
+  themeId = 'custom',
+  selectedHabits,
+  onHabitsChange,
+  userId,
+  onReminderScheduled
+}) => {
   const habits = THEME_HABITS[themeId] || THEME_HABITS.custom;
+
+  // WOW Optimization: AMIE Micro-Contract state
+  const [showMicroContract, setShowMicroContract] = useState(false);
+  const [reminderSet, setReminderSet] = useState(false);
+  const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
+  const [hasShownMicroContract, setHasShownMicroContract] = useState(false);
 
   // Pre-select first 3 habits by default
   useEffect(() => {
@@ -61,6 +77,58 @@ const HabitsSetupStep: React.FC<Props> = ({ themeId = 'custom', selectedHabits, 
       onHabitsChange(habits.slice(0, 3).map(h => h.id));
     }
   }, [themeId]);
+
+  // Show micro-contract when first habit is selected (if not shown before)
+  useEffect(() => {
+    if (selectedHabits.length > 0 && !hasShownMicroContract && !reminderSet && userId) {
+      // Small delay to let the selection animation complete
+      const timer = setTimeout(() => {
+        setShowMicroContract(true);
+        setHasShownMicroContract(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedHabits.length, hasShownMicroContract, reminderSet, userId]);
+
+  // Handle accepting the reminder
+  const handleAcceptReminder = async () => {
+    if (!userId) return;
+
+    setIsSchedulingReminder(true);
+    try {
+      // Schedule SMS for tomorrow 7 AM
+      const tomorrow7am = new Date();
+      tomorrow7am.setDate(tomorrow7am.getDate() + 1);
+      tomorrow7am.setHours(7, 0, 0, 0);
+
+      const firstHabit = habits.find(h => selectedHabits.includes(h.id));
+      const habitName = firstHabit?.name || 'your morning routine';
+
+      const { data, error } = await supabase.functions.invoke('schedule-notification', {
+        body: {
+          user_id: userId,
+          type: 'habit_reminder',
+          channel: 'sms',
+          scheduled_for: tomorrow7am.toISOString(),
+          message: `Good morning! Time for ${habitName}. You've got this! - AMIE`
+        }
+      });
+
+      if (!error && data?.id) {
+        setReminderSet(true);
+        onReminderScheduled?.(data.id);
+      }
+    } catch (err) {
+      console.error('Failed to schedule reminder:', err);
+    } finally {
+      setIsSchedulingReminder(false);
+      setShowMicroContract(false);
+    }
+  };
+
+  const handleDeclineReminder = () => {
+    setShowMicroContract(false);
+  };
 
   const toggleHabit = (habitId: string) => {
     if (selectedHabits.includes(habitId)) {
@@ -145,6 +213,21 @@ const HabitsSetupStep: React.FC<Props> = ({ themeId = 'custom', selectedHabits, 
         })}
       </div>
 
+      {/* Reminder Confirmation */}
+      {reminderSet && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-medium text-green-800">Reminder set for 7:00 AM tomorrow!</p>
+            <p className="text-sm text-green-600">AMIE will text you to start your day right.</p>
+          </div>
+        </div>
+      )}
+
       {/* Selection Summary */}
       <div className="bg-navy-50 rounded-xl p-4 border border-navy-200">
         <div className="flex items-center justify-between">
@@ -172,6 +255,52 @@ const HabitsSetupStep: React.FC<Props> = ({ themeId = 'custom', selectedHabits, 
           )}
         </div>
       </div>
+
+      {/* AMIE Micro-Contract Modal */}
+      {showMicroContract && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl animate-in fade-in zoom-in duration-200">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 mx-auto bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center mb-3">
+                <span className="text-3xl">🤖</span>
+              </div>
+              <h3 className="text-lg font-bold text-navy-900">Quick question!</h3>
+            </div>
+
+            <p className="text-gray-600 text-center mb-6">
+              I can text you tomorrow at <span className="font-semibold">7:00 AM</span> to remind you about your morning habits. Want me to set that up?
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeclineReminder}
+                disabled={isSchedulingReminder}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                No thanks
+              </button>
+              <button
+                onClick={handleAcceptReminder}
+                disabled={isSchedulingReminder}
+                className="flex-1 px-4 py-3 bg-navy-900 text-white rounded-xl font-medium hover:bg-navy-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSchedulingReminder ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Setting up...
+                  </>
+                ) : (
+                  'Yes, remind me!'
+                )}
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-400 text-center mt-4">
+              You can manage reminders in settings anytime.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

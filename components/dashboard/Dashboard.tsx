@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AppView, ActionTask } from '../../types';
+import { supabase } from '../../lib/supabase';
 import DashboardGreetingCard from './DashboardGreetingCard';
 import TodayFocusCard from './TodayFocusCard';
 import PrimaryVisionCard from './PrimaryVisionCard';
@@ -25,6 +26,7 @@ interface Props {
   todayFocus?: string;
   primaryVisionUrl?: string;
   primaryVisionTitle?: string;
+  primaryVisionId?: string;
   tasks: ActionTask[];
   habits: Habit[];
   financialTarget?: number;
@@ -35,6 +37,10 @@ interface Props {
   onToggleHabit: (habitId: string) => void;
   isLoadingFocus?: boolean;
   onPlayBriefing?: () => void;
+  // WOW Optimization: First login props
+  userId?: string;
+  onboardingCompletedAt?: string;
+  onSetPrimaryVision?: (visionId: string) => void;
 }
 
 const Dashboard: React.FC<Props> = ({
@@ -45,6 +51,7 @@ const Dashboard: React.FC<Props> = ({
   todayFocus,
   primaryVisionUrl,
   primaryVisionTitle,
+  primaryVisionId,
   tasks,
   habits,
   financialTarget,
@@ -54,18 +61,68 @@ const Dashboard: React.FC<Props> = ({
   onToggleTask,
   onToggleHabit,
   isLoadingFocus,
-  onPlayBriefing
+  onPlayBriefing,
+  userId,
+  onboardingCompletedAt,
+  onSetPrimaryVision
 }) => {
+  // WOW Optimization: First login detection for Magic Mirror reveal
+  const [isFirstLogin, setIsFirstLogin] = useState(false);
+  const [hasSeenReveal, setHasSeenReveal] = useState(false);
+
+  useEffect(() => {
+    // Check if onboarding was completed within the last 24 hours
+    if (onboardingCompletedAt && !hasSeenReveal) {
+      const completedAt = new Date(onboardingCompletedAt);
+      const now = new Date();
+      const hoursSinceCompletion = (now.getTime() - completedAt.getTime()) / (1000 * 60 * 60);
+
+      // Show hero reveal if completed within last 24 hours
+      if (hoursSinceCompletion < 24) {
+        setIsFirstLogin(true);
+      }
+    }
+  }, [onboardingCompletedAt, hasSeenReveal]);
+
+  // Handle "Make Primary" action from Magic Mirror reveal
+  const handleMakePrimary = useCallback((visionId: string) => {
+    console.log('Making vision primary:', visionId);
+    onSetPrimaryVision?.(visionId);
+    setHasSeenReveal(true);
+    setIsFirstLogin(false);
+  }, [onSetPrimaryVision]);
+
+  // Handle "Refine Vision" action - navigate to vision board
+  const handleRefineVision = useCallback((visionId: string) => {
+    console.log('Refining vision:', visionId);
+    setHasSeenReveal(true);
+    setIsFirstLogin(false);
+    onNavigate(AppView.VISION_BOARD);
+  }, [onNavigate]);
+
+  // Handle dismiss reveal
+  const handleDismissReveal = useCallback(() => {
+    setHasSeenReveal(true);
+    setIsFirstLogin(false);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Greeting Card */}
+        {/* Greeting Card with Magic Mirror Reveal */}
         <DashboardGreetingCard
           userName={userName}
           themeName={themeName}
           motivationStyle={motivationStyle}
           themeInsight={themeInsight}
           onPlayBriefing={onPlayBriefing}
+          // WOW Optimization: Magic Mirror reveal props
+          isFirstLogin={isFirstLogin}
+          primaryVisionUrl={primaryVisionUrl}
+          primaryVisionId={primaryVisionId}
+          onMakePrimary={handleMakePrimary}
+          onRefineVision={handleRefineVision}
+          onDismissReveal={handleDismissReveal}
         />
 
         {/* HERO SECTION: Voice Coach - Primary CTA */}

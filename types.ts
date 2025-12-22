@@ -50,6 +50,7 @@ export interface OnboardingState {
   currentStep: OnboardingStep;
   themeId?: string;
   themeName?: string;
+  motivationStyle?: 'encouraging' | 'challenging' | 'analytical' | 'spiritual';
   masterPromptResponses?: MasterPromptResponse[]; // Q&A responses for personalized coaching
   visionText?: string;
   photoRefId?: string;
@@ -60,6 +61,10 @@ export interface OnboardingState {
   primaryVisionUrl?: string;
   generatedTasks?: ActionTask[];
   selectedHabits?: string[];
+  // Background vision generation (WOW optimization v1.8)
+  visionGenerationStatus?: 'idle' | 'pending' | 'complete' | 'error';
+  visionGenerationError?: string;
+  scheduledReminderId?: string; // From AMIE micro-contract
 }
 
 export interface ChatMessage {

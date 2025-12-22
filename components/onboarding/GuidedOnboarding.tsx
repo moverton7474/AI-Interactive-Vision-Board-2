@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { OnboardingStep, OnboardingState, ActionTask, AppView, MasterPromptResponse } from '../../types';
 import OnboardingLayout from './OnboardingLayout';
 import ThemeSelectorStep from './ThemeSelectorStep';
@@ -16,6 +16,9 @@ import CompletionStep from './CompletionStep';
 
 // Feature flag for draft plan review (v1.7)
 const ENABLE_DRAFT_PLAN_REVIEW = true;
+
+// Feature flag for background vision generation (v1.8 WOW optimization)
+const ENABLE_BACKGROUND_GENERATION = true;
 
 interface Props {
   userId: string;
@@ -132,6 +135,9 @@ const GuidedOnboarding: React.FC<Props> = ({
 
   const [state, setState] = useState<OnboardingState>(getInitialState);
 
+  // Ref to track pending vision generation promise (not serializable, so use ref)
+  const pendingVisionPromiseRef = useRef<Promise<{ id: string; url: string }> | null>(null);
+
   // Save state to localStorage whenever it changes
   useEffect(() => {
     try {
@@ -152,12 +158,67 @@ const GuidedOnboarding: React.FC<Props> = ({
     setState(prev => ({ ...prev, currentStep: step }));
   }, []);
 
+  // Trigger background vision generation
+  const triggerBackgroundGeneration = useCallback(() => {
+    if (!state.visionText) {
+      console.warn('Cannot trigger background generation: no vision text');
+      return;
+    }
+
+    console.log('🚀 Triggering background vision generation...');
+    updateState({ visionGenerationStatus: 'pending' });
+
+    // Start generation in background
+    const generationPromise = generateVisionImage(
+      state.visionText,
+      state.photoRefId,
+      (status) => console.log('Vision generation status:', status)
+    );
+
+    // Store promise ref
+    pendingVisionPromiseRef.current = generationPromise;
+
+    // Handle resolution in background
+    generationPromise
+      .then((result) => {
+        console.log('✅ Background vision generation complete:', result.id);
+        updateState({
+          primaryVisionId: result.id,
+          primaryVisionUrl: result.url,
+          visionGenerationStatus: 'complete'
+        });
+      })
+      .catch((err) => {
+        console.error('❌ Background vision generation failed:', err);
+        updateState({
+          visionGenerationStatus: 'error',
+          visionGenerationError: err.message || 'Generation failed'
+        });
+      });
+  }, [state.visionText, state.photoRefId, generateVisionImage, updateState]);
+
   const goNext = useCallback(() => {
     const nextIndex = currentStepIndex + 1;
     if (nextIndex < STEPS.length) {
-      goToStep(STEPS[nextIndex]);
+      let targetStep = STEPS[nextIndex];
+
+      // WOW Optimization: Trigger background generation after PHOTO_UPLOAD
+      if (ENABLE_BACKGROUND_GENERATION && state.currentStep === 'PHOTO_UPLOAD') {
+        triggerBackgroundGeneration();
+      }
+
+      // WOW Optimization: Skip VISION_GENERATION step if background generation is enabled
+      if (ENABLE_BACKGROUND_GENERATION && targetStep === 'VISION_GENERATION') {
+        // Skip to next step (DRAFT_PLAN_REVIEW or ACTION_PLAN_PREVIEW)
+        const skipIndex = nextIndex + 1;
+        if (skipIndex < STEPS.length) {
+          targetStep = STEPS[skipIndex];
+        }
+      }
+
+      goToStep(targetStep);
     }
-  }, [currentStepIndex, goToStep]);
+  }, [currentStepIndex, goToStep, state.currentStep, triggerBackgroundGeneration]);
 
   const goBack = useCallback(() => {
     const prevIndex = currentStepIndex - 1;
@@ -239,6 +300,7 @@ const GuidedOnboarding: React.FC<Props> = ({
           <CoachIntroStep
             themeId={state.themeId}
             themeName={state.themeName}
+            motivationStyle={state.motivationStyle}
           />
         );
 
@@ -330,6 +392,9 @@ const GuidedOnboarding: React.FC<Props> = ({
             themeId={state.themeId}
             selectedHabits={state.selectedHabits || []}
             onHabitsChange={(habits) => updateState({ selectedHabits: habits })}
+            // WOW Optimization: Micro-contract props
+            userId={userId}
+            onReminderScheduled={(reminderId) => updateState({ scheduledReminderId: reminderId })}
           />
         );
 
@@ -341,6 +406,9 @@ const GuidedOnboarding: React.FC<Props> = ({
             tasksCount={state.generatedTasks?.length ?? 0}
             habitsCount={state.selectedHabits?.length ?? 0}
             onComplete={handleComplete}
+            // WOW Optimization: Pass generation status for fallback loading
+            visionGenerationStatus={state.visionGenerationStatus}
+            pendingVisionPromise={pendingVisionPromiseRef.current}
           />
         );
 

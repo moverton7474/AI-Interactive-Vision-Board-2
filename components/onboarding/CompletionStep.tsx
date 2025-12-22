@@ -6,6 +6,9 @@ interface Props {
   tasksCount: number;
   habitsCount: number;
   onComplete: () => void;
+  // WOW Optimization: Background generation status
+  visionGenerationStatus?: 'idle' | 'pending' | 'complete' | 'error';
+  pendingVisionPromise?: Promise<{ id: string; url: string }> | null;
 }
 
 const CompletionStep: React.FC<Props> = ({
@@ -13,16 +16,67 @@ const CompletionStep: React.FC<Props> = ({
   visionImageUrl,
   tasksCount,
   habitsCount,
-  onComplete
+  onComplete,
+  visionGenerationStatus,
+  pendingVisionPromise
 }) => {
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isWaitingForVision, setIsWaitingForVision] = useState(
+    visionGenerationStatus === 'pending' && !visionImageUrl
+  );
+
+  // Wait for vision generation if still pending
+  useEffect(() => {
+    if (visionGenerationStatus === 'pending' && pendingVisionPromise && !visionImageUrl) {
+      setIsWaitingForVision(true);
+      pendingVisionPromise
+        .then(() => {
+          setIsWaitingForVision(false);
+        })
+        .catch(() => {
+          // Proceed even on error - user can still complete onboarding
+          setIsWaitingForVision(false);
+        });
+    } else if (visionGenerationStatus === 'complete' || visionImageUrl) {
+      setIsWaitingForVision(false);
+    }
+  }, [visionGenerationStatus, pendingVisionPromise, visionImageUrl]);
 
   useEffect(() => {
-    // Trigger confetti animation
-    setShowConfetti(true);
-    const timer = setTimeout(() => setShowConfetti(false), 3000);
-    return () => clearTimeout(timer);
-  }, []);
+    // Trigger confetti animation only when not waiting
+    if (!isWaitingForVision) {
+      setShowConfetti(true);
+      const timer = setTimeout(() => setShowConfetti(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isWaitingForVision]);
+
+  // Show loading state if vision is still generating
+  if (isWaitingForVision) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 space-y-6">
+        <div className="relative">
+          <div className="w-20 h-20 border-4 border-navy-200 border-t-navy-600 rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-2xl">✨</span>
+          </div>
+        </div>
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-navy-900 mb-2">
+            Finalizing Your Vision...
+          </h2>
+          <p className="text-gray-500">
+            Just a few more seconds while we perfect your personalized vision board
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <div className="w-2 h-2 bg-navy-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2 h-2 bg-navy-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2 h-2 bg-navy-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 text-center">

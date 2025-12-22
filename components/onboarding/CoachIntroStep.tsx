@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
 
 interface Props {
   themeName?: string;
   themeId?: string;
+  motivationStyle?: 'encouraging' | 'challenging' | 'analytical' | 'spiritual';
 }
 
 const COACH_INTROS: Record<string, { greeting: string; description: string; traits: string[] }> = {
@@ -33,8 +35,46 @@ const COACH_INTROS: Record<string, { greeting: string; description: string; trai
   }
 };
 
-const CoachIntroStep: React.FC<Props> = ({ themeName, themeId = 'custom' }) => {
-  const intro = COACH_INTROS[themeId] || COACH_INTROS.custom;
+const CoachIntroStep: React.FC<Props> = ({ themeName, themeId = 'custom', motivationStyle }) => {
+  const staticIntro = COACH_INTROS[themeId] || COACH_INTROS.custom;
+  const [dynamicGreeting, setDynamicGreeting] = useState<string | null>(null);
+  const [isLoadingGreeting, setIsLoadingGreeting] = useState(true);
+
+  // Fetch dynamic greeting based on theme (WOW Optimization v1.8)
+  useEffect(() => {
+    const fetchDynamicGreeting = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('onboarding-themes', {
+          body: {
+            action: 'generate_greeting',
+            theme_id: themeId,
+            theme_name: themeName,
+            motivation_style: motivationStyle
+          }
+        });
+
+        if (!error && data?.greeting) {
+          setDynamicGreeting(data.greeting);
+        }
+      } catch (err) {
+        // Silently fall back to static greeting
+        console.log('Using static greeting (dynamic fetch failed)');
+      } finally {
+        setIsLoadingGreeting(false);
+      }
+    };
+
+    // Only fetch if we have a theme selected
+    if (themeId && themeId !== 'custom') {
+      fetchDynamicGreeting();
+    } else {
+      setIsLoadingGreeting(false);
+    }
+  }, [themeId, themeName, motivationStyle]);
+
+  // Use dynamic greeting if available, otherwise fall back to static
+  const greeting = dynamicGreeting || staticIntro.greeting;
+  const intro = staticIntro;
 
   return (
     <div className="text-center">
@@ -51,7 +91,11 @@ const CoachIntroStep: React.FC<Props> = ({ themeName, themeId = 'custom' }) => {
       {/* Greeting */}
       <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-100">
         <h2 className="text-2xl font-serif font-bold text-navy-900 mb-4">
-          {intro.greeting}
+          {isLoadingGreeting ? (
+            <span className="animate-pulse">Preparing your coach...</span>
+          ) : (
+            greeting
+          )}
         </h2>
         <p className="text-gray-600 text-lg leading-relaxed mb-6">
           {intro.description}
