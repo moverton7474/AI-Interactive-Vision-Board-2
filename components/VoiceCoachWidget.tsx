@@ -48,6 +48,7 @@ const VoiceCoachWidget: React.FC = () => {
     const sessionIdRef = useRef(sessionId);
     const accumulatedTranscriptRef = useRef('');
     const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const recognitionRunningRef = useRef(false); // Track if recognition is actually running
 
     // Keep refs in sync with state
     useEffect(() => {
@@ -81,17 +82,19 @@ const VoiceCoachWidget: React.FC = () => {
             recognitionRef.current.maxAlternatives = 1;
 
             recognitionRef.current.onstart = () => {
+                recognitionRunningRef.current = true;
                 setIsListening(true);
                 setStatus('listening');
                 setError(null);
             };
 
             recognitionRef.current.onend = () => {
+                recognitionRunningRef.current = false;
                 // If continuous mode ends unexpectedly and we're still supposed to be listening, restart
                 if (isListeningRef.current && !isSpeakingRef.current && sessionIdRef.current) {
                     // Add a small delay before restarting to prevent rapid restart loops
                     setTimeout(() => {
-                        if (isListeningRef.current && !isSpeakingRef.current && recognitionRef.current) {
+                        if (isListeningRef.current && !isSpeakingRef.current && recognitionRef.current && !recognitionRunningRef.current) {
                             try {
                                 recognitionRef.current.start();
                             } catch (e) {
@@ -298,16 +301,18 @@ const VoiceCoachWidget: React.FC = () => {
                 setIsSpeaking(false);
                 setStatus('idle');
                 // Auto-listen after AI speaks if enabled
-                if (autoListen && sessionIdRef.current) {
+                if (autoListen && sessionIdRef.current && !recognitionRunningRef.current) {
                     setTimeout(() => {
-                        accumulatedTranscriptRef.current = '';
-                        setTranscript('');
-                        try {
-                            recognitionRef.current?.start();
-                            setIsListening(true);
-                            setStatus('listening');
-                        } catch (e) {
-                            console.log('Could not auto-start listening:', e);
+                        if (!recognitionRunningRef.current && sessionIdRef.current) {
+                            accumulatedTranscriptRef.current = '';
+                            setTranscript('');
+                            try {
+                                recognitionRef.current?.start();
+                                setIsListening(true);
+                                setStatus('listening');
+                            } catch (e) {
+                                console.log('Could not auto-start listening:', e);
+                            }
                         }
                     }, 500);
                 }
@@ -323,7 +328,7 @@ const VoiceCoachWidget: React.FC = () => {
     };
 
     const toggleListening = () => {
-        if (isListening) {
+        if (isListening || recognitionRunningRef.current) {
             recognitionRef.current?.stop();
             // Clear any pending silence timer and send accumulated text
             if (silenceTimerRef.current) {
@@ -339,11 +344,13 @@ const VoiceCoachWidget: React.FC = () => {
         } else {
             setTranscript('');
             accumulatedTranscriptRef.current = '';
-            try {
-                recognitionRef.current?.start();
-            } catch (e) {
-                console.log('Could not start recognition:', e);
-                setError('Voice recognition unavailable. Please try again.');
+            if (!recognitionRunningRef.current) {
+                try {
+                    recognitionRef.current?.start();
+                } catch (e) {
+                    console.log('Could not start recognition:', e);
+                    setError('Voice recognition unavailable. Please try again.');
+                }
             }
         }
     };
@@ -382,6 +389,29 @@ const VoiceCoachWidget: React.FC = () => {
         synthRef.current?.cancel();
         setIsSpeaking(false);
         setStatus('idle');
+    };
+
+    // Manual send function for when auto-send doesn't trigger
+    const manualSend = () => {
+        const textToSend = (accumulatedTranscriptRef.current + transcript).trim();
+        if (!textToSend || !sessionId) return;
+
+        // Stop listening first
+        if (recognitionRunningRef.current) {
+            recognitionRef.current?.stop();
+        }
+
+        // Clear timers
+        if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+        }
+
+        // Send the text
+        handleUserSpeech(textToSend);
+        accumulatedTranscriptRef.current = '';
+        setTranscript('');
+        setIsListening(false);
     };
 
     return (
@@ -534,10 +564,22 @@ const VoiceCoachWidget: React.FC = () => {
                         </p>
                     )}
 
-                    {transcript && status === 'listening' && (
-                        <p className="text-indigo-300 text-xs mt-2 italic bg-slate-800/50 px-2 py-1 rounded">
-                            "{transcript}"
-                        </p>
+                    {transcript && (status === 'listening' || status === 'idle') && sessionId && (
+                        <div className="mt-2 bg-slate-800/50 px-2 py-1 rounded">
+                            <p className="text-indigo-300 text-xs italic">
+                                "{transcript}"
+                            </p>
+                            <button
+                                type="button"
+                                onClick={manualSend}
+                                className="mt-1 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-full transition-colors flex items-center gap-1 mx-auto"
+                            >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                </svg>
+                                Send
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>

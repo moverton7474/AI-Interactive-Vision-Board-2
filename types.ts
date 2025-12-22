@@ -19,6 +19,7 @@ export enum AppView {
   WEEKLY_REVIEWS = 'WEEKLY_REVIEWS', // Weekly Review History
   KNOWLEDGE_BASE = 'KNOWLEDGE_BASE', // Personal Knowledge Base
   VOICE_COACH = 'VOICE_COACH', // Voice Coaching Sessions
+  LIVE_VOICE_COACH = 'LIVE_VOICE_COACH', // Gemini Live Voice Sessions (Real-time)
   PRINT_PRODUCTS = 'PRINT_PRODUCTS', // Print Shop (Focus Pads, Cards, etc.)
   PARTNER = 'PARTNER', // Partner Collaboration Workspace
   INTEGRATIONS = 'INTEGRATIONS', // Slack, Teams integrations

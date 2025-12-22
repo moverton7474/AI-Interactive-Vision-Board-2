@@ -214,6 +214,12 @@ const Dashboard: React.FC<Props> = ({
                 💑 Partner
               </button>
               <button
+                onClick={() => onNavigate(AppView.LIVE_VOICE_COACH)}
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
+              >
+                🎙️ Live Voice
+              </button>
+              <button
                 onClick={() => onNavigate(AppView.SETTINGS)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >

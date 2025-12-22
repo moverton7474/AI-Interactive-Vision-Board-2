@@ -20,6 +20,7 @@ import MasterPromptQnA from './components/MasterPromptQnA';
 import WeeklyReviews from './components/WeeklyReviews';
 import KnowledgeBase from './components/KnowledgeBase';
 import VoiceCoach from './components/VoiceCoach';
+import LiveVoiceCoach from './components/LiveVoiceCoach';
 import PrintProducts from './components/PrintProducts';
 import PartnerDashboard from './components/PartnerDashboard';
 import SlackIntegration from './components/SlackIntegration';
@@ -1278,6 +1279,8 @@ const App = () => {
         return <KnowledgeBase onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.VOICE_COACH:
         return <VoiceCoach onBack={() => setView(AppView.DASHBOARD)} />;
+      case AppView.LIVE_VOICE_COACH:
+        return <LiveVoiceCoach onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.PRINT_PRODUCTS:
         return <PrintProducts onBack={() => setView(AppView.DASHBOARD)} />;
       case AppView.PARTNER:
