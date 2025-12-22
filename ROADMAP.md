@@ -3,7 +3,7 @@
 **Version:** 2.8
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 21, 2025
+**Last Updated:** December 22, 2025
 
 ---
 
@@ -117,6 +117,20 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 **Status:** v1.0-v2.8 COMPLETE. AI Coach Agentic Execution with Human-in-the-Loop confirmation, Google Calendar integration, observability tracing, and gradual rollout infrastructure all production ready.
 
 ### 🎉 Recent Major Achievements (December 2025)
+
+**Voice Coach Production Fix & OpenAI Migration (December 22, 2025):**
+- ✅ Migrated Voice Coach AI from Gemini to OpenAI GPT-4o for faster, more intelligent responses
+- ✅ Fixed OpenAI API key configuration in Supabase Edge Function secrets
+- ✅ Voice Coach now delivers intelligent, contextual responses (verified working)
+- ✅ Agent tools executing successfully (create_task, send_email confirmed working)
+- ✅ Fixed speech recognition rapid restart loops (300ms delay fix)
+- ✅ Fixed infinite loop in useFeatureFlags hook (refs instead of state)
+- ✅ Fixed feature_flags schema mismatch (is_enabled vs is_active)
+- ✅ Fixed agent tool execution schema mismatches (action_tasks vs action_steps)
+- ✅ Added team_id column to agent_action_history table
+- ✅ Enhanced error handling for speech recognition (specific error messages)
+- 🔲 **IDENTIFIED ISSUE**: Voice Coach cannot reliably capture email addresses via voice recognition
+- 🔲 **PLANNED FIX**: Auto-load user profile data, email normalization helper, cross-session memory
 
 **AI Coach Agentic Execution (December 20-21, 2025):**
 - ✅ Human-in-the-Loop confirmation flow with pending actions table
@@ -2687,7 +2701,7 @@ All core backend systems (v1.0-v2.0) have been successfully deployed:
 | Systems Architecture | ✅ Deployed | Active Feed and SOPs working |
 | Print Products Backend | ✅ Deployed | All PDF generation ready |
 
-### Edge Functions Status (30 Deployed) ✅
+### Edge Functions Status (56 Deployed) ✅
 
 | Category | Functions | Status |
 |----------|-----------|--------|
@@ -2697,11 +2711,15 @@ All core backend systems (v1.0-v2.0) have been successfully deployed:
 | **Communication (3)** | send-sms, make-call, communication-router | ✅ Active |
 | **AMIE (4)** | onboarding-themes, amie-prompt-builder, amie-psychological-coach, knowledge-ingest | ✅ Active |
 | **Workbook (2)** | generate-workbook-pdf, print-products | ✅ Active |
-| **Voice (1)** | voice-coach-session | ✅ Active |
+| **Voice (1)** | voice-coach-session (OpenAI GPT-4o powered) | ✅ Active |
 | **Watch (2)** | watch-sync, watch-notifications | ✅ Active |
 | **Enterprise (3)** | partner-collaboration, slack-bot, teams-bot | ✅ Active |
 | **Systems (4)** | ingest-youtube-feed, seed-frameworks, background-worker, mdals-engine | ✅ Active |
-| **Scheduling (1)** | schedule-notification | ✅ Active |
+| **Scheduling (3)** | schedule-notification, sms-scheduler, celebrate-streak | ✅ Active |
+| **Admin (5)** | admin-ai-settings, admin-get-voice-coach-stats, admin-credits, process-automations, admin-get-users | ✅ Active |
+| **Calendar (3)** | google-calendar-connect, google-calendar-create-event, google-calendar-availability | ✅ Active |
+| **Agent Actions (2)** | confirm-agent-action, cancel-agent-action | ✅ Active |
+| **Gemini Live (1)** | gemini-live-session | 🔲 Planned |
 
 ### Frontend UI Components - TO BUILD
 
