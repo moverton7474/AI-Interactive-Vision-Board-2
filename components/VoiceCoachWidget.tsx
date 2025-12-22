@@ -25,6 +25,8 @@ const SESSION_TYPES = [
 
 const VoiceCoachWidget: React.FC = () => {
     const [userId, setUserId] = useState<string | null>(null);
+    const [userEmail, setUserEmail] = useState<string | null>(null);
+    const [userName, setUserName] = useState<string | null>(null);
     const [isListening, setIsListening] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [transcript, setTranscript] = useState('');
@@ -64,11 +66,25 @@ const VoiceCoachWidget: React.FC = () => {
     }, [sessionId]);
 
     useEffect(() => {
-        // Get user session
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        // Get user session and profile
+        supabase.auth.getSession().then(async ({ data: { session } }) => {
             if (session?.user) {
                 setUserId(session.user.id);
                 loadSessionStats(session.user.id);
+
+                // Load user profile for email display
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('email, full_name, first_name')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (profile) {
+                    setUserEmail(profile.email || session.user.email || null);
+                    setUserName(profile.first_name || profile.full_name?.split(' ')[0] || null);
+                } else {
+                    setUserEmail(session.user.email || null);
+                }
             }
         });
 
@@ -447,6 +463,16 @@ const VoiceCoachWidget: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* User Email Indicator (shown during active session) */}
+            {sessionId && userEmail && (
+                <div className="mb-2 px-2 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-2 relative z-10">
+                    <span className="text-green-400 text-sm">📧</span>
+                    <span className="text-green-300 text-xs">
+                        Email on file: <span className="font-medium">{userEmail}</span>
+                    </span>
+                </div>
+            )}
 
             {/* Session Type Selector (only when no active session) */}
             {!sessionId && (

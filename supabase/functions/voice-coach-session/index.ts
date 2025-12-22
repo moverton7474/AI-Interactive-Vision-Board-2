@@ -296,38 +296,78 @@ async function getUserProfileData(supabase: any, userId: string): Promise<{
 /**
  * Normalize spoken email addresses to proper format
  * Converts patterns like "john at gmail dot com" to "john@gmail.com"
+ * Handles number words, phonetic alphabet, and common speech recognition errors
  */
 function normalizeSpokenEmail(spokenEmail: string): string {
   if (!spokenEmail) return spokenEmail
 
   let normalized = spokenEmail.toLowerCase().trim()
 
+  // Number words to digits
+  const numberWords: Record<string, string> = {
+    'zero': '0', 'oh': '0', 'o': '0',
+    'one': '1', 'won': '1',
+    'two': '2', 'to': '2', 'too': '2',
+    'three': '3',
+    'four': '4', 'for': '4', 'fore': '4',
+    'five': '5',
+    'six': '6',
+    'seven': '7',
+    'eight': '8', 'ate': '8',
+    'nine': '9', 'niner': '9'
+  }
+
+  // Replace number words with digits (only when surrounded by spaces or at boundaries)
+  for (const [word, digit] of Object.entries(numberWords)) {
+    normalized = normalized.replace(new RegExp(`\\b${word}\\b`, 'gi'), digit)
+  }
+
   // Common spoken patterns to actual email characters
   const replacements: [RegExp, string][] = [
-    // "at" symbol
+    // "at" symbol variations
     [/\s+at\s+/gi, '@'],
+    [/\s+add\s+/gi, '@'], // "add" often misheard as "at"
     [/\s*@\s*/g, '@'],
 
-    // "dot" to period
+    // "dot" to period variations
     [/\s+dot\s+/gi, '.'],
     [/\s+period\s+/gi, '.'],
     [/\s+point\s+/gi, '.'],
+    [/\s+stop\s+/gi, '.'],
 
-    // Common domain fixes
+    // Domain name fixes (spaces in domain names)
+    [/g\s*mail/gi, 'gmail'],
+    [/gee\s*mail/gi, 'gmail'],
+    [/hot\s*mail/gi, 'hotmail'],
+    [/out\s*look/gi, 'outlook'],
+    [/i\s*cloud/gi, 'icloud'],
+    [/proton\s*mail/gi, 'protonmail'],
+    [/ya\s*hoo/gi, 'yahoo'],
+
+    // Common domain completions
     [/@gmail\.?$/i, '@gmail.com'],
     [/@yahoo\.?$/i, '@yahoo.com'],
     [/@hotmail\.?$/i, '@hotmail.com'],
     [/@outlook\.?$/i, '@outlook.com'],
     [/@icloud\.?$/i, '@icloud.com'],
+    [/@protonmail\.?$/i, '@protonmail.com'],
+    [/@aol\.?$/i, '@aol.com'],
 
     // Remove spaces around @ and .
     [/\s*@\s*/g, '@'],
     [/\s*\.\s*/g, '.'],
 
-    // Handle "underscore"
+    // Handle special characters spoken
     [/\s+underscore\s+/gi, '_'],
+    [/\s+under\s+score\s+/gi, '_'],
     [/\s+dash\s+/gi, '-'],
     [/\s+hyphen\s+/gi, '-'],
+    [/\s+minus\s+/gi, '-'],
+    [/\s+plus\s+/gi, '+'],
+
+    // Remove filler words that might appear
+    [/\s+the\s+/gi, ''],
+    [/\s+a\s+/gi, ''],
 
     // Remove any remaining spaces
     [/\s+/g, '']
@@ -337,8 +377,12 @@ function normalizeSpokenEmail(spokenEmail: string): string {
     normalized = normalized.replace(pattern, replacement)
   }
 
-  // Final cleanup - ensure no double dots or invalid characters
-  normalized = normalized.replace(/\.{2,}/g, '.')
+  // Final cleanup
+  normalized = normalized.replace(/\.{2,}/g, '.') // No double dots
+  normalized = normalized.replace(/@{2,}/g, '@') // No double @
+  normalized = normalized.replace(/^\.+|\.+$/g, '') // No leading/trailing dots
+
+  console.log(`[normalizeSpokenEmail] Input: "${spokenEmail}" -> Output: "${normalized}"`)
 
   return normalized
 }
@@ -650,7 +694,7 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
           // Execute the tool with guardrails
           let toolResult
           try {
-            toolResult = await executeAgentTool(supabase, userId, name, args, aiSettings)
+            toolResult = await executeAgentTool(supabase, userId, name, args, aiSettings, userProfileData)
             actionsPerformed.push({ tool: name, args, result: toolResult })
           } catch (toolError: any) {
             console.error('Tool execution error:', toolError)
@@ -1075,12 +1119,24 @@ IMPORTANT - USER PROFILE DATA (already known - DO NOT ask for this):
 - User's Name: ${userProfileData?.full_name || userName}
 - User's Email: ${userEmail}
 
-EMAIL RULES:
-- When user says "send to me", "my email", "send to myself", or similar - USE their email: ${userEmail}
-- NEVER ask the user to repeat or spell their own email address - you already know it
-- Only ask for email when sending to SOMEONE ELSE (a different person)
-- Always CONFIRM the email before sending: "I'll send that to ${userEmail} - is that correct?"
-- If user speaks an email address, try to normalize it (e.g., "john at gmail dot com" = "john@gmail.com")
+EMAIL RULES - CRITICAL:
+1. When user refers to THEMSELVES ("send to me", "my email", "email me", "send to myself", "to my address"):
+   - Use "me" or "self" as the 'to' parameter - the system will automatically resolve to ${userEmail}
+   - Do NOT ask "what is your email?" - you already know it
+   - Say: "I'll send that to your email on file" NOT "what is your email address?"
+
+2. When user gives a NEW email address for SOMEONE ELSE:
+   - They might say "john at gmail dot com" - pass this exactly, the system normalizes it
+   - Only ask for clarification if the email is completely unclear
+
+3. ALWAYS confirm before sending:
+   - For self: "I'll send that to your email. Should I send it now?"
+   - For others: "I'll send that to [email]. Is that correct?"
+
+EXAMPLE CONVERSATIONS:
+- User: "Email me a summary" → You: "I'll email a summary to your address on file. Sending now..." (use to="me")
+- User: "Send that to john at gmail dot com" → You: "I'll send that to john@gmail.com. Correct?" (use to="john at gmail dot com")
+- User: "Can you email my wife?" → You: "Sure! What's her email address?"
 `
     : ''
 
@@ -1441,8 +1497,16 @@ function getOpenAITools() {
 /**
  * Execute agent tool based on function call with guardrails
  */
-async function executeAgentTool(supabase: any, userId: string, toolName: string, args: any, aiSettings?: any): Promise<any> {
-  console.log(`Executing tool: ${toolName}`, args)
+async function executeAgentTool(
+  supabase: any,
+  userId: string,
+  toolName: string,
+  args: any,
+  aiSettings?: any,
+  userProfileData?: { email: string | null; full_name: string | null; first_name: string | null }
+): Promise<any> {
+  console.log(`[executeAgentTool] Executing tool: ${toolName}`, args)
+  console.log(`[executeAgentTool] User profile available: ${!!userProfileData}, email: ${userProfileData?.email ? '***@***' : 'none'}`)
 
   // Check agentic capability guardrails
   if (aiSettings) {
@@ -1475,6 +1539,20 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
       let to = args?.to
       const subject = args?.subject
       const body = args?.body
+
+      // Handle "send to me/myself/self" - use user's profile email
+      const selfPatterns = ['me', 'myself', 'self', 'my email', 'my address', 'user', 'owner']
+      if (to && selfPatterns.some(p => to.toLowerCase().trim() === p || to.toLowerCase().includes('send to me'))) {
+        if (userProfileData?.email) {
+          console.log(`[send_email] Detected self-reference "${to}", using profile email`)
+          to = userProfileData.email
+        } else {
+          return {
+            success: false,
+            error: 'I tried to send to your email, but I don\'t have your email address on file. Please update your profile or tell me the specific email address.'
+          }
+        }
+      }
 
       // Validate required args
       if (!to || !subject || !body) {
@@ -2566,6 +2644,9 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
       const actionType = pendingAction.action_type
       const actionPayload = pendingAction.action_payload
 
+      // Fetch user profile for email actions
+      const confirmedUserProfile = await getUserProfileData(supabase, userId)
+
       let executionResult: any
 
       try {
@@ -2604,7 +2685,8 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
               userId,
               actionType,
               actionPayload,
-              { ...aiSettings, require_confirmation: false } // Skip confirmation loop
+              { ...aiSettings, require_confirmation: false }, // Skip confirmation loop
+              confirmedUserProfile // Pass user profile for email resolution
             )
             break
 
