@@ -252,6 +252,129 @@ async function checkSentimentAlert(supabase: any, userId: string, sentiment: num
 }
 
 /**
+ * Get user profile data including email and name for AI context
+ * This allows the AI to use the user's known email without asking
+ */
+async function getUserProfileData(supabase: any, userId: string): Promise<{
+  email: string | null;
+  full_name: string | null;
+  first_name: string | null;
+}> {
+  try {
+    // Get from profiles table
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email, full_name, first_name')
+      .eq('id', userId)
+      .single()
+
+    if (profile) {
+      return {
+        email: profile.email || null,
+        full_name: profile.full_name || null,
+        first_name: profile.first_name || profile.full_name?.split(' ')[0] || null
+      }
+    }
+
+    // Fallback: try to get email from auth.users via admin API
+    const { data: authData } = await supabase.auth.admin.getUserById(userId)
+    if (authData?.user?.email) {
+      return {
+        email: authData.user.email,
+        full_name: authData.user.user_metadata?.full_name || null,
+        first_name: authData.user.user_metadata?.first_name || authData.user.email.split('@')[0] || null
+      }
+    }
+
+    return { email: null, full_name: null, first_name: null }
+  } catch (err) {
+    console.log('Error fetching user profile data:', err)
+    return { email: null, full_name: null, first_name: null }
+  }
+}
+
+/**
+ * Normalize spoken email addresses to proper format
+ * Converts patterns like "john at gmail dot com" to "john@gmail.com"
+ */
+function normalizeSpokenEmail(spokenEmail: string): string {
+  if (!spokenEmail) return spokenEmail
+
+  let normalized = spokenEmail.toLowerCase().trim()
+
+  // Common spoken patterns to actual email characters
+  const replacements: [RegExp, string][] = [
+    // "at" symbol
+    [/\s+at\s+/gi, '@'],
+    [/\s*@\s*/g, '@'],
+
+    // "dot" to period
+    [/\s+dot\s+/gi, '.'],
+    [/\s+period\s+/gi, '.'],
+    [/\s+point\s+/gi, '.'],
+
+    // Common domain fixes
+    [/@gmail\.?$/i, '@gmail.com'],
+    [/@yahoo\.?$/i, '@yahoo.com'],
+    [/@hotmail\.?$/i, '@hotmail.com'],
+    [/@outlook\.?$/i, '@outlook.com'],
+    [/@icloud\.?$/i, '@icloud.com'],
+
+    // Remove spaces around @ and .
+    [/\s*@\s*/g, '@'],
+    [/\s*\.\s*/g, '.'],
+
+    // Handle "underscore"
+    [/\s+underscore\s+/gi, '_'],
+    [/\s+dash\s+/gi, '-'],
+    [/\s+hyphen\s+/gi, '-'],
+
+    // Remove any remaining spaces
+    [/\s+/g, '']
+  ]
+
+  for (const [pattern, replacement] of replacements) {
+    normalized = normalized.replace(pattern, replacement)
+  }
+
+  // Final cleanup - ensure no double dots or invalid characters
+  normalized = normalized.replace(/\.{2,}/g, '.')
+
+  return normalized
+}
+
+/**
+ * Get recent session summaries for cross-session memory
+ */
+async function getRecentSessionSummaries(supabase: any, userId: string, limit: number = 3): Promise<string> {
+  try {
+    const { data: sessions } = await supabase
+      .from('voice_coach_sessions')
+      .select('coaching_notes, key_topics, created_at, session_type')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (!sessions || sessions.length === 0) {
+      return ''
+    }
+
+    const summaries = sessions.map((s: any) => {
+      const date = new Date(s.created_at).toLocaleDateString()
+      const topics = s.key_topics?.length > 0 ? s.key_topics.join(', ') : 'general check-in'
+      const notes = s.coaching_notes || ''
+      return `[${date}] ${s.session_type}: Topics: ${topics}. ${notes ? `Notes: ${notes}` : ''}`
+    }).join('\n')
+
+    return summaries
+  } catch (err) {
+    console.log('Error fetching recent sessions:', err)
+    return ''
+  }
+}
+
+/**
  * Start a new voice coaching session
  */
 async function startSession(supabase: any, userId: string, body: any) {
@@ -449,8 +572,15 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
     identityProfile.personality_snapshot = identityProfile.identity_summary
   }
 
-  // Build system prompt for voice coaching
-  const systemPrompt = buildVoiceCoachPrompt(session.session_type, theme, identityProfile)
+  // Load user profile data (email, name) for the AI to use
+  const userProfileData = await getUserProfileData(supabase, userId)
+  console.log('[Voice Coach] User profile loaded:', { email: userProfileData.email ? '***' : null, name: userProfileData.first_name })
+
+  // Load recent session summaries for cross-session memory
+  const recentSessionSummaries = await getRecentSessionSummaries(supabase, userId, 3)
+
+  // Build system prompt for voice coaching with user profile data
+  const systemPrompt = buildVoiceCoachPrompt(session.session_type, theme, identityProfile, userProfileData, recentSessionSummaries)
 
   // Format conversation for AI
   const messages = [
@@ -915,10 +1045,18 @@ function generateOpeningMessage(sessionType: string, theme: any, profile: any): 
 /**
  * Build voice coach system prompt
  */
-function buildVoiceCoachPrompt(sessionType: string, theme: any, profile: any): string {
+function buildVoiceCoachPrompt(
+  sessionType: string,
+  theme: any,
+  profile: any,
+  userProfileData?: { email: string | null; full_name: string | null; first_name: string | null },
+  recentSessionSummaries?: string
+): string {
   const themeName = theme?.display_name || theme?.name || 'AMIE'
   const voiceStyle = theme?.voice_style || 'warm and encouraging'
   const personalityContext = profile?.personality_snapshot || ''
+  const userName = userProfileData?.first_name || userProfileData?.full_name || 'there'
+  const userEmail = userProfileData?.email || null
 
   const sessionContext: Record<string, string> = {
     morning_routine: 'helping the user start their day with intention and clarity',
@@ -930,10 +1068,35 @@ function buildVoiceCoachPrompt(sessionType: string, theme: any, profile: any): s
     crisis_support: 'providing calm, supportive presence during difficulty'
   }
 
+  // Build user data section
+  const userDataSection = userEmail
+    ? `
+IMPORTANT - USER PROFILE DATA (already known - DO NOT ask for this):
+- User's Name: ${userProfileData?.full_name || userName}
+- User's Email: ${userEmail}
+
+EMAIL RULES:
+- When user says "send to me", "my email", "send to myself", or similar - USE their email: ${userEmail}
+- NEVER ask the user to repeat or spell their own email address - you already know it
+- Only ask for email when sending to SOMEONE ELSE (a different person)
+- Always CONFIRM the email before sending: "I'll send that to ${userEmail} - is that correct?"
+- If user speaks an email address, try to normalize it (e.g., "john at gmail dot com" = "john@gmail.com")
+`
+    : ''
+
+  // Build session memory section
+  const sessionMemorySection = recentSessionSummaries
+    ? `
+RECENT SESSION MEMORY (reference these for continuity):
+${recentSessionSummaries}
+`
+    : ''
+
   return `You are ${themeName}, an AI voice coach and executive assistant with a ${voiceStyle} communication style.
+You are speaking with ${userName}.
 
 Your role: ${sessionContext[sessionType] || sessionContext.check_in}
-
+${userDataSection}
 CAPABILITIES - You can perform actions for the user:
 - Send emails on their behalf (use send_email tool)
 - Create tasks and to-do items (use create_task tool)
@@ -951,7 +1114,9 @@ Communication guidelines:
 - Acknowledge emotions before offering advice
 - When the user asks you to perform a task, confirm the details and execute it
 - Report back on completed actions
-
+- Remember what the user discussed earlier in this session
+- Reference previous conversations when relevant
+${sessionMemorySection}
 ${personalityContext ? `User context: ${personalityContext}` : ''}
 
 ${theme?.encouragement_phrases ? `When encouraging, consider phrases like: ${theme.encouragement_phrases.join(', ')}` : ''}
@@ -1307,7 +1472,7 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
 
   switch (toolName) {
     case 'send_email': {
-      const to = args?.to
+      let to = args?.to
       const subject = args?.subject
       const body = args?.body
 
@@ -1316,6 +1481,15 @@ async function executeAgentTool(supabase: any, userId: string, toolName: string,
         return {
           success: false,
           error: `Missing required information. I need: ${!to ? 'email address, ' : ''}${!subject ? 'subject, ' : ''}${!body ? 'message body' : ''}`.replace(/, $/, '')
+        }
+      }
+
+      // Normalize spoken email address (e.g., "john at gmail dot com" -> "john@gmail.com")
+      if (to && to.toLowerCase() !== 'team') {
+        const originalTo = to
+        to = normalizeSpokenEmail(to)
+        if (originalTo !== to) {
+          console.log(`[send_email] Normalized email: "${originalTo}" -> "${to}"`)
         }
       }
 
