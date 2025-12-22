@@ -42,6 +42,26 @@ const VoiceCoachWidget: React.FC = () => {
     const synthRef = useRef<SpeechSynthesis | null>(typeof window !== 'undefined' ? window.speechSynthesis : null);
     const historyRef = useRef<HTMLDivElement>(null);
 
+    // Refs to track state in callbacks (avoid stale closures)
+    const isListeningRef = useRef(isListening);
+    const isSpeakingRef = useRef(isSpeaking);
+    const sessionIdRef = useRef(sessionId);
+    const accumulatedTranscriptRef = useRef('');
+    const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Keep refs in sync with state
+    useEffect(() => {
+        isListeningRef.current = isListening;
+    }, [isListening]);
+
+    useEffect(() => {
+        isSpeakingRef.current = isSpeaking;
+    }, [isSpeaking]);
+
+    useEffect(() => {
+        sessionIdRef.current = sessionId;
+    }, [sessionId]);
+
     useEffect(() => {
         // Get user session
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -55,9 +75,10 @@ const VoiceCoachWidget: React.FC = () => {
         if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
             const SpeechRecognition = (window as any).webkitSpeechRecognition;
             recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.continuous = false;
+            recognitionRef.current.continuous = true; // Keep listening even with pauses
             recognitionRef.current.interimResults = true;
             recognitionRef.current.lang = 'en-US';
+            recognitionRef.current.maxAlternatives = 1;
 
             recognitionRef.current.onstart = () => {
                 setIsListening(true);
@@ -66,7 +87,26 @@ const VoiceCoachWidget: React.FC = () => {
             };
 
             recognitionRef.current.onend = () => {
-                setIsListening(false);
+                // If continuous mode ends unexpectedly and we're still supposed to be listening, restart
+                if (isListeningRef.current && !isSpeakingRef.current && sessionIdRef.current) {
+                    // Add a small delay before restarting to prevent rapid restart loops
+                    setTimeout(() => {
+                        if (isListeningRef.current && !isSpeakingRef.current && recognitionRef.current) {
+                            try {
+                                recognitionRef.current.start();
+                            } catch (e) {
+                                console.log('Could not restart recognition:', e);
+                                setIsListening(false);
+                                setStatus('idle');
+                            }
+                        }
+                    }, 300);
+                } else {
+                    setIsListening(false);
+                    if (!isSpeakingRef.current) {
+                        setStatus('idle');
+                    }
+                }
             };
 
             recognitionRef.current.onerror = (event: any) => {
@@ -106,23 +146,41 @@ const VoiceCoachWidget: React.FC = () => {
 
             recognitionRef.current.onresult = (event: any) => {
                 let interimTranscript = '';
-                let finalTranscript = '';
 
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const transcript = event.results[i][0].transcript;
                     if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
-                        handleUserSpeech(finalTranscript);
+                        accumulatedTranscriptRef.current += transcript + ' ';
                     } else {
-                        interimTranscript += event.results[i][0].transcript;
+                        interimTranscript = transcript;
                     }
                 }
-                setTranscript(finalTranscript || interimTranscript);
+
+                // Update display with accumulated + interim
+                setTranscript((accumulatedTranscriptRef.current + interimTranscript).trim());
+
+                // Reset silence timer - give user 2.5 seconds of silence before sending
+                if (silenceTimerRef.current) {
+                    clearTimeout(silenceTimerRef.current);
+                }
+
+                silenceTimerRef.current = setTimeout(() => {
+                    const textToSend = accumulatedTranscriptRef.current.trim();
+                    if (textToSend && sessionIdRef.current) {
+                        handleUserSpeech(textToSend);
+                        accumulatedTranscriptRef.current = '';
+                        setTranscript('');
+                    }
+                }, 2500);
             };
         }
 
         return () => {
             recognitionRef.current?.stop();
             synthRef.current?.cancel();
+            if (silenceTimerRef.current) {
+                clearTimeout(silenceTimerRef.current);
+            }
         };
     }, []);
 
@@ -240,9 +298,17 @@ const VoiceCoachWidget: React.FC = () => {
                 setIsSpeaking(false);
                 setStatus('idle');
                 // Auto-listen after AI speaks if enabled
-                if (autoListen && sessionId) {
+                if (autoListen && sessionIdRef.current) {
                     setTimeout(() => {
-                        recognitionRef.current?.start();
+                        accumulatedTranscriptRef.current = '';
+                        setTranscript('');
+                        try {
+                            recognitionRef.current?.start();
+                            setIsListening(true);
+                            setStatus('listening');
+                        } catch (e) {
+                            console.log('Could not auto-start listening:', e);
+                        }
                     }, 500);
                 }
             };
@@ -259,9 +325,26 @@ const VoiceCoachWidget: React.FC = () => {
     const toggleListening = () => {
         if (isListening) {
             recognitionRef.current?.stop();
+            // Clear any pending silence timer and send accumulated text
+            if (silenceTimerRef.current) {
+                clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = null;
+            }
+            const textToSend = accumulatedTranscriptRef.current.trim();
+            if (textToSend && sessionId) {
+                handleUserSpeech(textToSend);
+            }
+            accumulatedTranscriptRef.current = '';
+            setIsListening(false);
         } else {
             setTranscript('');
-            recognitionRef.current?.start();
+            accumulatedTranscriptRef.current = '';
+            try {
+                recognitionRef.current?.start();
+            } catch (e) {
+                console.log('Could not start recognition:', e);
+                setError('Voice recognition unavailable. Please try again.');
+            }
         }
     };
 
