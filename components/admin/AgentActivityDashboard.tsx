@@ -159,20 +159,36 @@ const AgentActivityDashboard: React.FC<AgentActivityDashboardProps> = ({
       }));
       setActionStats(stats);
 
-      // Load recent traces with user info
+      // Load recent traces (without profile join due to FK constraints)
       const { data: recent, error: recentError } = await supabase
         .from('agent_execution_traces')
         .select(`
           id, trace_type, function_name, user_id, latency_ms, duration_ms,
-          error, created_at, confidence_score,
-          profiles:user_id (full_name, email)
+          error, created_at, confidence_score
         `)
         .eq('team_id', teamId)
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (recentError) throw recentError;
-      setRecentTraces(recent || []);
+
+      // Fetch user profiles separately if we have traces
+      let tracesWithProfiles = recent || [];
+      if (recent && recent.length > 0) {
+        const userIds = [...new Set(recent.map(t => t.user_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        // Map profiles to traces
+        const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+        tracesWithProfiles = recent.map(trace => ({
+          ...trace,
+          profiles: profileMap.get(trace.user_id) || null
+        }));
+      }
+      setRecentTraces(tracesWithProfiles);
 
       // Load feedback summary
       const { data: feedback, error: feedbackError } = await supabase
