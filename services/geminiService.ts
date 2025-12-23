@@ -119,6 +119,12 @@ export interface VisionGenerationResult {
   model_used?: string;
   likeness_optimized?: boolean;
   warning?: string;
+  // NEW: Complexity Router & Identity Anchor metadata
+  request_mode?: 'EDIT' | 'GENERATE';
+  identity_anchor_used?: boolean;
+  strategy_used?: string;
+  likeness_score?: number;
+  was_retried?: boolean;
 }
 
 export const editVisionImage = async (
@@ -129,7 +135,10 @@ export const editVisionImage = async (
   style?: string,
   aspectRatio?: string,
   identityPrompt?: string,
-  referenceImageTags?: string[]
+  referenceImageTags?: string[],
+  // NEW: Identity Anchor & Complexity Router parameters
+  identityAnchorImage?: string,  // Original selfie that NEVER changes (prevents degradation loop)
+  requestType?: 'EDIT' | 'GENERATE' | 'AUTO'  // Override classification: EDIT=cosmetic changes, GENERATE=full scene
 ): Promise<VisionGenerationResult | null> => {
   const rawImageList = Array.isArray(images) ? images : [images];
   const processedImages: string[] = [];
@@ -153,6 +162,19 @@ export const editVisionImage = async (
     return null;
   }
 
+  // Process identity anchor image if provided
+  let processedAnchor: string | undefined;
+  if (identityAnchorImage) {
+    let anchorData = identityAnchorImage;
+    if (typeof identityAnchorImage === 'string' && (identityAnchorImage.startsWith('http://') || identityAnchorImage.startsWith('https://'))) {
+      anchorData = await urlToBase64(identityAnchorImage);
+    }
+    if (anchorData) {
+      processedAnchor = anchorData;
+      console.log('🔒 Identity Anchor provided - original selfie will be used as primary reference');
+    }
+  }
+
   return withRetry(async () => {
     const { data, error } = await supabase.functions.invoke('gemini-proxy', {
       body: {
@@ -164,7 +186,10 @@ export const editVisionImage = async (
         style,
         aspectRatio,
         identityPrompt,
-        referenceImageTags: referenceImageTags || []
+        referenceImageTags: referenceImageTags || [],
+        // NEW: Identity Anchor & Complexity Router parameters
+        identityAnchorImage: processedAnchor,
+        requestType: requestType || 'AUTO'
       }
     });
 
@@ -186,7 +211,13 @@ export const editVisionImage = async (
       likenessOptimized: data.likeness_optimized,
       hasWarning: !!data.warning,
       imageStartsWith: data.image?.substring(0, 30),
-      imageEndsWith: data.image?.substring(Math.max(0, rawImageLength - 30))
+      imageEndsWith: data.image?.substring(Math.max(0, rawImageLength - 30)),
+      // NEW: Complexity Router & Identity Anchor metadata
+      requestMode: data.request_mode,
+      identityAnchorUsed: data.identity_anchor_used,
+      strategyUsed: data.strategy_used,
+      likenessScore: data.likeness_score,
+      wasRetried: data.was_retried
     });
 
     // Return full result with metadata
@@ -194,7 +225,13 @@ export const editVisionImage = async (
       image: data.image,
       model_used: data.model_used,
       likeness_optimized: data.likeness_optimized,
-      warning: data.warning
+      warning: data.warning,
+      // NEW: Complexity Router & Identity Anchor metadata
+      request_mode: data.request_mode,
+      identity_anchor_used: data.identity_anchor_used,
+      strategy_used: data.strategy_used,
+      likeness_score: data.likeness_score,
+      was_retried: data.was_retried
     };
   });
 };

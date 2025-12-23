@@ -440,7 +440,19 @@ ${history.map((h: any) => `${h.role}: ${h.text}`).join('\n')}
  * This significantly improves success rate while preserving likeness.
  */
 async function handleImageGeneration(apiKey: string, params: any, profile: any, requestId: string) {
-  const { images = [], prompt, embeddedText, titleText, style, aspectRatio, identityPrompt, referenceImageTags = [] } = params
+  const {
+    images = [],
+    prompt,
+    embeddedText,
+    titleText,
+    style,
+    aspectRatio,
+    identityPrompt,
+    referenceImageTags = [],
+    // NEW: Identity Anchor & Complexity Router parameters
+    identityAnchorImage,
+    requestType = 'AUTO' // 'EDIT' | 'GENERATE' | 'AUTO'
+  } = params
 
   // Enhanced logging for likeness pipeline debugging (no PII logged)
   const baseImagePresent = images.length > 0
@@ -448,6 +460,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   const hasIdentity = !!identityPrompt
   const identityLength = identityPrompt ? identityPrompt.length : 0
   const isPremium = profile?.subscription_tier === 'PRO' || profile?.subscription_tier === 'ELITE'
+  const hasIdentityAnchor = !!identityAnchorImage
 
   console.log(`[${requestId}] Image generation requested:`, JSON.stringify({
     baseImage: baseImagePresent,
@@ -459,7 +472,10 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     hasTitle: !!titleText,
     hasEmbeddedText: !!embeddedText,
     referenceTagCount: referenceImageTags.length,
-    tags: referenceImageTags // Log actual tags to debug
+    tags: referenceImageTags, // Log actual tags to debug
+    // NEW: Identity Anchor & Complexity Router logging
+    hasIdentityAnchor,
+    requestType
   }))
 
   // DIAGNOSTIC: Warn if tags don't match reference count (indicates frontend bug)
@@ -467,11 +483,27 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     console.warn(`[${requestId}] ⚠️ TAG MISMATCH: ${referenceImageTags.length} tags for ${referenceImageCount} reference images! This causes prompt issues.`)
   }
 
+  // ============================================
+  // IDENTITY ANCHOR HANDLING
+  // ============================================
+  // If identityAnchorImage is provided, it becomes the PRIMARY reference
+  // This prevents the "melting face" degradation loop when refining AI-generated images
+  let finalImages = [...images]
+  let finalTags = [...referenceImageTags]
+
+  if (identityAnchorImage) {
+    // Prepend the identity anchor as the FIRST image
+    // This ensures the original selfie is always the primary reference
+    finalImages = [identityAnchorImage, ...images]
+    finalTags = ['primary_identity_anchor', ...referenceImageTags]
+    console.log(`[${requestId}] Identity Anchor applied - original selfie prepended as primary reference`)
+  }
+
   // Common request params
   const requestParams: LikenessRequestParams = {
-    baseImage: images[0] || null,
-    referenceImages: images.slice(1),
-    referenceImageTags,
+    baseImage: finalImages[0] || null,
+    referenceImages: finalImages.slice(1),
+    referenceImageTags: finalTags,
     identityPrompt,
     sceneDescription: prompt || 'Create a beautiful, inspiring vision board image.',
     titleText,
@@ -481,9 +513,37 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
     isPremium
   }
 
-  // Build ALL request strategies
+  // ============================================
+  // COMPLEXITY ROUTER - EDIT vs GENERATE
+  // ============================================
+  let resolvedRequestType = requestType
+
+  if (requestType === 'AUTO' && prompt) {
+    console.log(`[${requestId}] Running Complexity Router to classify prompt intent...`)
+    resolvedRequestType = await classifyGenerationIntent(apiKey, prompt, requestId)
+  }
+
+  // Build requests based on resolved type
+  let primaryRequest: { contents: any[]; generationConfig: any }
+  let strategyLabel: string
+
+  if (resolvedRequestType === 'EDIT') {
+    // EDIT MODE: Use specialized face-preserving request
+    const detectedChanges = extractEditChanges(prompt || '')
+    primaryRequest = buildEditModeRequest(requestParams, detectedChanges, requestId)
+    strategyLabel = 'edit_mode'
+    console.log(`[${requestId}] Using EDIT MODE - detected changes: ${detectedChanges}`)
+  } else {
+    // GENERATE MODE: Use existing multi-strategy approach
+    primaryRequest = buildLikenessPreservingRequest(requestParams, requestId)
+    strategyLabel = 'natural_3turn'
+  }
+
+  // Build ALL request strategies for GENERATE mode fallbacks
   // Strategy A: Natural 3-turn conversation (improved - avoids safety filters)
-  const complexRequest = buildLikenessPreservingRequest(requestParams, requestId)
+  const complexRequest = resolvedRequestType === 'EDIT'
+    ? primaryRequest
+    : buildLikenessPreservingRequest(requestParams, requestId)
 
   // Strategy B: Simple single-turn (more compatible - fallback for when complex fails)
   const simpleRequest = buildSimpleLikenessRequest(requestParams, requestId)
@@ -491,7 +551,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   // Strategy C: Ultra-simple (last resort before giving up on Gemini)
   const ultraSimpleRequest = buildUltraSimpleLikenessRequest(requestParams, requestId)
 
-  console.log(`[${requestId}] Built generation requests: natural=${complexRequest.contents.length} turns, simple=1 turn, ultra-simple=1 turn`)
+  console.log(`[${requestId}] Built generation requests: mode=${resolvedRequestType}, primary=${strategyLabel}, fallbacks ready`)
 
   // Get model configuration
   const modelConfig = getModelConfig()
@@ -513,9 +573,8 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
   ]
 
   // Collect all reference images for likeness validation
-  const allReferenceImages: string[] = []
-  if (requestParams.baseImage) allReferenceImages.push(requestParams.baseImage)
-  allReferenceImages.push(...requestParams.referenceImages)
+  // IMPORTANT: Use finalImages to include the identity anchor if present
+  const allReferenceImages: string[] = [...finalImages]
 
   // Helper function to validate likeness and retry if needed
   const validateAndRetryIfNeeded = async (
@@ -569,16 +628,18 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 
     if (result.success && result.image) {
       const imageSize = result.image?.length || 0
-      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=natural_3turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=${strategyLabel}, mode=${resolvedRequestType}, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, hasAnchor=${hasIdentityAnchor}, imageSize=${imageSize}`)
       console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
 
       // Validate likeness and retry if score is low
-      const validated = await validateAndRetryIfNeeded(result.image, model.id, 'natural_3turn')
+      const validated = await validateAndRetryIfNeeded(result.image, model.id, strategyLabel)
 
       return successResponse({
         image: validated.image,
         model_used: model.id,
-        strategy_used: validated.wasRetried ? 'natural_3turn+max_likeness_retry' : 'natural_3turn',
+        strategy_used: validated.wasRetried ? `${strategyLabel}+max_likeness_retry` : strategyLabel,
+        request_mode: resolvedRequestType, // NEW: Include EDIT/GENERATE mode
+        identity_anchor_used: hasIdentityAnchor, // NEW: Confirm anchor was applied
         likeness_optimized: true,
         likeness_score: validated.likenessScore,
         was_retried: validated.wasRetried
@@ -594,7 +655,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 
     if (result.success && result.image) {
       const imageSize = result.image?.length || 0
-      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=simple_single_turn, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=simple_single_turn, mode=${resolvedRequestType}, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, hasAnchor=${hasIdentityAnchor}, imageSize=${imageSize}`)
       console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
 
       // Validate likeness and retry if score is low
@@ -604,6 +665,8 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
         image: validated.image,
         model_used: model.id,
         strategy_used: validated.wasRetried ? 'simple_single_turn+max_likeness_retry' : 'simple_single_turn',
+        request_mode: resolvedRequestType,
+        identity_anchor_used: hasIdentityAnchor,
         likeness_optimized: true,
         likeness_score: validated.likenessScore,
         was_retried: validated.wasRetried
@@ -619,7 +682,7 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
 
     if (result.success && result.image) {
       const imageSize = result.image?.length || 0
-      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=ultra_simple, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, imageSize=${imageSize}`)
+      console.log(`[${requestId}] ✅ SUCCESS: model=${model.id}, strategy=ultra_simple, mode=${resolvedRequestType}, refs=${referenceImageCount}, hasIdentity=${hasIdentity}, hasAnchor=${hasIdentityAnchor}, imageSize=${imageSize}`)
       console.log(`[${requestId}] 📊 IMAGE DIAGNOSTIC: starts=${result.image?.substring(0, 30)}, ends=${result.image?.substring(Math.max(0, imageSize - 30))}`)
 
       // Validate likeness and retry if score is low
@@ -629,6 +692,8 @@ async function handleImageGeneration(apiKey: string, params: any, profile: any, 
         image: validated.image,
         model_used: model.id,
         strategy_used: validated.wasRetried ? 'ultra_simple+max_likeness_retry' : 'ultra_simple',
+        request_mode: resolvedRequestType,
+        identity_anchor_used: hasIdentityAnchor,
         likeness_optimized: true,
         likeness_score: validated.likenessScore,
         was_retried: validated.wasRetried
@@ -1618,6 +1683,243 @@ async function handleRawRequest(apiKey: string, params: any, requestId: string) 
   }, requestId)
 
   return successResponse({ response }, requestId)
+}
+
+// ============================================
+// COMPLEXITY ROUTER - EDIT vs GENERATE Classification
+// ============================================
+
+/**
+ * Classify Generation Intent
+ *
+ * Uses a fast Gemini model to determine whether the user's prompt requires:
+ * - EDIT: Keep face/body identical, only modify clothing/background/lighting
+ * - GENERATE: Full scene regeneration (action, physics, camera angle changes)
+ *
+ * This prevents unnecessary face regeneration for simple edits like "wearing a Santa suit"
+ *
+ * @param apiKey - Gemini API key
+ * @param prompt - User's scene description
+ * @param requestId - Request ID for logging
+ * @returns 'EDIT' | 'GENERATE'
+ */
+async function classifyGenerationIntent(
+  apiKey: string,
+  prompt: string,
+  requestId: string
+): Promise<'EDIT' | 'GENERATE'> {
+  const classificationPrompt = `You are an AI image generation router. Classify the following user prompt into one of two categories:
+
+**EDIT**: The prompt asks to keep the person/pose the same but change:
+- Clothing (e.g., "wearing a suit", "in a Santa costume", "dressed formally")
+- Background (e.g., "on a beach", "in the snow", "at a mansion")
+- Lighting (e.g., "golden hour", "dramatic shadows", "soft lighting")
+- Accessories (e.g., "wearing sunglasses", "holding a trophy", "with a wine glass")
+- Minor additions that don't change the person's position
+
+**GENERATE**: The prompt requires changing:
+- Physics or action (e.g., "flying", "running", "swimming", "riding a horse")
+- Camera angle (e.g., "aerial view", "from below", "close-up")
+- Body position or pose (e.g., "sitting", "jumping", "arms raised", "yoga pose")
+- Adding multiple new people (e.g., "with their children", "surrounded by friends")
+- Complex scene transformations
+
+User Prompt: "${prompt}"
+
+Respond with ONLY one word: EDIT or GENERATE`
+
+  try {
+    const response = await callGeminiAPI(apiKey, MODELS.chat, {
+      contents: [{ parts: [{ text: classificationPrompt }] }],
+      generationConfig: {
+        temperature: 0.1, // Very low for consistent classification
+        maxOutputTokens: 10
+      }
+    }, requestId)
+
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toUpperCase() || ''
+
+    // Parse response - look for EDIT or GENERATE
+    if (text.includes('EDIT')) {
+      console.log(`[${requestId}] Complexity Router: EDIT mode (prompt implies cosmetic changes)`)
+      return 'EDIT'
+    } else if (text.includes('GENERATE')) {
+      console.log(`[${requestId}] Complexity Router: GENERATE mode (prompt implies scene transformation)`)
+      return 'GENERATE'
+    }
+
+    // Default to GENERATE if unclear (safer for complex prompts)
+    console.log(`[${requestId}] Complexity Router: Unclear classification "${text}", defaulting to GENERATE`)
+    return 'GENERATE'
+
+  } catch (error: any) {
+    // On classifier failure, default to GENERATE (per user's decision)
+    console.warn(`[${requestId}] Complexity Router failed: ${error.message}. Defaulting to GENERATE.`)
+    return 'GENERATE'
+  }
+}
+
+/**
+ * Build Edit Mode Request
+ *
+ * Creates a request optimized for preserving the face while only modifying
+ * specified elements (clothing, background, lighting, accessories).
+ *
+ * Key differences from GENERATE mode:
+ * - Explicit instructions to NOT regenerate the face
+ * - Lower creativity (temperature 0.3)
+ * - Focus on inpainting-style modifications
+ * - Stronger identity anchoring language
+ */
+function buildEditModeRequest(
+  params: LikenessRequestParams,
+  detectedChanges: string,
+  requestId: string
+): {
+  contents: any[]
+  generationConfig: any
+} {
+  const {
+    baseImage,
+    referenceImages,
+    referenceImageTags,
+    identityPrompt,
+    sceneDescription,
+    titleText,
+    embeddedText,
+    style,
+    aspectRatio,
+    isPremium
+  } = params
+
+  const parts: any[] = []
+
+  // Add all reference images first
+  if (baseImage) {
+    const data = extractBase64Data(baseImage)
+    parts.push({ inlineData: { mimeType: data.mimeType, data: data.base64 } })
+  }
+
+  referenceImages.forEach((img: string) => {
+    const data = extractBase64Data(img)
+    parts.push({ inlineData: { mimeType: data.mimeType, data: data.base64 } })
+  })
+
+  const totalImages = (baseImage ? 1 : 0) + referenceImages.length
+  const names = referenceImageTags.length > 0 ? referenceImageTags.join(' and ') : 'the person'
+
+  // EDIT MODE PROMPT - Aggressive face preservation
+  let prompt = `*** EDIT MODE - FACE PRESERVATION CRITICAL ***
+
+I'm providing ${totalImages} reference photo(s) of ${names}.
+
+YOUR TASK: Create a modified version where ${sceneDescription}
+
+CRITICAL RULES FOR EDIT MODE:
+1. DO NOT REGENERATE THE FACE
+   - Copy the face EXACTLY from the reference photo
+   - Same exact facial features: eyes, nose, mouth, jawline
+   - Same exact skin tone and complexion
+   - Same exact age appearance
+   - The face should be pixel-perfect identical to the reference
+
+2. DO NOT CHANGE THE BODY TYPE
+   - Same build (slim/medium/heavy)
+   - Same proportions
+   - Same height representation
+
+3. ONLY MODIFY WHAT WAS REQUESTED:
+   - ${detectedChanges}
+   - Everything else stays identical to the reference
+
+Think of this like a professional photo edit - you're changing the outfit/background, NOT recreating the person.`
+
+  // Add identity description if available
+  if (identityPrompt) {
+    prompt += `\n\nIdentity details to preserve: ${identityPrompt}`
+  }
+
+  // Text overlay (only short text)
+  const safeTitle = titleText && titleText.length <= 60 ? titleText : null
+  const safeGoal = embeddedText && embeddedText.length <= 40 ? embeddedText : null
+
+  if (safeTitle || safeGoal) {
+    prompt += '\n\nText overlay (render each text ONCE only):'
+    if (safeTitle) {
+      prompt += `\n- At the TOP: "${safeTitle}"`
+    }
+    if (safeGoal) {
+      prompt += `\n- At the BOTTOM: "${safeGoal}"`
+    }
+  }
+
+  // Style (if not photorealistic)
+  if (style && style !== 'photorealistic') {
+    const styleDescriptions: Record<string, string> = {
+      'cinematic': 'cinematic lighting',
+      'oil_painting': 'oil painting style',
+      'watercolor': 'watercolor aesthetic',
+      'cyberpunk': 'cyberpunk neon aesthetic',
+      '3d_render': '3D rendered style'
+    }
+    prompt += `\n\nApply ${styleDescriptions[style] || style} to the scene, but keep the face photorealistic and unchanged.`
+  }
+
+  prompt += `\n\nFINAL CHECK: The person in the output MUST be immediately recognizable as the SAME person from the reference photos. If you regenerate or modify the face, the output is REJECTED.`
+
+  parts.push({ text: prompt })
+
+  // Lower temperature for more consistent face preservation
+  const generationConfig: any = {
+    maxOutputTokens: 8192,
+    temperature: 0.3, // Lower than GENERATE mode for consistency
+    responseModalities: ['TEXT', 'IMAGE']
+  }
+
+  if (aspectRatio || isPremium) {
+    generationConfig.imageConfig = {}
+    if (aspectRatio) generationConfig.imageConfig.aspectRatio = aspectRatio
+    if (isPremium) generationConfig.imageConfig.imageSize = '2K'
+  }
+
+  console.log(`[${requestId}] Built EDIT MODE request with ${totalImages} images, changes: ${detectedChanges}`)
+
+  return {
+    contents: [{ role: 'user', parts }],
+    generationConfig
+  }
+}
+
+/**
+ * Extract the type of changes from an EDIT prompt
+ * Used to tell the model exactly what to modify
+ */
+function extractEditChanges(prompt: string): string {
+  const changes: string[] = []
+
+  const promptLower = prompt.toLowerCase()
+
+  // Clothing detection
+  if (promptLower.match(/wear(ing)?|dress(ed)?|suit|costume|outfit|clothes|shirt|pants|jacket|coat/)) {
+    changes.push('clothing/outfit')
+  }
+
+  // Background detection
+  if (promptLower.match(/beach|snow|mansion|office|garden|forest|city|mountain|sunset|sunrise|indoor|outdoor|background/)) {
+    changes.push('background/setting')
+  }
+
+  // Lighting detection
+  if (promptLower.match(/lighting|golden hour|dramatic|soft light|shadows|bright|dark|sunset light|studio/)) {
+    changes.push('lighting')
+  }
+
+  // Accessories detection
+  if (promptLower.match(/glasses|sunglasses|hat|jewelry|watch|holding|trophy|wine|champagne|briefcase/)) {
+    changes.push('accessories/props')
+  }
+
+  return changes.length > 0 ? changes.join(', ') : 'visual elements as described'
 }
 
 // ============================================

@@ -131,6 +131,17 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // ============================================
+  // IDENTITY ANCHOR - Prevents "Melting Face" Degradation
+  // ============================================
+  // Stores the ORIGINAL user-uploaded photo. This persists even when
+  // baseImage is updated with AI-generated results during refinement.
+  // This breaks the degradation loop where AI outputs become reference images.
+  const originalIdentityAnchorRef = useRef<string | null>(null);
+
+  // Track if current baseImage is AI-generated (for UI feedback)
+  const [isBaseImageAI, setIsBaseImageAI] = useState(false);
+
   const handleGetSuggestions = async () => {
     setIsSuggesting(true);
     try {
@@ -248,8 +259,17 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setBaseImage(reader.result as string);
+        const imageData = reader.result as string;
+        setBaseImage(imageData);
         clearImageGenerationState(); // Clear all stale state
+
+        // ============================================
+        // IDENTITY ANCHOR: Set on NEW user upload
+        // ============================================
+        // This is a NEW upload (not a refinement), so set it as the identity anchor
+        originalIdentityAnchorRef.current = imageData;
+        setIsBaseImageAI(false); // This is a real photo, not AI-generated
+        console.log('🔒 Identity Anchor SET - original selfie stored for likeness preservation');
       };
       reader.readAsDataURL(file);
     }
@@ -324,6 +344,14 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
     clearImageGenerationState(); // Clear all stale state
     // Deselect this reference since it's now the base image (prevents duplication)
     setSelectedRefIds(prev => prev.filter(id => id !== ref.id));
+
+    // ============================================
+    // IDENTITY ANCHOR: Reference library = new base
+    // ============================================
+    originalIdentityAnchorRef.current = ref.url;
+    setIsBaseImageAI(false); // Reference library photos are real photos
+    console.log('🔒 Identity Anchor SET from reference library:', ref.tags.join(', '));
+
     showToast(`Using "${ref.tags.join(', ')}" as base image`, 'success');
   };
 
@@ -381,6 +409,14 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       setBaseImage(capturedImage);
       clearImageGenerationState(); // Clear all stale state
       stopCamera();
+
+      // ============================================
+      // IDENTITY ANCHOR: Camera capture = new selfie
+      // ============================================
+      originalIdentityAnchorRef.current = capturedImage;
+      setIsBaseImageAI(false); // Camera capture is a real photo
+      console.log('🔒 Identity Anchor SET from camera capture');
+
       showToast('Photo set as base image!', 'success');
     }
   }, [capturedImage, stopCamera, showToast, clearImageGenerationState]);
@@ -406,6 +442,14 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         const imageData = canvas.toDataURL('image/png');
         setBaseImage(imageData);
         clearImageGenerationState(); // Clear all stale state
+
+        // ============================================
+        // IDENTITY ANCHOR: Screenshot = new base
+        // ============================================
+        originalIdentityAnchorRef.current = imageData;
+        setIsBaseImageAI(false); // Screenshot is a real image
+        console.log('🔒 Identity Anchor SET from screenshot');
+
         showToast('Screenshot captured as base image!', 'success');
       }
 
@@ -583,7 +627,17 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       // Build the scene prompt (don't append ref info - the backend handles this now)
       let fullPrompt = promptInput;
 
-      // Call the upgraded editVisionImage with reference tags
+      // ============================================
+      // IDENTITY ANCHOR + COMPLEXITY ROUTER
+      // ============================================
+      // Pass the original selfie (identity anchor) to preserve likeness during refinements.
+      // The backend Complexity Router will auto-classify EDIT vs GENERATE based on prompt.
+      const identityAnchor = originalIdentityAnchorRef.current;
+      if (identityAnchor && isBaseImageAI) {
+        console.log('🔒 Identity Anchor will be used - baseImage is AI-generated, anchor is original selfie');
+      }
+
+      // Call the upgraded editVisionImage with reference tags + Identity Anchor
       const result = await editVisionImage(
         imagesToProcess,
         fullPrompt,
@@ -592,7 +646,9 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
         selectedStyle,
         undefined, // aspectRatio
         identityPrompt || undefined,
-        refTags.length > 0 ? refTags : undefined // Pass reference image tags
+        refTags.length > 0 ? refTags : undefined, // Pass reference image tags
+        identityAnchor || undefined, // Identity Anchor (original selfie)
+        'AUTO' // Let Complexity Router decide EDIT vs GENERATE
       );
 
       if (result && result.image) {
@@ -721,6 +777,17 @@ const VisionBoard: React.FC<Props> = ({ onAgentStart, initialImage, initialPromp
       setBaseImage(resultImage);
       // Clear ALL result/validation state to prevent stale data
       clearImageGenerationState();
+
+      // ============================================
+      // IDENTITY ANCHOR: Mark as AI but PRESERVE anchor
+      // ============================================
+      // CRITICAL: Do NOT reset originalIdentityAnchorRef here!
+      // The anchor persists to prevent "melting face" degradation loop.
+      // Only mark that current baseImage is now AI-generated.
+      setIsBaseImageAI(true);
+      console.log('🔄 Refine: baseImage is now AI-generated, but Identity Anchor preserved:',
+        originalIdentityAnchorRef.current ? 'YES' : 'NO');
+
       showToast("Image set as new base. Refine away!", 'info');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
