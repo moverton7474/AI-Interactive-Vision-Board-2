@@ -36,7 +36,7 @@ serve(async (req) => {
     const action = url.searchParams.get('action')
 
     // Some actions don't require auth (listing themes)
-    const publicActions = ['list', 'get']
+    const publicActions = ['list', 'get', 'generate_greeting']
 
     let supabase: any
     let userId: string | null = null
@@ -92,8 +92,10 @@ serve(async (req) => {
         return await submitAnswers(supabase, userId!, body)
       case 'update_profile':
         return await updateProfile(supabase, userId!, body)
+      case 'generate_greeting':
+        return await generateGreeting(supabase, body)
       default:
-        throw new Error(`Unknown action: ${action}. Valid actions: list, get, select, get_profile, get_questions, submit_answers, update_profile`)
+        throw new Error(`Unknown action: ${action}. Valid actions: list, get, select, get_profile, get_questions, submit_answers, update_profile, generate_greeting`)
     }
 
   } catch (error: any) {
@@ -615,4 +617,80 @@ function extractFocusAreas(responses: any[]): string[] {
   }
 
   return [...new Set(focusAreas)] // Remove duplicates
+}
+
+/**
+ * Generate a dynamic greeting based on theme and motivation style
+ */
+async function generateGreeting(supabase: any, body: any) {
+  const { theme_id, theme_name, motivation_style } = body
+
+  // Get time of day
+  const hour = new Date().getHours()
+  let timeOfDay = 'day'
+  if (hour < 12) timeOfDay = 'morning'
+  else if (hour < 17) timeOfDay = 'afternoon'
+  else timeOfDay = 'evening'
+
+  // Generate greeting based on motivation style
+  let greeting = ''
+  let message = ''
+
+  switch (motivation_style) {
+    case 'spiritual':
+      greeting = timeOfDay === 'morning'
+        ? 'Blessings this morning'
+        : timeOfDay === 'afternoon'
+          ? 'Walk in purpose'
+          : 'Peace this evening'
+      message = 'May your vision be guided by faith and purpose. Let\'s take the next step on your journey together.'
+      break
+
+    case 'challenging':
+      greeting = timeOfDay === 'morning'
+        ? 'Time to execute'
+        : 'Let\'s get to work'
+      message = 'Champions are built through consistent action. Your vision demands effort - let\'s make it happen.'
+      break
+
+    case 'analytical':
+      greeting = 'Status update'
+      message = 'Your personalized coaching system is configured. Let\'s review your objectives and optimize your path forward.'
+      break
+
+    case 'encouraging':
+    default:
+      greeting = timeOfDay === 'morning'
+        ? 'Good morning'
+        : timeOfDay === 'afternoon'
+          ? 'Good afternoon'
+          : 'Good evening'
+      message = 'I\'m here to support you every step of the way. Together, we\'ll turn your vision into reality.'
+      break
+  }
+
+  // Add theme-specific flavor
+  let themeMessage = ''
+  const themeLower = (theme_name || theme_id || '').toLowerCase()
+
+  if (themeLower.includes('christian') || themeLower.includes('faith')) {
+    themeMessage = 'Your faith-centered journey begins now.'
+  } else if (themeLower.includes('executive') || themeLower.includes('business')) {
+    themeMessage = 'Let\'s build your leadership legacy.'
+  } else if (themeLower.includes('fitness') || themeLower.includes('health')) {
+    themeMessage = 'Your transformation starts today.'
+  } else if (themeLower.includes('retirement') || themeLower.includes('legacy')) {
+    themeMessage = 'Your wisdom will guide this journey.'
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      greeting,
+      message: themeMessage || message,
+      timeOfDay,
+      motivationStyle: motivation_style || 'encouraging'
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
