@@ -4,6 +4,8 @@ import { AppView, ActionTask } from '../../types';
 import VisionHero from './VisionHero';
 import ExecutionPanel from './ExecutionPanel';
 import QuickActions from './QuickActions';
+import ProgressPredictionWidget from './ProgressPredictionWidget';
+import AchievementGallery from './AchievementGallery';
 import WorkbookOrderModal from '../WorkbookOrderModal';
 import PrintOrderModal from '../PrintOrderModal';
 import VoiceCoachWidget from '../VoiceCoachWidget';
@@ -508,7 +510,13 @@ const DashboardV2: React.FC<Props> = ({
           onSetFocus={handleSetFocus}
         />
 
-        {/* Band 3: Quick Actions */}
+        {/* Band 3: Progress & Achievements */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <ProgressPredictionWidget userId={userId} />
+          <AchievementGallery userId={userId} compact />
+        </div>
+
+        {/* Band 4: Quick Actions */}
         <QuickActions
           onCoachClick={() => onNavigate(AppView.VOICE_COACH)}
           onReviewClick={() => onNavigate(AppView.WEEKLY_REVIEWS)}

@@ -30,6 +30,7 @@ import MdalsTestPanel from './components/mdals/MdalsTestPanel';
 import { GuidedOnboarding } from './components/onboarding';
 import { Dashboard, DashboardV2 } from './components/dashboard';
 import { LandingPage } from './components/landing';
+import GoalEditorPage from './components/GoalEditorPage';
 import { SparklesIcon, MicIcon, DocumentIcon, ReceiptIcon, ShieldCheckIcon, FireIcon, BookOpenIcon, CalendarIcon, FolderIcon, PrinterIcon, HeartIcon, GlobeIcon, TrophyIcon, ChartBarIcon, MusicNoteIcon, BeakerIcon, VisionaryLogo, VisionaryIcon } from './components/Icons';
 import { sendVisionChatMessage, generateVisionSummary } from './services/geminiService';
 import { checkDatabaseConnection, saveDocument } from './services/storageService';
@@ -1264,6 +1265,13 @@ const App = () => {
             onBack={() => setView(AppView.VISION_BOARD)}
           />
         );
+      case AppView.GOALS:
+        return session?.user?.id ? (
+          <GoalEditorPage
+            userId={session.user.id}
+            onNavigate={setView}
+          />
+        ) : null;
       case AppView.TRUST_CENTER:
         return <TrustCenter />;
       case AppView.ORDER_HISTORY:
@@ -1612,6 +1620,9 @@ const App = () => {
                 <button onClick={() => setView(AppView.ACTION_PLAN)} className={`text-sm font-medium transition-colors ${view === AppView.ACTION_PLAN ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   Execute
                 </button>
+                <button onClick={() => setView(AppView.GOALS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.GOALS ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
+                  🎯 Goals
+                </button>
                 <button onClick={() => setView(AppView.HABITS)} className={`text-sm font-medium flex items-center gap-1 transition-colors ${view === AppView.HABITS ? 'text-gold-400' : 'text-gray-400 hover:text-gold-400'}`}>
                   <FireIcon className="w-4 h-4" /> Habits
                 </button>
@@ -1693,6 +1704,9 @@ const App = () => {
                 </button>
                 <button onClick={() => { setView(AppView.ACTION_PLAN); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.ACTION_PLAN ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
                   <SparklesIcon className="w-4 h-4" /> Execute
+                </button>
+                <button onClick={() => { setView(AppView.GOALS); setShowMobileMenu(false); }} className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${view === AppView.GOALS ? 'bg-gold-500/20 text-gold-400' : 'text-gray-300 hover:bg-navy-800'}`}>
+                  <span className="text-base">🎯</span> Goals
                 </button>
 
                 <div className="border-t border-gold-500/20 my-2" />
