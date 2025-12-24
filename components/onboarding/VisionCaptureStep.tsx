@@ -9,7 +9,16 @@ const VisionCaptureStep: React.FC<Props> = ({ visionText = '', onVisionChange })
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState(visionText);
   const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice');
+  const [micError, setMicError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+
+  // Use ref to store callback to avoid infinite re-render loop
+  // This prevents the useEffect from re-running when parent re-renders with a new function reference
+  const onVisionChangeRef = useRef(onVisionChange);
+  onVisionChangeRef.current = onVisionChange;
+
+  // Track previous transcript to avoid unnecessary callback calls
+  const prevTranscriptRef = useRef(visionText);
 
   useEffect(() => {
     // Initialize speech recognition if available
@@ -35,6 +44,27 @@ const VisionCaptureStep: React.FC<Props> = ({ visionText = '', onVisionChange })
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
         setIsRecording(false);
+
+        // Provide helpful error messages based on error type
+        switch (event.error) {
+          case 'not-allowed':
+            setMicError('Microphone access was denied. Please allow microphone access in your browser settings, or use the text input instead.');
+            break;
+          case 'no-speech':
+            setMicError('No speech detected. Please try speaking again or use the text input.');
+            break;
+          case 'audio-capture':
+            setMicError('No microphone found. Please connect a microphone or use the text input.');
+            break;
+          case 'network':
+            setMicError('Network error occurred. Speech recognition requires an internet connection.');
+            break;
+          case 'aborted':
+            // User or system cancelled - no error message needed
+            break;
+          default:
+            setMicError('Voice input error. Please try again or use the text input instead.');
+        }
       };
 
       recognitionRef.current.onend = () => {
@@ -49,18 +79,30 @@ const VisionCaptureStep: React.FC<Props> = ({ visionText = '', onVisionChange })
     };
   }, []);
 
+  // Sync transcript changes to parent without causing infinite loops
   useEffect(() => {
-    onVisionChange(transcript.trim());
-  }, [transcript, onVisionChange]);
+    const trimmedTranscript = transcript.trim();
+    // Only call callback if value actually changed
+    if (prevTranscriptRef.current !== trimmedTranscript) {
+      prevTranscriptRef.current = trimmedTranscript;
+      onVisionChangeRef.current(trimmedTranscript);
+    }
+  }, [transcript]); // Only depend on transcript, not on callback
 
   const toggleRecording = () => {
     if (isRecording) {
       recognitionRef.current?.stop();
       setIsRecording(false);
     } else {
+      setMicError(null); // Clear any previous error
       setTranscript('');
-      recognitionRef.current?.start();
-      setIsRecording(true);
+      try {
+        recognitionRef.current?.start();
+        setIsRecording(true);
+      } catch (err: any) {
+        console.error('Failed to start speech recognition:', err);
+        setMicError('Could not start voice input. Please try the text input instead.');
+      }
     }
   };
 
@@ -137,6 +179,28 @@ const VisionCaptureStep: React.FC<Props> = ({ visionText = '', onVisionChange })
           <p className="text-sm text-gray-400">
             Describe your ideal future - where you live, what you do, who you're with
           </p>
+
+          {/* Microphone Error Message */}
+          {micError && (
+            <div className="mt-4 mx-auto max-w-md bg-red-50 text-red-600 text-sm rounded-lg p-3 border border-red-200 flex items-start gap-2">
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <span>{micError}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMicError(null);
+                    setInputMode('text');
+                  }}
+                  className="block mt-2 text-red-700 underline hover:text-red-800"
+                >
+                  Switch to text input
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center mb-4">

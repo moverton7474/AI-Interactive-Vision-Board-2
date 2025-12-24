@@ -40,10 +40,13 @@ const MasterPromptQnA: React.FC<Props> = ({
       setLoading(true);
       setError(null);
 
-      const response = await supabase.functions.invoke(
-        `onboarding-themes?action=get_questions&themeId=${themeId}`,
-        { method: 'GET' }
-      );
+      // Use POST with body for Supabase Edge Functions (invoke doesn't support query params in URL)
+      const response = await supabase.functions.invoke('onboarding-themes', {
+        body: {
+          action: 'get_questions',
+          themeId,
+        },
+      });
 
       if (response.error) {
         throw new Error(response.error.message || 'Failed to fetch questions');
@@ -103,19 +106,14 @@ const MasterPromptQnA: React.FC<Props> = ({
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session) {
-        // Submit to backend
-        const response = await supabase.functions.invoke(
-          'onboarding-themes?action=submit_answers',
-          {
-            body: {
-              themeId,
-              responses: formattedResponses,
-            },
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          }
-        );
+        // Submit to backend (use POST with action in body)
+        const response = await supabase.functions.invoke('onboarding-themes', {
+          body: {
+            action: 'submit_answers',
+            themeId,
+            responses: formattedResponses,
+          },
+        });
 
         if (response.error) {
           console.error('Error submitting answers:', response.error);

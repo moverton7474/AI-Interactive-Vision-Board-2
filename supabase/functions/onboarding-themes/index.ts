@@ -31,9 +31,23 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    // Get action from query params
+    // Get action from query params (legacy) or body (new approach)
     const url = new URL(req.url)
-    const action = url.searchParams.get('action')
+    let action = url.searchParams.get('action')
+
+    // Parse body for POST requests to get action and other data
+    let body: any = {}
+    if (req.method === 'POST') {
+      try {
+        body = await req.json()
+        // Support action in body (preferred) or query params (legacy)
+        if (!action && body.action) {
+          action = body.action
+        }
+      } catch {
+        body = {}
+      }
+    }
 
     // Some actions don't require auth (listing themes)
     const publicActions = ['list', 'get', 'generate_greeting']
@@ -67,27 +81,18 @@ serve(async (req) => {
       userId = user.id
     }
 
-    let body = {}
-    if (req.method === 'POST') {
-      try {
-        body = await req.json()
-      } catch {
-        body = {}
-      }
-    }
-
     // Route to appropriate handler
     switch (action) {
       case 'list':
         return await listThemes(supabase)
       case 'get':
-        return await getTheme(supabase, url.searchParams)
+        return await getTheme(supabase, url.searchParams, body)
       case 'select':
         return await selectTheme(supabase, userId!, body)
       case 'get_profile':
         return await getIdentityProfile(supabase, userId!)
       case 'get_questions':
-        return await getQuestions(supabase, url.searchParams)
+        return await getQuestions(supabase, url.searchParams, body)
       case 'submit_answers':
         return await submitAnswers(supabase, userId!, body)
       case 'update_profile':
@@ -146,10 +151,12 @@ async function listThemes(supabase: any) {
 
 /**
  * Get a specific theme with its system prompt and questions
+ * Supports themeId/themeName from query params (legacy) or body (new approach)
  */
-async function getTheme(supabase: any, params: URLSearchParams) {
-  const themeId = params.get('themeId')
-  const themeName = params.get('themeName')
+async function getTheme(supabase: any, params: URLSearchParams, body: any = {}) {
+  // Support both query params (legacy) and body (new approach)
+  const themeId = params.get('themeId') || body.themeId
+  const themeName = params.get('themeName') || body.themeName
 
   if (!themeId && !themeName) {
     throw new Error('Either themeId or themeName is required')
@@ -366,10 +373,12 @@ async function getIdentityProfile(supabase: any, userId: string) {
 
 /**
  * Get master prompt questions for a theme
+ * Supports themeId/themeName from query params (legacy) or body (new approach)
  */
-async function getQuestions(supabase: any, params: URLSearchParams) {
-  const themeId = params.get('themeId')
-  const themeName = params.get('themeName')
+async function getQuestions(supabase: any, params: URLSearchParams, body: any = {}) {
+  // Support both query params (legacy) and body (new approach)
+  const themeId = params.get('themeId') || body.themeId
+  const themeName = params.get('themeName') || body.themeName
 
   if (!themeId && !themeName) {
     throw new Error('Either themeId or themeName is required')

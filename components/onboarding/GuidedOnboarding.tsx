@@ -150,6 +150,16 @@ const GuidedOnboarding: React.FC<Props> = ({
   const currentStepIndex = STEPS.indexOf(state.currentStep);
   const stepConfig = STEP_CONFIG[state.currentStep];
 
+  // Calculate effective steps for display (excludes skipped steps like VISION_GENERATION)
+  const effectiveSteps = ENABLE_BACKGROUND_GENERATION
+    ? STEPS.filter(step => step !== 'VISION_GENERATION')
+    : STEPS;
+
+  // Calculate effective step number for progress display
+  const effectiveStepIndex = effectiveSteps.indexOf(state.currentStep);
+  const displayStepNumber = effectiveStepIndex >= 0 ? effectiveStepIndex + 1 : currentStepIndex + 1;
+  const displayTotalSteps = effectiveSteps.length;
+
   const updateState = useCallback((updates: Partial<OnboardingState>) => {
     setState(prev => ({ ...prev, ...updates }));
   }, []);
@@ -432,8 +442,8 @@ const GuidedOnboarding: React.FC<Props> = ({
 
   return (
     <OnboardingLayout
-      step={currentStepIndex + 1}
-      totalSteps={STEPS.length}
+      step={displayStepNumber}
+      totalSteps={displayTotalSteps}
       title={stepConfig.title}
       subtitle={stepConfig.subtitle}
       showBack={showBackButton}

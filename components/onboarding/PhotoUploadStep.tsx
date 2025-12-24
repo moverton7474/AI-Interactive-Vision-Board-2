@@ -202,12 +202,39 @@ const PhotoUploadStep: React.FC<Props> = ({ photoRefId, onPhotoUploaded, onSkip 
       }, 100);
     } catch (err: any) {
       console.error('Camera error:', err);
+      const errorMessage = err.message?.toLowerCase() || '';
+
       if (err.name === 'NotAllowedError') {
-        setError('Camera access denied. Please allow camera access in your browser settings.');
+        // Check if it's a permissions policy violation vs user denial
+        if (errorMessage.includes('permissions policy') || errorMessage.includes('feature policy')) {
+          setError(
+            'Camera is blocked by browser security settings. This can happen in embedded previews or certain browser configurations. ' +
+            'Try opening the app directly in a new browser tab, or use the "Choose File" option to upload a photo instead.'
+          );
+        } else {
+          setError('Camera access denied. Please allow camera access in your browser settings, then try again.');
+        }
       } else if (err.name === 'NotFoundError') {
-        setError('No camera found on this device.');
+        setError('No camera found on this device. Please use the "Choose File" option to upload a photo instead.');
+      } else if (err.name === 'NotReadableError' || err.name === 'AbortError') {
+        setError('Camera is in use by another application. Please close other apps using the camera and try again.');
+      } else if (err.name === 'OverconstrainedError') {
+        // Try again with simpler constraints
+        try {
+          const simpleStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          setCameraStream(simpleStream);
+          setShowCamera(true);
+          setTimeout(() => {
+            if (videoRef.current) {
+              videoRef.current.srcObject = simpleStream;
+            }
+          }, 100);
+          return;
+        } catch {
+          setError('Camera configuration not supported. Please try uploading a file instead.');
+        }
       } else {
-        setError('Could not access camera. Please try uploading a file instead.');
+        setError('Could not access camera. Please try uploading a file instead. Error: ' + (err.message || 'Unknown error'));
       }
     }
   };
