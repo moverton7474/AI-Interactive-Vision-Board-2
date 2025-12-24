@@ -43,6 +43,10 @@ const VoiceCoachWidget: React.FC = () => {
     const recognitionRef = useRef<any>(null);
     const synthRef = useRef<SpeechSynthesis | null>(typeof window !== 'undefined' ? window.speechSynthesis : null);
     const historyRef = useRef<HTMLDivElement>(null);
+    const voicesLoadedRef = useRef(false);
+    const audioUnlockedRef = useRef(false);
+    const [isIOS, setIsIOS] = useState(false);
+    const [showIOSWarning, setShowIOSWarning] = useState(false);
 
     // Refs to track state in callbacks (avoid stale closures)
     const isListeningRef = useRef(isListening);
@@ -66,6 +70,26 @@ const VoiceCoachWidget: React.FC = () => {
     }, [sessionId]);
 
     useEffect(() => {
+        // Detect iOS for special handling
+        const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        setIsIOS(iOS);
+
+        // Load voices and set up voiceschanged listener for iOS
+        if (synthRef.current) {
+            const loadVoices = () => {
+                const voices = synthRef.current?.getVoices() || [];
+                if (voices.length > 0) {
+                    voicesLoadedRef.current = true;
+                }
+            };
+            loadVoices();
+            // iOS needs this event to load voices
+            if (typeof window !== 'undefined') {
+                window.speechSynthesis?.addEventListener('voiceschanged', loadVoices);
+            }
+        }
+
         // Get user session and profile
         supabase.auth.getSession().then(async ({ data: { session } }) => {
             if (session?.user) {
@@ -221,8 +245,46 @@ const VoiceCoachWidget: React.FC = () => {
         }
     };
 
+    // iOS audio unlock - must be called from user gesture
+    const unlockIOSAudio = () => {
+        if (audioUnlockedRef.current) return;
+
+        if (synthRef.current) {
+            // Cancel any stuck speech
+            synthRef.current.cancel();
+
+            // Speak a silent/empty utterance to unlock iOS audio
+            const silentUtterance = new SpeechSynthesisUtterance('');
+            silentUtterance.volume = 0;
+            synthRef.current.speak(silentUtterance);
+
+            // Also try with actual content but very short
+            setTimeout(() => {
+                if (synthRef.current) {
+                    synthRef.current.cancel();
+                    const warmupUtterance = new SpeechSynthesisUtterance(' ');
+                    warmupUtterance.volume = 0.01;
+                    warmupUtterance.rate = 10; // Very fast
+                    synthRef.current.speak(warmupUtterance);
+                }
+            }, 100);
+
+            audioUnlockedRef.current = true;
+        }
+    };
+
     const startSession = async () => {
         try {
+            // CRITICAL: Unlock iOS audio from user gesture BEFORE any async calls
+            if (isIOS) {
+                unlockIOSAudio();
+                // Show iOS warning if first time
+                if (!audioUnlockedRef.current) {
+                    setShowIOSWarning(true);
+                    setTimeout(() => setShowIOSWarning(false), 5000);
+                }
+            }
+
             setStatus('processing');
             setError(null);
             setConversationHistory([]);
@@ -290,56 +352,86 @@ const VoiceCoachWidget: React.FC = () => {
         }
     };
 
-    const speak = (text: string) => {
+    const speak = (text: string, retryCount = 0) => {
         if (synthRef.current) {
             setStatus('speaking');
             setIsSpeaking(true);
 
-            // Cancel any ongoing speech
+            // Cancel any ongoing speech (important for iOS)
             synthRef.current.cancel();
 
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
+            // Small delay after cancel for iOS
+            setTimeout(() => {
+                if (!synthRef.current) return;
 
-            // Try to use a natural voice
-            const voices = synthRef.current.getVoices();
-            const preferredVoice = voices.find(v =>
-                v.name.includes('Samantha') ||
-                v.name.includes('Google') ||
-                v.name.includes('Microsoft')
-            );
-            if (preferredVoice) {
-                utterance.voice = preferredVoice;
-            }
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
 
-            utterance.onend = () => {
-                setIsSpeaking(false);
-                setStatus('idle');
-                // Auto-listen after AI speaks if enabled
-                if (autoListen && sessionIdRef.current && !recognitionRunningRef.current) {
-                    setTimeout(() => {
-                        if (!recognitionRunningRef.current && sessionIdRef.current) {
-                            accumulatedTranscriptRef.current = '';
-                            setTranscript('');
-                            try {
-                                recognitionRef.current?.start();
-                                setIsListening(true);
-                                setStatus('listening');
-                            } catch (e) {
-                                console.log('Could not auto-start listening:', e);
+                // Try to use a natural voice - prefer iOS Samantha
+                const voices = synthRef.current.getVoices();
+                const preferredVoice = voices.find(v =>
+                    v.name.includes('Samantha') || // iOS default
+                    v.name.includes('Google') ||
+                    v.name.includes('Microsoft') ||
+                    v.lang.startsWith('en')
+                );
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice;
+                }
+
+                utterance.onend = () => {
+                    setIsSpeaking(false);
+                    setStatus('idle');
+                    // Auto-listen after AI speaks if enabled
+                    if (autoListen && sessionIdRef.current && !recognitionRunningRef.current) {
+                        setTimeout(() => {
+                            if (!recognitionRunningRef.current && sessionIdRef.current) {
+                                accumulatedTranscriptRef.current = '';
+                                setTranscript('');
+                                try {
+                                    recognitionRef.current?.start();
+                                    setIsListening(true);
+                                    setStatus('listening');
+                                } catch (e) {
+                                    console.log('Could not auto-start listening:', e);
+                                }
                             }
+                        }, 500);
+                    }
+                };
+
+                utterance.onerror = (event) => {
+                    console.error('Speech synthesis error:', event);
+                    // iOS sometimes fails on first attempt - retry once
+                    if (isIOS && retryCount < 2) {
+                        console.log('Retrying speech synthesis for iOS...');
+                        setTimeout(() => speak(text, retryCount + 1), 200);
+                        return;
+                    }
+                    setIsSpeaking(false);
+                    setStatus('idle');
+                    // Show iOS-specific error
+                    if (isIOS) {
+                        setError('Audio not playing? Check your iPhone is not on silent mode (flip the side switch).');
+                        setShowIOSWarning(true);
+                    }
+                };
+
+                // iOS workaround: Check if speaking actually started
+                synthRef.current.speak(utterance);
+
+                // iOS bug: speechSynthesis can get stuck, monitor and retry
+                if (isIOS) {
+                    setTimeout(() => {
+                        if (synthRef.current && !synthRef.current.speaking && isSpeakingRef.current && retryCount < 2) {
+                            console.log('iOS speech synthesis stuck, retrying...');
+                            speak(text, retryCount + 1);
                         }
                     }, 500);
                 }
-            };
-
-            utterance.onerror = () => {
-                setIsSpeaking(false);
-                setStatus('idle');
-            };
-
-            synthRef.current.speak(utterance);
+            }, isIOS ? 100 : 0); // Add delay for iOS
         }
     };
 
@@ -530,6 +622,31 @@ const VoiceCoachWidget: React.FC = () => {
                             {msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content}
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* iOS Audio Warning Banner */}
+            {isIOS && showIOSWarning && (
+                <div className="mb-2 px-3 py-2 bg-amber-500/20 border border-amber-500/30 rounded-lg relative z-10">
+                    <div className="flex items-start gap-2">
+                        <span className="text-amber-400 text-sm">🔔</span>
+                        <div className="flex-1">
+                            <p className="text-amber-200 text-xs font-medium">No audio on iPhone?</p>
+                            <p className="text-amber-300/80 text-xs mt-0.5">
+                                Flip the silent switch on the side of your iPhone to enable sound.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowIOSWarning(false)}
+                            className="text-amber-400 hover:text-amber-200"
+                            aria-label="Dismiss warning"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             )}
 
