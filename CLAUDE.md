@@ -1,146 +1,189 @@
-# Visionary AI - Project Guidelines
+# CLAUDE.md - Visionary AI Project Instructions
 
 ## Project Overview
-Visionary AI is an agentic success platform SPA combining a React frontend with Supabase serverless backend. It uses Google Gemini AI for personalized coaching, image generation, and voice interaction.
 
-## Tech Stack
-- **Frontend:** React 18 + TypeScript (Strict) + Vite
-- **Styling:** Tailwind CSS v3 (CDN) + custom CSS
-- **State:** React Hooks & Context API
-- **Backend:** Supabase (PostgreSQL 15+, Edge Functions, Auth, Storage)
-- **AI:** Google Gemini 1.5 Pro / 2.0 Flash, Imagen 3, text-embedding-004
-- **Integrations:** Stripe, Plaid, Twilio, Prodigi
+Visionary AI is an agentic success platform combining emotional visualization, financial intelligence, autonomous AI execution, and identity-driven coaching. Built with React + TypeScript frontend and Supabase backend (Postgres + Edge Functions + Auth + Storage).
 
-## Common Commands
+## Critical Development Rules
+
+### 1. NEVER IMPLEMENT WITHOUT APPROVAL
+
+Before writing ANY code, you MUST:
+
+1. Present a detailed implementation plan
+2. **STOP and wait for my explicit approval**
+3. Do not proceed until I confirm with "approved", "go ahead", "proceed", or similar
+
+Even for "simple" changes — ask first, implement after approval.
+
+### 2. MANDATORY IMPACT ANALYSIS
+
+Every plan must analyze impacts across ALL of these areas:
+
+| Area | Check For |
+|------|-----------|
+| Database Schema | New tables, columns, indexes, FKs, data migration |
+| RLS Policies | New policies, policy updates, cross-table dependencies |
+| Edge Functions | New functions, modifications to existing, `_shared/` utilities |
+| Frontend Components | New components, state changes, prop cascades, routing |
+| TypeScript Types | New types in `types.ts`, type extensions, import updates |
+| Storage Buckets | New buckets, storage policies, file paths |
+
+### 3. DATABASE CHANGES ARE MANDATORY IN PLAN
+
+If ANY database changes are required, include this section:
+
+```markdown
+## Database Changes
+
+### Migration File
+- Filename: `supabase/migrations/YYYYMMDD_[description].sql`
+
+### Schema Changes
+[Exact SQL]
+
+### RLS Policies
+[All policies for new/modified tables]
+
+### Indexes
+[Performance indexes]
+
+### Rollback Plan
+[SQL to undo if needed]
+```
+
+### 4. TESTING REQUIREMENTS
+
+Before marking any feature complete:
+
+- [ ] Run `npm test` or `npm run test:run`
+- [ ] Test edge functions manually (curl or Supabase dashboard)
+- [ ] Verify RLS policies don't block legitimate access
+- [ ] Test in browser — no console errors
+- [ ] Check network tab for failed requests
+- [ ] Confirm data persists correctly
+
+## Project-Specific Patterns
+
+### Database Conventions
+
+- All user-owned tables MUST have `user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE`
+- All tables MUST have RLS enabled: `ALTER TABLE [table] ENABLE ROW LEVEL SECURITY`
+- Use `auth.uid()` in RLS policies for user ownership checks
+- Use `gen_random_uuid()` for primary keys
+- Include `created_at TIMESTAMPTZ DEFAULT NOW()` on all tables
+- Use `is_platform_admin()` helper for admin-only operations
+
+### Edge Function Conventions
+
+- Import CORS headers from `../_shared/cors.ts`
+- Import Supabase client from `../_shared/supabase.ts`
+- Use service role client for admin operations
+- Always return proper error responses with status codes
+- Include request validation at the top of handlers
+- Log errors with context for debugging
+
+### Frontend Conventions
+
+- Types go in `src/types.ts`
+- Services go in `src/services/`
+- Hooks go in `src/hooks/`
+- Components use TypeScript interfaces for props
+- Use existing patterns from similar components before creating new approaches
+
+### Existing Infrastructure (Do Not Break)
+
+- **68 Edge Functions** — Check if your change affects any existing functions
+- **40+ Database Tables** — Review foreign key relationships before schema changes
+- **RLS Policies on 18+ tables** — Verify policy consistency
+- **Rate limiting infrastructure** — Don't bypass `rate_limits` checks
+- **Security audit logging** — Maintain `data_access_logs` patterns
+
+## Response Template
+
+When I ask you to implement something, respond with:
+
+```markdown
+## Proposed Plan: [Feature Name]
+
+### Changes Overview
+| File | Action | Description |
+|------|--------|-------------|
+| [path] | Create/Modify | [what changes] |
+
+### Implementation Steps
+1. [Specific step]
+2. [Specific step]
+...
+
+### Impact Analysis
+
+#### Database Schema: [None | Low | Medium | High]
+- [Details]
+
+#### RLS Policies: [None | Low | Medium | High]
+- [Details]
+
+#### Edge Functions: [None | Low | Medium | High]
+- [Details]
+
+#### Frontend UI: [None | Low | Medium | High]
+- [Details]
+
+#### TypeScript Types: [None | Low | Medium | High]
+- [Details]
+
+### Database Changes (if applicable)
+[Full SQL migration with RLS policies]
+
+### Testing Plan
+- [ ] Unit tests: [what]
+- [ ] Integration tests: [what]
+- [ ] Regression checks: [existing tests to verify]
+- [ ] Manual verification: [browser testing steps]
+
+### Potential Risks
+- [Risk and mitigation]
+
+---
+**Awaiting your approval before proceeding.**
+```
+
+## Supabase Checklist (Verify Before Finalizing Plan)
+
+- [ ] New tables have `user_id` FK to `auth.users` where appropriate
+- [ ] RLS is enabled on ALL new tables
+- [ ] RLS policies use `auth.uid()` correctly
+- [ ] Edge functions include CORS headers from `_shared/cors.ts`
+- [ ] Edge functions use service role for admin operations
+- [ ] Storage bucket policies match table RLS patterns
+- [ ] Indexes exist for FKs and frequently queried columns
+- [ ] TypeScript types in `types.ts` match database schema exactly
+- [ ] Existing edge functions that query affected tables still work
+- [ ] No circular dependencies introduced
+
+## Commands Reference
 
 ```bash
-# Development
-npm run dev          # Start Vite dev server
-npm run build        # Production build
-npm run preview      # Preview production build
+# Run tests
+npm test
+npm run test:run
 
-# Testing
-npm run test         # Run Vitest in watch mode
-npm run test:run     # Run tests once
-npm run test:coverage # Run tests with coverage
+# Deploy edge function
+supabase functions deploy [function-name]
 
-# Supabase Edge Functions
-npx supabase functions serve <function-name> --env-file .env.local   # Local dev
-npx supabase functions deploy <function-name>                         # Deploy to production
-npx supabase functions deploy --all                                   # Deploy all functions
+# Apply migration
+supabase db push
+
+# Check function logs
+supabase functions logs [function-name]
 ```
 
-## Directory Structure
+## Key Files to Know
 
-```
-/                       # Root - main App.tsx, types.ts, config files
-├── components/         # React UI components (Widgets, Dashboard, Modals)
-├── services/           # Frontend service layers (geminiService, imageService, etc.)
-├── hooks/              # Custom React hooks
-├── utils/              # Utility functions
-├── types/              # Additional TypeScript type definitions
-├── supabase/
-│   ├── functions/      # Deno Edge Functions (each in own folder with index.ts)
-│   └── migrations/     # SQL migration files
-├── src/
-│   └── test/           # Vitest test files (*.test.ts)
-├── public/             # Static assets
-└── docs/               # Documentation
-```
-
-## Code Conventions
-
-### TypeScript
-- Use strict TypeScript - no `any` types without justification
-- Prefer interfaces over types for object shapes
-- Use path alias `@/*` for imports from root
-
-### React Components
-- Functional components with hooks only
-- Component files: PascalCase (e.g., `VisionBoard.tsx`)
-- Keep components focused - extract logic to hooks/services
-- Use Tailwind utility classes for styling
-
-### Services
-- Service files: camelCase (e.g., `geminiService.ts`)
-- Export named functions, not default exports
-- Handle errors gracefully with try/catch
-- Return typed responses
-
-### Edge Functions (Supabase/Deno)
-- Each function in its own folder: `supabase/functions/<name>/index.ts`
-- Use Deno runtime APIs
-- Always include CORS headers for browser requests:
-```typescript
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-```
-- Validate authentication using Supabase client
-- Use environment variables via `Deno.env.get()`
-
-### Testing
-- Test files: `src/test/<feature>.test.ts`
-- Use Vitest with `describe`, `it`, `expect`
-- Mock external services (Supabase, Gemini) in tests
-
-## Key Files Reference
-
-| File | Purpose |
-|------|---------|
-| `App.tsx` | Main application entry, routing, global state |
-| `types.ts` | Core TypeScript interfaces and types |
-| `services/geminiService.ts` | Gemini AI integration |
-| `services/imageService.ts` | Image generation/storage |
-| `services/storageService.ts` | Supabase storage operations |
-| `supabase/functions/amie-psychological-coach/` | Main AI coaching endpoint |
-| `supabase/functions/voice-coach-session/` | Voice interaction logic |
-
-## Environment Variables
-
-Required in `.env.local`:
-- `VITE_SUPABASE_URL` - Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` - Supabase anonymous key
-- `VITE_GEMINI_API_KEY` - Google Gemini API key
-- `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe public key
-
-Edge Functions (set in Supabase Dashboard):
-- `GEMINI_API_KEY`, `STRIPE_SECRET_KEY`, `TWILIO_*`, `PLAID_*`, `PRODIGI_*`
-
-## Database
-
-- PostgreSQL with extensions: `vector` (pgvector), `pg_net`, `pg_cron`
-- All user data protected by Row Level Security (RLS)
-- Key tables: `profiles`, `vision_boards`, `habits`, `user_knowledge_chunks`
-
-## Security Notes
-
-- Never commit `.env` or `.env.local` files
-- Always validate user authentication in Edge Functions
-- Use RLS policies for data isolation
-- Sanitize user inputs before AI prompts
-
-## AI Integration Patterns
-
-### Gemini Chat
-```typescript
-import { geminiChat } from '@/services/geminiService';
-const response = await geminiChat(messages, { model: 'gemini-2.0-flash' });
-```
-
-### Image Generation
-```typescript
-import { generateImage } from '@/services/imageService';
-const imageUrl = await generateImage(prompt, userId);
-```
-
-## Deployment
-
-- Frontend: Vercel (configured in `vercel.json`)
-- Backend: Supabase Cloud
-- Edge Functions: Deploy via Supabase CLI
-
-## Current Development Focus
-
-See `ROADMAP.md` for current sprint items and feature backlog.
+- `src/types.ts` — All TypeScript interfaces
+- `src/App.tsx` — Main app with routing and auth state
+- `src/services/` — API service functions
+- `supabase/functions/_shared/` — Shared edge function utilities
+- `supabase/migrations/` — Database migrations
+- `docs/ROADMAP.md` — Feature roadmap and system architecture

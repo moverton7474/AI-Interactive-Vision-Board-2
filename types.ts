@@ -62,7 +62,7 @@ export interface OnboardingState {
   generatedTasks?: ActionTask[];
   selectedHabits?: string[];
   // Background vision generation (WOW optimization v1.8)
-  visionGenerationStatus?: 'idle' | 'pending' | 'complete' | 'error';
+  visionGenerationStatus?: 'idle' | 'pending' | 'complete' | 'error' | 'skipped';
   visionGenerationError?: string;
   scheduledReminderId?: string; // From AMIE micro-contract
 }

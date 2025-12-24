@@ -118,6 +118,17 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ### 🎉 Recent Major Achievements (December 2025)
 
+**Onboarding Flow Resilience & Error Handling (December 24, 2025):**
+- ✅ **Gemini Model Fix** - Changed `gemini-1.5-pro` to `gemini-1.5-flash` in gemini-proxy/index.ts (model was unavailable)
+- ✅ **MasterPromptQnA Retry Logic** - Added exponential backoff (up to 2 retries) with automatic fallback to standard questions
+- ✅ **Vision Generation Error Handling** - User-friendly error messages for credit exhaustion, rate limits, network issues, safety filters
+- ✅ **Vision Error Banner UI** - Retry/Skip buttons in GuidedOnboarding for graceful degradation when generation fails
+- ✅ **Microphone Error Handling** - VisionCaptureStep now shows specific error messages for denied, not-found, network, and capture errors
+- ✅ **Camera Error Handling** - PhotoUploadStep handles NotAllowedError, NotFoundError, NotReadableError, OverconstrainedError
+- ✅ **Edge Function POST Support** - `onboarding-themes` now supports both query params (legacy) and POST body (new approach)
+- ✅ **React State Loop Fix** - VisionCaptureStep uses ref pattern to prevent infinite re-render loops
+- ✅ **Types Update** - Added 'skipped' to visionGenerationStatus type for graceful degradation
+
 **Gemini Live Voice & Plaid Integration (December 22, 2025):**
 - ✅ **Feature 23: Gemini Live Voice** - Real-time bidirectional voice conversations with AI Coach
 - ✅ `gemini-live-session` Edge Function deployed for WebSocket-based voice streaming

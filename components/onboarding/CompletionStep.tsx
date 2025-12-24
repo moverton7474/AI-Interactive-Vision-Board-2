@@ -7,7 +7,7 @@ interface Props {
   habitsCount: number;
   onComplete: () => void;
   // WOW Optimization: Background generation status
-  visionGenerationStatus?: 'idle' | 'pending' | 'complete' | 'error';
+  visionGenerationStatus?: 'idle' | 'pending' | 'complete' | 'error' | 'skipped';
   pendingVisionPromise?: Promise<{ id: string; url: string }> | null;
 }
 

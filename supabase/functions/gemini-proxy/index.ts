@@ -43,9 +43,9 @@ const getModelConfig = () => {
     // More stable but may have slightly different behavior
     image_fallback_1: env.get?.('GOOGLE_IMAGE_MODEL_FALLBACK') || 'gemini-2.0-flash',
 
-    // PRIORITY 5: Gemini 1.5 Pro - Multimodal support as last Gemini fallback
-    // Older but widely available, uses responseModalities
-    image_fallback_2: 'gemini-1.5-pro',
+    // PRIORITY 5: Gemini 1.5 Flash - Faster fallback with multimodal support
+    // More widely available than 1.5-pro
+    image_fallback_2: 'gemini-1.5-flash',
 
     // LAST RESORT: Imagen 3 (different API endpoint)
     // WARNING: Likeness will NOT be preserved - no reference image support
@@ -57,8 +57,9 @@ const MODELS = {
   // Chat: Use Gemini 2.0 Flash for conversational AI
   chat: 'gemini-2.0-flash-exp',
 
-  // Reasoning: Use Gemini 1.5 Pro for complex planning and projections
-  reasoning: 'gemini-1.5-pro',
+  // Reasoning: Use Gemini 1.5 Flash for complex planning and projections
+  // Changed from 1.5-pro which may not be available in all regions/API keys
+  reasoning: 'gemini-1.5-flash',
 
   // Likeness Validation: Use multimodal model to compare faces
   likeness_validator: 'gemini-2.0-flash-exp',

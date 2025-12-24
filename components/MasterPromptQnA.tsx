@@ -30,15 +30,22 @@ const MasterPromptQnA: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [usingFallback, setUsingFallback] = useState(false);
+
+  const MAX_RETRIES = 2;
 
   useEffect(() => {
     fetchQuestions();
   }, [themeId]);
 
-  const fetchQuestions = async () => {
+  const fetchQuestions = async (isRetry = false) => {
     try {
       setLoading(true);
-      setError(null);
+      if (!isRetry) {
+        setError(null);
+        setRetryCount(0);
+      }
 
       // Use POST with body for Supabase Edge Functions (invoke doesn't support query params in URL)
       const response = await supabase.functions.invoke('onboarding-themes', {
@@ -52,19 +59,45 @@ const MasterPromptQnA: React.FC<Props> = ({
         throw new Error(response.error.message || 'Failed to fetch questions');
       }
 
-      if (response.data?.questions) {
+      if (response.data?.questions && response.data.questions.length > 0) {
         setQuestions(response.data.questions);
+        setUsingFallback(false);
+        setError(null);
       } else {
-        // Fallback questions if API fails
+        // No questions returned - use fallback
+        console.log('No questions from API, using fallback questions');
         setQuestions(FALLBACK_QUESTIONS);
+        setUsingFallback(true);
       }
     } catch (err: any) {
       console.error('Error fetching questions:', err);
-      setError(err.message || 'Failed to load questions');
+
+      // Retry with exponential backoff
+      if (retryCount < MAX_RETRIES) {
+        const nextRetry = retryCount + 1;
+        setRetryCount(nextRetry);
+        const delay = Math.pow(2, nextRetry) * 500; // 1s, 2s
+        console.log(`Retrying question fetch in ${delay}ms (attempt ${nextRetry}/${MAX_RETRIES})`);
+
+        setTimeout(() => {
+          fetchQuestions(true);
+        }, delay);
+        return;
+      }
+
+      // All retries exhausted - use fallback questions
+      console.log('All retries exhausted, using fallback questions');
+      setError('Could not load personalized questions. Using standard questions instead.');
       setQuestions(FALLBACK_QUESTIONS);
+      setUsingFallback(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRetry = () => {
+    setRetryCount(0);
+    fetchQuestions();
   };
 
   const handleResponse = (questionId: string, answer: string | string[]) => {
@@ -147,7 +180,11 @@ const MasterPromptQnA: React.FC<Props> = ({
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center p-4">
         <div className="w-8 h-8 border-4 border-gray-200 border-t-navy-900 rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-500">Loading your personalized questions...</p>
+        <p className="mt-4 text-gray-500">
+          {retryCount > 0
+            ? `Retrying... (attempt ${retryCount}/${MAX_RETRIES})`
+            : 'Loading your personalized questions...'}
+        </p>
       </div>
     );
   }
@@ -201,8 +238,17 @@ const MasterPromptQnA: React.FC<Props> = ({
         {/* Question Card */}
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-              {error}
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm flex items-center justify-between">
+              <span>{error}</span>
+              {usingFallback && (
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="ml-4 px-3 py-1 text-xs bg-amber-100 hover:bg-amber-200 rounded-md transition-colors"
+                >
+                  Try Again
+                </button>
+              )}
             </div>
           )}
 

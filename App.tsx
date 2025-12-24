@@ -319,11 +319,9 @@ const App = () => {
         }
 
         // Route to appropriate view
-        // User goes to Dashboard if:
-        // 1. onboarding_completed is true, OR
-        // 2. They have a primary vision, OR
-        // 3. They have ANY vision boards
-        const shouldGoToDashboard = profile?.onboarding_completed || profile?.primary_vision_id || hasAnyVisions;
+        // User goes to Dashboard ONLY if onboarding_completed is true
+        // This allows users to restart onboarding by resetting the flag
+        const shouldGoToDashboard = profile?.onboarding_completed === true;
 
         if (shouldGoToDashboard) {
           console.log('🏠 Routing to Dashboard', {
@@ -332,12 +330,11 @@ const App = () => {
             hasAnyVisions
           });
           setView(AppView.DASHBOARD);
-          // Also mark onboarding as complete if they have content
-          if (!profile?.onboarding_completed && (profile?.primary_vision_id || hasAnyVisions)) {
-            setOnboardingCompleted(true);
-          }
         } else {
-          console.log('📋 Routing to Onboarding (new user)');
+          console.log('📋 Routing to Onboarding', {
+            onboardingCompleted: profile?.onboarding_completed,
+            hasExistingContent: hasAnyVisions || !!profile?.primary_vision_id
+          });
           setView(AppView.GUIDED_ONBOARDING);
         }
 

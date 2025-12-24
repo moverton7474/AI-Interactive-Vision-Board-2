@@ -168,6 +168,29 @@ const GuidedOnboarding: React.FC<Props> = ({
     setState(prev => ({ ...prev, currentStep: step }));
   }, []);
 
+  // Parse error message to provide user-friendly feedback
+  const getVisionErrorMessage = useCallback((errorMessage: string): string => {
+    const lowerError = errorMessage.toLowerCase();
+
+    if (lowerError.includes('credit') || lowerError.includes('quota') || lowerError.includes('exhausted')) {
+      return 'Vision generation credits exhausted. You can continue without a generated image and create one later from your Dashboard.';
+    }
+    if (lowerError.includes('rate limit') || lowerError.includes('too many requests')) {
+      return 'Too many requests. Please wait a moment and try again.';
+    }
+    if (lowerError.includes('api key') || lowerError.includes('unauthorized')) {
+      return 'Service temporarily unavailable. You can continue and generate your vision image later.';
+    }
+    if (lowerError.includes('timeout') || lowerError.includes('network')) {
+      return 'Network issue. Please check your connection and try again.';
+    }
+    if (lowerError.includes('safety') || lowerError.includes('blocked')) {
+      return 'Your vision description triggered safety filters. Try rephrasing with more general terms.';
+    }
+
+    return 'Could not generate vision image. You can continue and try again from your Dashboard.';
+  }, []);
+
   // Trigger background vision generation
   const triggerBackgroundGeneration = useCallback(() => {
     if (!state.visionText) {
@@ -176,7 +199,10 @@ const GuidedOnboarding: React.FC<Props> = ({
     }
 
     console.log('🚀 Triggering background vision generation...');
-    updateState({ visionGenerationStatus: 'pending' });
+    updateState({
+      visionGenerationStatus: 'pending',
+      visionGenerationError: undefined
+    });
 
     // Start generation in background
     const generationPromise = generateVisionImage(
@@ -195,17 +221,32 @@ const GuidedOnboarding: React.FC<Props> = ({
         updateState({
           primaryVisionId: result.id,
           primaryVisionUrl: result.url,
-          visionGenerationStatus: 'complete'
+          visionGenerationStatus: 'complete',
+          visionGenerationError: undefined
         });
       })
       .catch((err) => {
         console.error('❌ Background vision generation failed:', err);
+        const userMessage = getVisionErrorMessage(err.message || 'Generation failed');
         updateState({
           visionGenerationStatus: 'error',
-          visionGenerationError: err.message || 'Generation failed'
+          visionGenerationError: userMessage
         });
       });
-  }, [state.visionText, state.photoRefId, generateVisionImage, updateState]);
+  }, [state.visionText, state.photoRefId, generateVisionImage, updateState, getVisionErrorMessage]);
+
+  // Retry vision generation
+  const retryVisionGeneration = useCallback(() => {
+    triggerBackgroundGeneration();
+  }, [triggerBackgroundGeneration]);
+
+  // Skip vision generation and continue
+  const skipVisionGeneration = useCallback(() => {
+    updateState({
+      visionGenerationStatus: 'skipped',
+      visionGenerationError: undefined
+    });
+  }, [updateState]);
 
   const goNext = useCallback(() => {
     const nextIndex = currentStepIndex + 1;
@@ -440,6 +481,11 @@ const GuidedOnboarding: React.FC<Props> = ({
   // Only show skip option on the first 5 steps (before AI generation)
   const showSkipOption = currentStepIndex < 5 && state.currentStep !== 'COMPLETION';
 
+  // Show vision generation error banner on relevant steps
+  const showVisionErrorBanner = state.visionGenerationStatus === 'error' &&
+    state.visionGenerationError &&
+    ['DRAFT_PLAN_REVIEW', 'HABITS_SETUP', 'COMPLETION'].includes(state.currentStep);
+
   return (
     <OnboardingLayout
       step={displayStepNumber}
@@ -450,6 +496,39 @@ const GuidedOnboarding: React.FC<Props> = ({
       onBack={goBack}
       onSkip={showSkipOption ? handleSkip : undefined}
     >
+      {/* Vision Generation Error Banner */}
+      {showVisionErrorBanner && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+              <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-amber-800 font-medium text-sm">Vision Image Not Generated</p>
+              <p className="text-amber-700 text-sm mt-1">{state.visionGenerationError}</p>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={retryVisionGeneration}
+                  className="px-3 py-1.5 text-xs font-medium bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg transition-colors"
+                >
+                  Try Again
+                </button>
+                <button
+                  type="button"
+                  onClick={skipVisionGeneration}
+                  className="px-3 py-1.5 text-xs font-medium text-amber-700 hover:text-amber-900 transition-colors"
+                >
+                  Continue Without Image
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {renderStep()}
 
       {/* Navigation Buttons */}
