@@ -70,6 +70,7 @@ const VoiceCoachWidget: React.FC = () => {
     const lastInterimTranscriptRef = useRef(''); // Track last interim result for auto-send
     const isMobileRef = useRef(false); // Track if on mobile for auto-send behavior
     const autoListenRef = useRef(false); // Track auto-listen state in callbacks
+    const previousDisplayTextRef = useRef(''); // Track previous display text to detect actual changes
 
     // Keep refs in sync with state
     useEffect(() => {
@@ -214,6 +215,7 @@ const VoiceCoachWidget: React.FC = () => {
                         handleUserSpeech(textToSend);
                         accumulatedTranscriptRef.current = '';
                         lastInterimTranscriptRef.current = '';
+                        previousDisplayTextRef.current = ''; // Reset for next interaction
                         setTranscript('');
                         setIsListening(false);
                         setStatus('processing');
@@ -296,31 +298,40 @@ const VoiceCoachWidget: React.FC = () => {
                 const displayText = (accumulatedTranscriptRef.current + interimTranscript).trim();
                 setTranscript(displayText);
 
-                // Reset silence timer - give user 2.5 seconds of silence before sending
-                if (silenceTimerRef.current) {
-                    clearTimeout(silenceTimerRef.current);
-                }
+                // Only reset silence timer if content has actually changed
+                // This prevents repeated interim results (common on iOS/mobile) from
+                // continuously resetting the timer and blocking auto-send
+                const contentChanged = displayText !== previousDisplayTextRef.current;
+                previousDisplayTextRef.current = displayText;
 
-                silenceTimerRef.current = setTimeout(() => {
-                    // Include both final results AND last interim result for auto-send
-                    // This fixes the issue where speech stays as "interim" in continuous mode
-                    const finalText = accumulatedTranscriptRef.current.trim();
-                    const interimText = lastInterimTranscriptRef.current.trim();
-                    const textToSend = (finalText + ' ' + interimText).trim();
-
-                    console.log('Auto-send triggered:', { finalText, interimText, textToSend });
-
-                    if (textToSend && sessionIdRef.current) {
-                        // Stop recognition to finalize any pending results
-                        if (recognitionRunningRef.current) {
-                            recognitionRef.current?.stop();
-                        }
-                        handleUserSpeech(textToSend);
-                        accumulatedTranscriptRef.current = '';
-                        lastInterimTranscriptRef.current = '';
-                        setTranscript('');
+                if (contentChanged && displayText) {
+                    // Clear existing timer
+                    if (silenceTimerRef.current) {
+                        clearTimeout(silenceTimerRef.current);
                     }
-                }, 2500);
+
+                    silenceTimerRef.current = setTimeout(() => {
+                        // Include both final results AND last interim result for auto-send
+                        // This fixes the issue where speech stays as "interim" in continuous mode
+                        const finalText = accumulatedTranscriptRef.current.trim();
+                        const interimText = lastInterimTranscriptRef.current.trim();
+                        const textToSend = (finalText + ' ' + interimText).trim();
+
+                        console.log('Auto-send triggered:', { finalText, interimText, textToSend });
+
+                        if (textToSend && sessionIdRef.current) {
+                            // Stop recognition to finalize any pending results
+                            if (recognitionRunningRef.current) {
+                                recognitionRef.current?.stop();
+                            }
+                            handleUserSpeech(textToSend);
+                            accumulatedTranscriptRef.current = '';
+                            lastInterimTranscriptRef.current = '';
+                            previousDisplayTextRef.current = ''; // Reset for next interaction
+                            setTranscript('');
+                        }
+                    }, 2500);
+                }
             };
         }
 
@@ -537,6 +548,7 @@ const VoiceCoachWidget: React.FC = () => {
                 if (!recognitionRunningRef.current && sessionIdRef.current) {
                     accumulatedTranscriptRef.current = '';
                     lastInterimTranscriptRef.current = '';
+                    previousDisplayTextRef.current = ''; // Reset for new listening session
                     setTranscript('');
                     try {
                         recognitionRef.current?.start();
@@ -649,11 +661,13 @@ const VoiceCoachWidget: React.FC = () => {
             }
             accumulatedTranscriptRef.current = '';
             lastInterimTranscriptRef.current = '';
+            previousDisplayTextRef.current = ''; // Reset for next interaction
             setIsListening(false);
         } else {
             setTranscript('');
             accumulatedTranscriptRef.current = '';
             lastInterimTranscriptRef.current = '';
+            previousDisplayTextRef.current = ''; // Reset for new listening session
             if (!recognitionRunningRef.current) {
                 try {
                     recognitionRef.current?.start();
@@ -724,6 +738,7 @@ const VoiceCoachWidget: React.FC = () => {
         handleUserSpeech(textToSend);
         accumulatedTranscriptRef.current = '';
         lastInterimTranscriptRef.current = '';
+        previousDisplayTextRef.current = ''; // Reset for next interaction
         setTranscript('');
         setIsListening(false);
     };
