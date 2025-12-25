@@ -673,6 +673,17 @@ export interface WorkbookTemplate {
   is_active: boolean;
   sort_order: number;
   created_at: string;
+  // v2.1 additions for Prodigi print specs and new products
+  product_type?: 'SOFTCOVER_JOURNAL' | 'HARDCOVER_PLANNER' | 'EXECUTIVE_VISION_BOOK' | 'LEGACY_EDITION' | 'DAILY_PAD_A5' | 'HABIT_CARDS';
+  prodigi_sku?: string;
+  print_specs?: {
+    dpi: number;
+    color_mode: 'RGB' | 'CMYK';
+    bleed_mm: number;
+    safety_margin_mm: number;
+    min_pages?: number;
+    max_pages?: number;
+  };
 }
 
 export interface WorkbookOrder {

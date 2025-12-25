@@ -6,11 +6,28 @@ export type WorkbookEdition =
     | 'EXECUTIVE_VISION_BOOK'
     | 'LEGACY_EDITION';
 
+// Extended product types including Execution Toolkit items
+export type WorkbookProductType =
+    | 'SOFTCOVER_JOURNAL'
+    | 'HARDCOVER_PLANNER'
+    | 'EXECUTIVE_VISION_BOOK'
+    | 'LEGACY_EDITION'
+    | 'DAILY_PAD_A5'      // Execution Toolkit: Tear-off focus pad
+    | 'HABIT_CARDS';       // Execution Toolkit: 3x5 cue cards
+
 export type WorkbookTrimSize =
     | 'LETTER_8_5x11'
     | 'A4_8_27x11_69'
     | 'A5_5_83x8_27'
-    | 'TRADE_6x9';
+    | 'TRADE_6x9'
+    | 'CARD_3x5'          // For habit cue cards
+    | 'EXECUTIVE_7x9';    // For executive planners
+
+// Theme pack for AI content generation
+export type ThemePack = 'faith' | 'executive' | 'retirement' | 'health' | 'entrepreneur' | 'relationship';
+
+// Binding types for print specifications
+export type BindingType = 'SOFTCOVER' | 'HARDCOVER' | 'SPIRAL' | 'PAD' | 'CARDS';
 
 export type WorkbookPageType =
     | 'COVER_FRONT'
@@ -38,8 +55,10 @@ export interface PageLayoutMeta {
     trimSize: WorkbookTrimSize;
     widthPx: number;
     heightPx: number;
-    bleedPx: number;
-    safeMarginPx: number;
+    bleedPx?: number;               // DEPRECATED: Prodigi adds bleed automatically
+    safeMarginPx: number;           // 10mm = ~118px at 300 DPI
+    spiralEdgeMarginPx?: number;    // 12mm for spiral notebooks
+    bindingType?: BindingType;      // Type of binding for margin calculations
     dpi: number;
 }
 
@@ -136,4 +155,68 @@ export interface WorkbookPage {
     isVisible: boolean;
     isLocked?: boolean;
     customOrder?: number;
+}
+
+// ============================================
+// AI Content Generation Types (v2.1)
+// ============================================
+
+/**
+ * Context for AI content generation (Ghostwriter features)
+ * Used to generate personalized forewords, prompts, and reflections
+ */
+export interface AIContentContext {
+    theme: ThemePack;
+    financialTarget?: number;
+    financialTargetLabel?: string;
+    goals: string[];
+    habits: string[];
+    visionText?: string;
+    userName?: string;
+}
+
+/**
+ * AI-generated content stored in workbook_orders.ai_content JSONB
+ */
+export interface AIGeneratedContent {
+    foreword?: string;
+    forewordGeneratedAt?: string;
+    themePrompts?: Record<string, string[]>;
+    reflectionPrompts?: string[];
+    coachLetter?: string;
+    fallbackUsed?: boolean;
+}
+
+/**
+ * Print validation result for pre-flight checks
+ * Stored in workbook_orders.print_validation JSONB
+ */
+export interface PrintValidationResult {
+    status: 'pending' | 'valid' | 'invalid';
+    errors: string[];
+    warnings: string[];
+    validatedAt?: string;
+    imageResolutions?: Array<{
+        url: string;
+        dpi: number;
+        isValid: boolean;
+    }>;
+    pageCount?: {
+        current: number;
+        min: number;
+        max: number;
+        isEven: boolean;
+    };
+}
+
+/**
+ * Print specifications stored in workbook_templates.print_specs JSONB
+ */
+export interface PrintSpecs {
+    dpi: number;
+    color_mode: 'RGB' | 'CMYK';
+    bleed_mm: number;
+    safety_margin_mm: number;
+    min_pages?: number;
+    max_pages?: number;
 }
