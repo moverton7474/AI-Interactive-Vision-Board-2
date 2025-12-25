@@ -129,18 +129,21 @@ CREATE TABLE IF NOT EXISTS public.voice_personas (
 -- 5. SEED DEFAULT PERSONAS
 -- ============================================
 
-INSERT INTO voice_personas (name, display_name, description, openai_voice, gender, style, available_tiers)
+INSERT INTO voice_personas (name, display_name, description, openai_voice, elevenlabs_voice_id, gender, style, available_tiers)
 VALUES
   ('maya', 'Coach Maya', 'Warm, encouraging female coach with a supportive tone. Perfect for daily motivation and gentle accountability.',
-   'nova', 'female', 'warm', '{pro, elite}'),
+   'nova', 'Bn9xWp6PwkrqKRbq8cX2', 'female', 'warm', '{pro, elite}'),
   ('james', 'Coach James', 'Confident, professional male coach with motivational energy. Ideal for goal-focused sessions and performance coaching.',
-   'onyx', 'male', 'professional', '{pro, elite}'),
+   'onyx', 'ePn9OncKq8KyJvrTRqTi', 'male', 'professional', '{pro, elite}'),
+  ('tonya', 'Coach Tonya', 'Warm, compassionate female coach with a nurturing tone. Great for emotional support and reflection sessions.',
+   'shimmer', 'zwbQ2XUiIlOKD6b3JWXd', 'female', 'warm', '{pro, elite}'),
   ('system', 'System Voice', 'Default browser text-to-speech voice. Basic but functional.',
-   NULL, 'neutral', 'neutral', '{free, pro, elite}')
+   NULL, NULL, 'neutral', 'neutral', '{free, pro, elite}')
 ON CONFLICT (name) DO UPDATE SET
   display_name = EXCLUDED.display_name,
   description = EXCLUDED.description,
   openai_voice = EXCLUDED.openai_voice,
+  elevenlabs_voice_id = EXCLUDED.elevenlabs_voice_id,
   gender = EXCLUDED.gender,
   style = EXCLUDED.style,
   available_tiers = EXCLUDED.available_tiers;

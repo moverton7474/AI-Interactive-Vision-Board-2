@@ -13,7 +13,7 @@ import { supabase } from '../lib/supabase';
 // Types
 export interface VoiceSettings {
   preferredProvider: 'browser' | 'openai' | 'elevenlabs';
-  preferredPersona: 'maya' | 'james' | 'custom' | 'system';
+  preferredPersona: 'maya' | 'james' | 'tonya' | 'custom' | 'system';
   customVoiceId?: string;
   customVoiceName?: string;
   customVoiceStatus: 'none' | 'pending' | 'processing' | 'ready' | 'failed';

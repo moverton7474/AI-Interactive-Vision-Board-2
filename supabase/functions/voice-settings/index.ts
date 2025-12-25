@@ -23,7 +23,7 @@ const corsHeaders = {
 
 interface VoiceSettingsUpdate {
   preferredProvider?: 'browser' | 'openai' | 'elevenlabs';
-  preferredPersona?: 'maya' | 'james' | 'custom' | 'system';
+  preferredPersona?: 'maya' | 'james' | 'tonya' | 'custom' | 'system';
   language?: string;
   voiceSpeed?: number;
   voicePitch?: number;

@@ -153,12 +153,17 @@ function getPersonaVoice(persona: string): { openaiVoice: string; elevenlabsVoic
     case 'maya':
       return {
         openaiVoice: 'nova',
-        elevenlabsVoiceId: Deno.env.get('ELEVENLABS_VOICE_MAYA_ID') || null
+        elevenlabsVoiceId: Deno.env.get('ELEVENLABS_VOICE_MAYA_ID') || 'Bn9xWp6PwkrqKRbq8cX2'
       };
     case 'james':
       return {
         openaiVoice: 'onyx',
-        elevenlabsVoiceId: Deno.env.get('ELEVENLABS_VOICE_JAMES_ID') || null
+        elevenlabsVoiceId: Deno.env.get('ELEVENLABS_VOICE_JAMES_ID') || 'ePn9OncKq8KyJvrTRqTi'
+      };
+    case 'tonya':
+      return {
+        openaiVoice: 'shimmer',
+        elevenlabsVoiceId: Deno.env.get('ELEVENLABS_VOICE_TONYA_ID') || 'zwbQ2XUiIlOKD6b3JWXd'
       };
     case 'system':
     default:
