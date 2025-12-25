@@ -604,43 +604,247 @@ graph TD
 | Feedback Loop Learning | Deloitte AI Strategy | ✅ Aligned |
 | Confidence-Based Routing | Bain AI Report | ✅ Aligned |
 
-### v2.9 — Voice Coach Enhancement (ElevenLabs Integration) 🔲 PLANNED
+### v2.9 — Voice Coach Enhancement (Premium Voice Integration) 🔲 APPROVED FOR IMPLEMENTATION
 
-**Theme:** 2025 Best-in-Class Voice AI Capabilities
+**Theme:** 2025 Best-in-Class Voice AI with Hybrid Provider Stack
 
-> **Upgrade the Voice Coach** from browser-based TTS to ElevenLabs' industry-leading voice AI for natural, human-like coaching conversations.
+> **Upgrade the Voice Coach** with a tiered voice provider system: Browser TTS (Free) → OpenAI TTS (Pro) → ElevenLabs (Elite), with fallback chain for reliability.
 
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **ElevenLabs TTS Integration** | Replace browser TTS with ElevenLabs for natural voice output | 🔲 Planned |
-| **Custom Coach Voice** | Dedicated AI coach voice persona (warm, encouraging, professional) | 🔲 Planned |
-| **Real-Time Streaming** | Low-latency voice streaming for natural conversation flow | 🔲 Planned |
-| **Voice Cloning (Premium)** | Allow users to clone their own voice for affirmations | 🔲 Planned |
-| **Multi-Language Support** | Coach in user's preferred language (Spanish, French, etc.) | 🔲 Planned |
-| **Emotion Detection** | Analyze user voice for sentiment and adapt coaching style | 🔲 Planned |
-| **Conversational AI Mode** | Full duplex conversation with interruption handling | 🔲 Planned |
-| **Voice Memory** | Remember user preferences and conversation context | 🔲 Planned |
+**Version:** 2.9.0-PLAN
+**Status:** Approved for Implementation (December 24, 2025)
+**Estimated Duration:** 8 Sprints (16 weeks)
 
-**Technical Architecture:**
-- User Speech → Web Speech API → Gemini AI (reasoning) → ElevenLabs (voice output)
-- AMIE Context + RAG integration for personalized responses
-- Voice Personas: "Coach Maya" (warm female), "Coach James" (professional male), Custom (Elite tier)
+---
 
-**New Edge Functions Required:**
-- `elevenlabs-tts` - Text-to-speech conversion with voice selection
-- `elevenlabs-stream` - Real-time voice streaming for conversations
-- `voice-persona-settings` - User voice preferences management
+#### v2.9.1 Feature Summary
+
+| Feature | Free | Pro ($19.99) | Elite ($49.99) | Status |
+|---------|------|--------------|----------------|--------|
+| **Voice Output** | Browser TTS | OpenAI TTS | ElevenLabs | 🔲 Planned |
+| **Personas** | System default | Maya or James | Maya, James, Custom | 🔲 Planned |
+| **Voice Cloning** | ❌ | ❌ | ✅ (2 voices) | 🔲 Planned |
+| **Languages** | English only | English + Spanish | All supported | 🔲 Planned |
+| **Monthly Quota** | Unlimited | 50K chars | 150K chars | 🔲 Planned |
+| **Target Latency** | ~500ms | ~300ms | ~200ms | 🔲 Planned |
+| **Affirmations in Own Voice** | ❌ | ❌ | ✅ | 🔲 Planned |
+| **Interruption Handling** | Basic | Enhanced | Full duplex | 🔲 Planned |
+
+---
+
+#### v2.9.2 Technical Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    VOICE SYNTHESIS PIPELINE v2.9                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────────┐                                                    │
+│  │ VoiceCoachWidget │  User speaks → Web Speech Recognition API          │
+│  └────────┬─────────┘                                                    │
+│           │ transcript                                                   │
+│           ▼                                                              │
+│  ┌────────────────────────┐                                              │
+│  │  voice-coach-session   │  Existing: OpenAI GPT-4o reasoning           │
+│  │  (Edge Function)       │  + AMIE context + RAG knowledge              │
+│  └────────┬───────────────┘                                              │
+│           │ response text + user tier                                    │
+│           ▼                                                              │
+│  ┌────────────────────────┐                                              │
+│  │   voice-tts-router     │  NEW: Routes based on subscription tier      │
+│  │   (Edge Function)      │  + quota check + fallback logic              │
+│  └────────┬───────────────┘                                              │
+│           │                                                              │
+│     ┌─────┴─────┬──────────────┬──────────────┐                          │
+│     ▼           ▼              ▼              ▼                          │
+│  ┌──────┐  ┌─────────┐   ┌───────────┐  ┌──────────┐                     │
+│  │ Free │  │   Pro   │   │   Elite   │  │ Fallback │                     │
+│  │      │  │         │   │           │  │          │                     │
+│  │Return│  │ OpenAI  │   │ElevenLabs │  │ Google   │                     │
+│  │ text │  │   TTS   │   │ Streaming │  │Cloud TTS │                     │
+│  │ only │  │         │   │           │  │          │                     │
+│  └──┬───┘  └────┬────┘   └─────┬─────┘  └────┬─────┘                     │
+│     │           │              │              │                          │
+│     │           └──────────────┴──────────────┘                          │
+│     │                          │                                         │
+│     │                          ▼                                         │
+│     │           ┌──────────────────────────┐                             │
+│     │           │   Streaming Audio Response│                            │
+│     │           │  (HTTP chunked transfer)  │                            │
+│     │           └────────────┬─────────────┘                             │
+│     │                        │                                           │
+│     ▼                        ▼                                           │
+│  ┌──────────────────────────────────────────┐                            │
+│  │         VoiceCoachWidget (Client)         │                           │
+│  │  ┌─────────────────┐  ┌────────────────┐ │                            │
+│  │  │ Browser TTS     │  │ HTML5 Audio    │ │                            │
+│  │  │ (Free tier)     │  │ (Pro/Elite)    │ │                            │
+│  │  └─────────────────┘  └────────────────┘ │                            │
+│  └──────────────────────────────────────────┘                            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### v2.9.3 Database Schema
+
+**Migration File:** `20251224_voice_enhancement_v29.sql`
+
+**New Tables:**
+
+| Table | Purpose |
+|-------|---------|
+| `user_voice_settings` | User voice preferences (persona, language, speed) |
+| `voice_usage` | Usage tracking for quota management and cost monitoring |
+| `voice_clones` | Elite user voice clone records |
+| `voice_personas` | System-defined personas (Maya, James) |
+
+**Key Functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `check_voice_quota(user_id, tier, chars)` | Returns quota status before API call |
+| `record_voice_usage(user_id, provider, chars)` | Records usage with cost estimation |
+
+**Quota Limits:**
+- Free: 0 (browser TTS only)
+- Pro: 50,000 characters/month
+- Elite: 150,000 characters/month
+
+---
+
+#### v2.9.4 Edge Function Specifications
+
+| Function | Purpose | Priority |
+|----------|---------|----------|
+| `voice-tts-router` | Routes TTS requests by tier, checks quota, handles fallback | P0 |
+| `openai-tts` | OpenAI TTS integration for Pro tier | P0 |
+| `elevenlabs-stream` | ElevenLabs streaming for Elite tier | P0 |
+| `voice-clone-create` | Create custom voice clone (Elite) | P1 |
+| `voice-settings` | CRUD for user voice preferences | P1 |
 
 **Environment Secrets Required:**
-- `ELEVENLABS_API_KEY`
-- `ELEVENLABS_COACH_VOICE_ID`
 
-**Pricing Tier Integration:**
-| Tier | Voice Features |
-|------|---------------|
-| Free | Browser TTS only |
-| Pro | ElevenLabs standard voices |
-| Elite | Custom voice cloning + all languages |
+| Secret | Phase |
+|--------|-------|
+| `OPENAI_TTS_API_KEY` | Phase 1 |
+| `ELEVENLABS_API_KEY` | Phase 2 |
+| `ELEVENLABS_VOICE_MAYA_ID` | Phase 2 |
+| `ELEVENLABS_VOICE_JAMES_ID` | Phase 2 |
+| `GOOGLE_CLOUD_TTS_KEY` | Phase 4 |
+
+---
+
+#### v2.9.5 Implementation Phases
+
+##### PHASE 1: Foundation (Sprint 1-2)
+**Goal:** Provider abstraction layer and OpenAI TTS for Pro users
+
+| Sprint | Tasks | Deliverables |
+|--------|-------|--------------|
+| **Sprint 1** | Database migration, voice-tts-router skeleton, voice-settings function | Tables created, settings CRUD working |
+| **Sprint 2** | OpenAI TTS integration, VoiceCoachWidget streaming, quota tracking | Pro users hear OpenAI voices |
+
+**Success Criteria:**
+- [ ] Pro users experience better voice quality (OpenAI TTS)
+- [ ] Latency < 400ms from text to first audio byte
+- [ ] Quota enforcement prevents overage
+- [ ] iOS streaming audio confirmed working
+- [ ] No regressions for Free tier
+
+---
+
+##### PHASE 2: ElevenLabs Core (Sprint 3-4)
+**Goal:** ElevenLabs integration for Elite users with custom personas
+
+| Sprint | Tasks | Deliverables |
+|--------|-------|--------------|
+| **Sprint 3** | ElevenLabs account setup, Maya/James voice design, elevenlabs-stream function | ElevenLabs streaming for Elite |
+| **Sprint 4** | VoiceSettingsPanel component, persona selection UI, voice preview | Users can select Maya or James |
+
+**Success Criteria:**
+- [ ] Elite users hear ElevenLabs quality voices
+- [ ] Latency < 250ms for ElevenLabs
+- [ ] Persona selection working and persisting
+- [ ] Clear tier differentiation in voice quality
+
+---
+
+##### PHASE 3: Premium Features (Sprint 5-6)
+**Goal:** Voice cloning and multi-language support for Elite
+
+| Sprint | Tasks | Deliverables |
+|--------|-------|--------------|
+| **Sprint 5** | voice-clone-create function, sample upload UI, affirmation playback | Elite users can clone their voice |
+| **Sprint 6** | Language detection, multi-language TTS, STT for non-English | Spanish/French fully supported |
+
+**Success Criteria:**
+- [ ] Voice cloning works with 80%+ likeness
+- [ ] Affirmations in user's voice create "wow" moment
+- [ ] Spanish and French coaching fully functional
+- [ ] No security issues with clone isolation
+
+---
+
+##### PHASE 4: Polish & Scale (Sprint 7-8)
+**Goal:** Performance optimization, monitoring, and rollout
+
+| Sprint | Tasks | Deliverables |
+|--------|-------|--------------|
+| **Sprint 7** | Fallback chain implementation, Google TTS, audio caching, interruption handling | 99.9% uptime with fallbacks |
+| **Sprint 8** | Admin dashboard, cost monitoring, A/B testing, staged rollout | Full production rollout |
+
+**Success Criteria:**
+- [ ] Costs within budget projections
+- [ ] User satisfaction > 80% for voice quality
+- [ ] No critical bugs in production
+- [ ] Upgrade rate increases for voice features
+
+---
+
+#### v2.9.6 Cost Projections (Year 1)
+
+| Tier | Est. Users | Avg Chars/Mo | Provider | Monthly Cost |
+|------|------------|--------------|----------|--------------|
+| Free | 8,000 | 0 | Browser | $0 |
+| Pro | 1,500 | 25,000 | OpenAI | $562 |
+| Elite | 500 | 75,000 | ElevenLabs | $6,750 |
+| **Total** | 10,000 | - | - | **$7,312/mo** |
+
+**Annual Voice Cost:** $87,750
+**Voice Cost as % of Revenue:** ~13%
+
+---
+
+#### v2.9.7 Risk Mitigations
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| ElevenLabs API outage | Low | High | Fallback: OpenAI → Google → Browser |
+| Cost overrun | Medium | High | Hard quotas, real-time monitoring |
+| iOS audio issues | Medium | Medium | HTTP chunked streaming, extensive testing |
+| Voice clone abuse | Low | Medium | Rate limiting, content moderation |
+| Poor voice quality | Low | Medium | A/B testing, parameter tuning |
+
+---
+
+#### v2.9.8 Testing Requirements
+
+| Test Type | Scope |
+|-----------|-------|
+| **Unit Tests** | Tier routing, quota calculation, usage recording |
+| **Integration Tests** | End-to-end TTS, quota enforcement, settings persistence |
+| **Device Tests** | iOS Safari 17+, Android Chrome, Desktop browsers |
+| **Load Tests** | 50 concurrent Pro, 20 concurrent Elite, 100 req/min |
+
+---
+
+#### v2.9.9 Approval & Sign-off
+
+**Plan Approved:** December 24, 2025
+**Implementation Start:** Pending user approval
+**Estimated Completion:** 16 weeks from start
+
+---
 
 ### v3.0 — Marketplace & Certification 🔲 FUTURE
 
