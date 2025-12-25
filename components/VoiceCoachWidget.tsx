@@ -56,6 +56,7 @@ const VoiceCoachWidget: React.FC = () => {
     const audioUnlockedRef = useRef(false);
     const [isIOS, setIsIOS] = useState(false);
     const [showIOSWarning, setShowIOSWarning] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
 
     // Refs to track state in callbacks (avoid stale closures)
     const isListeningRef = useRef(isListening);
@@ -67,6 +68,8 @@ const VoiceCoachWidget: React.FC = () => {
     const voiceSettingsLoadedRef = useRef(false); // Track if voice settings are loaded
     const voiceProviderRef = useRef<'browser' | 'openai' | 'elevenlabs'>('browser');
     const lastInterimTranscriptRef = useRef(''); // Track last interim result for auto-send
+    const isMobileRef = useRef(false); // Track if on mobile for auto-send behavior
+    const autoListenRef = useRef(false); // Track auto-listen state in callbacks
 
     // Keep refs in sync with state
     useEffect(() => {
@@ -86,10 +89,25 @@ const VoiceCoachWidget: React.FC = () => {
     }, [voiceProvider]);
 
     useEffect(() => {
+        autoListenRef.current = autoListen;
+    }, [autoListen]);
+
+    useEffect(() => {
         // Detect iOS for special handling
         const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         setIsIOS(iOS);
+
+        // Detect mobile (includes Android, iOS, and other mobile devices)
+        const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+            ('ontouchstart' in window && navigator.maxTouchPoints > 0);
+        setIsMobile(mobile);
+        isMobileRef.current = mobile;
+
+        if (mobile) {
+            console.log('Mobile device detected - using mobile-optimized voice recognition');
+        }
 
         // Load voices and set up voiceschanged listener for iOS
         if (synthRef.current) {
@@ -174,7 +192,36 @@ const VoiceCoachWidget: React.FC = () => {
 
             recognitionRef.current.onend = () => {
                 recognitionRunningRef.current = false;
-                // If continuous mode ends unexpectedly and we're still supposed to be listening, restart
+
+                // MOBILE AUTO-SEND: On mobile, recognition ends after pauses
+                // Instead of trying to restart, send any accumulated text
+                if (isMobileRef.current && sessionIdRef.current && !isSpeakingRef.current) {
+                    // Clear any pending silence timer
+                    if (silenceTimerRef.current) {
+                        clearTimeout(silenceTimerRef.current);
+                        silenceTimerRef.current = null;
+                    }
+
+                    // Combine final and interim text
+                    const finalText = accumulatedTranscriptRef.current.trim();
+                    const interimText = lastInterimTranscriptRef.current.trim();
+                    const textToSend = (finalText + ' ' + interimText).trim();
+
+                    console.log('Mobile onend - checking for text to send:', { finalText, interimText, textToSend });
+
+                    if (textToSend) {
+                        // Send the accumulated text
+                        handleUserSpeech(textToSend);
+                        accumulatedTranscriptRef.current = '';
+                        lastInterimTranscriptRef.current = '';
+                        setTranscript('');
+                        setIsListening(false);
+                        setStatus('processing');
+                        return; // Don't restart recognition, wait for AI response
+                    }
+                }
+
+                // Desktop: If continuous mode ends unexpectedly and we're still supposed to be listening, restart
                 if (isListeningRef.current && !isSpeakingRef.current && sessionIdRef.current) {
                     // Add a small delay before restarting to prevent rapid restart loops
                     setTimeout(() => {
@@ -871,6 +918,11 @@ const VoiceCoachWidget: React.FC = () => {
                             <p className="text-indigo-300 text-xs italic">
                                 "{transcript}"
                             </p>
+                            {isMobile && (
+                                <p className="mt-1 text-slate-400 text-xs text-center">
+                                    Pause speaking to auto-send, or tap Send
+                                </p>
+                            )}
                             <button
                                 type="button"
                                 onClick={manualSend}
