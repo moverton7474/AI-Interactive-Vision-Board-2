@@ -140,6 +140,15 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ **Database Triggers** - Auto-award badges on first vision, first goal, action plan; auto-update predictions on task completion
 - ✅ **Migration Tracking Fixed** - Synced Supabase CLI migration history with remote database
 
+**iOS Voice Coach Audio Fix (December 24, 2025):**
+- ✅ **iOS Audio Unlock** - Speech synthesis now unlocked via silent utterance on first user tap (before async API calls)
+- ✅ **Voice Loading Fix** - Added `voiceschanged` event listener to properly load voices on iOS Safari
+- ✅ **Retry Logic** - Automatic retry (up to 2 attempts) when iOS speech synthesis gets stuck
+- ✅ **iOS Detection** - Detect iPhone/iPad to apply iOS-specific workarounds
+- ✅ **Silent Mode Warning** - Amber banner warns users to check iPhone silent/ringer switch
+- ✅ **Cancel Delay** - 100ms delay after `cancel()` for iOS compatibility
+- ✅ **Root Cause** - iOS Safari requires `speechSynthesis.speak()` from direct user gesture, not async callback
+
 **Gemini Live Voice & Plaid Integration (December 22, 2025):**
 - ✅ **Feature 23: Gemini Live Voice** - Real-time bidirectional voice conversations with AI Coach
 - ✅ `gemini-live-session` Edge Function deployed for WebSocket-based voice streaming
