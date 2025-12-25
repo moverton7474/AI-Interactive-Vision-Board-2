@@ -64,10 +64,11 @@ serve(async (req) => {
         'https://www.googleapis.com/auth/calendar.readonly'
       ];
 
-      const state = Buffer.from(JSON.stringify({
+      // Use btoa for base64 encoding (Deno/Web API compatible)
+      const state = btoa(JSON.stringify({
         userId,
         timestamp: Date.now()
-      })).toString('base64');
+      }));
 
       const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
