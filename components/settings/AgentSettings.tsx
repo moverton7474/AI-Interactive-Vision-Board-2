@@ -6,6 +6,7 @@ import { useAgentActions } from '../../hooks/useAgentActions';
 import PendingActionCard from './PendingActionCard';
 import ActionFeedbackButton from './ActionFeedbackButton';
 import CalendarConnection from './CalendarConnection';
+import { voiceService, VoiceSettings, VoiceQuota, VoicePersona } from '../../services/voiceService';
 
 const DAYS_OF_WEEK = [
     { value: 0, label: 'Sunday' },
@@ -73,6 +74,13 @@ export default function AgentSettings() {
     const [success, setSuccess] = useState<string | null>(null);
     const [historyFilter, setHistoryFilter] = useState<'all' | 'executed' | 'cancelled' | 'failed'>('all');
 
+    // Voice Settings State (v2.9)
+    const [voiceSettings, setVoiceSettings] = useState<VoiceSettings | null>(null);
+    const [voiceQuota, setVoiceQuota] = useState<VoiceQuota | null>(null);
+    const [voicePersonas, setVoicePersonas] = useState<VoicePersona[]>([]);
+    const [userTier, setUserTier] = useState<string>('free');
+    const [voiceLoading, setVoiceLoading] = useState(false);
+
     // Use the agent actions hook for pending actions and realtime updates
     const {
         pendingActions,
@@ -119,6 +127,20 @@ export default function AgentSettings() {
 
             if (!actionsError && actionsData) {
                 setRecentActions(actionsData);
+            }
+
+            // Fetch voice settings (v2.9)
+            try {
+                setVoiceLoading(true);
+                const voiceData = await voiceService.getSettings();
+                setVoiceSettings(voiceData.settings);
+                setVoiceQuota(voiceData.quota);
+                setVoicePersonas(voiceData.personas);
+                setUserTier(voiceData.tier);
+            } catch (voiceErr) {
+                console.log('Voice settings not available:', voiceErr);
+            } finally {
+                setVoiceLoading(false);
             }
 
         } catch (err: any) {
@@ -181,6 +203,31 @@ export default function AgentSettings() {
             case 'cancelled': return 'text-slate-400 bg-slate-900/30';
             default: return 'text-slate-400 bg-slate-900/30';
         }
+    };
+
+    // Handle voice persona selection (v2.9)
+    const handleVoicePersonaChange = async (persona: string) => {
+        try {
+            const updated = await voiceService.updateSettings({
+                preferredPersona: persona as VoiceSettings['preferredPersona'],
+            });
+            setVoiceSettings(updated);
+            setSuccess('Voice persona updated!');
+            setTimeout(() => setSuccess(null), 2000);
+        } catch (err: any) {
+            setError(err.message || 'Failed to update voice settings');
+        }
+    };
+
+    // Get persona display info
+    const getPersonaInfo = (name: string) => {
+        const personas: Record<string, { icon: string; color: string; provider: string }> = {
+            maya: { icon: '👩‍🏫', color: 'from-pink-500 to-rose-500', provider: 'ElevenLabs' },
+            james: { icon: '👨‍💼', color: 'from-blue-500 to-indigo-500', provider: 'ElevenLabs' },
+            tonya: { icon: '👩‍⚕️', color: 'from-purple-500 to-violet-500', provider: 'ElevenLabs' },
+            system: { icon: '🤖', color: 'from-slate-500 to-slate-600', provider: 'Browser' },
+        };
+        return personas[name] || personas.system;
     };
 
     if (loading) return <div className="p-8 text-center text-slate-400">Loading agent settings...</div>;
@@ -270,6 +317,128 @@ export default function AgentSettings() {
                             <div className="w-14 h-7 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-amber-500"></div>
                         </label>
                     </div>
+                </div>
+
+                {/* VOICE COACH SETTINGS CARD (v2.9) */}
+                <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 backdrop-blur-sm border border-purple-700/50 rounded-xl p-6 md:col-span-2">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-purple-500/20 rounded-full">
+                                <span className="text-3xl">🎙️</span>
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-white">Voice Coach Settings</h3>
+                                <p className="text-purple-200/70 text-sm mt-1">
+                                    Choose your AI Coach's voice persona for voice sessions.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                userTier === 'elite' ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-black' :
+                                userTier === 'pro' ? 'bg-indigo-600 text-white' :
+                                'bg-slate-700 text-slate-300'
+                            }`}>
+                                {userTier.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+
+                    {voiceLoading ? (
+                        <div className="text-center py-8 text-slate-400">
+                            <div className="animate-spin w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full mx-auto mb-2" />
+                            Loading voice settings...
+                        </div>
+                    ) : (
+                        <>
+                            {/* Quota Display */}
+                            {voiceQuota && userTier !== 'free' && (
+                                <div className="mb-4 p-3 bg-slate-900/50 rounded-lg">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-sm text-slate-400">Monthly Voice Quota</span>
+                                        <span className="text-sm text-purple-300">
+                                            {voiceQuota.remaining.toLocaleString()} / {voiceQuota.limit.toLocaleString()} chars
+                                        </span>
+                                    </div>
+                                    <div className="w-full bg-slate-700 rounded-full h-2">
+                                        <div
+                                            className="bg-gradient-to-r from-purple-500 to-indigo-500 h-2 rounded-full transition-all"
+                                            style={{ width: `${Math.max(0, Math.min(100, (voiceQuota.remaining / voiceQuota.limit) * 100))}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Voice Persona Selection */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                {voicePersonas.map((persona) => {
+                                    const info = getPersonaInfo(persona.name);
+                                    const isSelected = voiceSettings?.preferredPersona === persona.name;
+                                    const isLocked = !persona.available;
+
+                                    return (
+                                        <button
+                                            key={persona.name}
+                                            onClick={() => !isLocked && handleVoicePersonaChange(persona.name)}
+                                            disabled={isLocked}
+                                            className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                                                isSelected
+                                                    ? 'border-purple-500 bg-purple-900/30 ring-2 ring-purple-500/50'
+                                                    : isLocked
+                                                        ? 'border-slate-700 bg-slate-800/30 opacity-50 cursor-not-allowed'
+                                                        : 'border-slate-700 bg-slate-800/50 hover:border-purple-500/50 hover:bg-slate-800/70 cursor-pointer'
+                                            }`}
+                                        >
+                                            {isLocked && (
+                                                <div className="absolute top-2 right-2">
+                                                    <span className="text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full">
+                                                        {persona.name === 'system' ? 'FREE' : 'PRO+'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${info.color} flex items-center justify-center text-2xl mb-2`}>
+                                                {info.icon}
+                                            </div>
+                                            <div className="text-sm font-medium text-white">{persona.displayName}</div>
+                                            <div className="text-xs text-slate-400 mt-1 line-clamp-2">
+                                                {persona.description?.slice(0, 50)}...
+                                            </div>
+                                            <div className="mt-2 flex items-center gap-1">
+                                                <span className={`text-xs px-2 py-0.5 rounded ${
+                                                    info.provider === 'ElevenLabs' ? 'bg-purple-900/50 text-purple-300' : 'bg-slate-700 text-slate-400'
+                                                }`}>
+                                                    {info.provider}
+                                                </span>
+                                                {isSelected && (
+                                                    <span className="text-xs px-2 py-0.5 rounded bg-green-900/50 text-green-300">
+                                                        ✓ Active
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Upgrade CTA for Free Users */}
+                            {userTier === 'free' && (
+                                <div className="mt-4 p-4 bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-700/50 rounded-lg">
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-2xl">✨</span>
+                                        <div className="flex-1">
+                                            <h4 className="text-sm font-medium text-amber-200">Unlock Premium Voices</h4>
+                                            <p className="text-xs text-amber-300/70 mt-1">
+                                                Upgrade to Pro or Elite to access premium AI voices from ElevenLabs including Coach Maya, James, and Tonya.
+                                            </p>
+                                        </div>
+                                        <button className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors">
+                                            Upgrade
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
 
                 {/* ACTION PERMISSIONS CARD */}
