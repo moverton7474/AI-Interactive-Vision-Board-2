@@ -8,7 +8,7 @@
  * - Browser TTS fallback
  */
 
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 
 // Types
 export interface VoiceSettings {
@@ -172,10 +172,8 @@ class VoiceService {
         };
       }
 
-      // Build the Edge Function URL
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const functionUrl = `${supabaseUrl}/functions/v1/voice-tts-router`;
+      // Build the Edge Function URL using exported constants
+      const functionUrl = `${SUPABASE_URL}/functions/v1/voice-tts-router`;
 
       // Use direct fetch to properly handle binary audio responses
       const response = await fetch(functionUrl, {
@@ -183,7 +181,7 @@ class VoiceService {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
-          'apikey': anonKey,
+          'apikey': SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
           text,
