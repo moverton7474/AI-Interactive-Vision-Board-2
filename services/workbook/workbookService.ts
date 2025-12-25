@@ -30,9 +30,11 @@
  * with URLs, not just IDs, so imageBlocks can be populated correctly.
  */
 
-import { WorkbookPage, WorkbookEdition, WorkbookTrimSize, WorkbookPageType, ImageBlock, TextBlock } from '../../types/workbookTypes';
+import { WorkbookPage, WorkbookEdition, WorkbookTrimSize, WorkbookPageType, ImageBlock, TextBlock, ThemePack, AIGeneratedContent, BindingType } from '../../types/workbookTypes';
 import { generatePage } from './workbookLayoutService';
 import { VisionImage, Habit } from '../../types';
+import { PRODIGI_SPECS, TRIM_SIZES } from './printSpecifications';
+import { supabase } from '../../lib/supabase';
 
 export interface BuildOptions {
     edition: WorkbookEdition;
@@ -44,6 +46,13 @@ export interface BuildOptions {
     coverTheme?: CoverThemeId;
     title?: string;
     subtitle?: string;
+    // v2.1: Data injection fields
+    financialTarget?: number;
+    financialTargetLabel?: string;
+    actionTasks?: Array<{ id: string; title: string; description?: string; due_date?: string; priority?: string }>;
+    themePack?: ThemePack;
+    userName?: string;
+    aiContent?: AIGeneratedContent;
 }
 
 // Cover theme identifiers
@@ -78,17 +87,16 @@ export async function buildInitialWorkbookPages(options: BuildOptions): Promise<
     titlePage.subtitle = options.subtitle || new Date().getFullYear().toString();
     pages.push(titlePage);
 
-    // 3. DEDICATION / FOREWORD (if enabled)
+    // 3. DEDICATION / FOREWORD (if enabled) - Now with AI-generated content
     if (options.includeForeword) {
-        const dedicationPage = await generatePage({
-            type: 'DEDICATION',
-            edition: options.edition,
-            trimSize: options.trimSize,
-            goals: options.goals,
-            habits: options.habits.map(h => h.id)
-        });
-        dedicationPage.pageNumber = pageNumber++;
-        pages.push(dedicationPage);
+        const forewordPage = buildForewordPage(options, pageNumber++);
+        pages.push(forewordPage);
+    }
+
+    // 3.5 FINANCIAL SNAPSHOT (if financial target provided)
+    if (options.financialTarget) {
+        const financialPage = buildFinancialSnapshotPage(options, pageNumber++);
+        pages.push(financialPage);
     }
 
     // 4. VISION BOARD SPREADS - One page per selected vision board (max 4)
@@ -291,35 +299,180 @@ function buildHabitTrackerPage(habits: Habit[], options: BuildOptions, pageNumbe
 }
 
 /**
- * Get layout metadata for a trim size
+ * Build a financial snapshot page with user data
  */
-function fillLayoutMeta(trimSize: WorkbookTrimSize) {
-    const dpi = 300;
-    let widthPx = 2100; // 7x9 default
-    let heightPx = 2700;
+function buildFinancialSnapshotPage(options: BuildOptions, pageNumber: number): WorkbookPage {
+    const layout = fillLayoutMeta(options.trimSize);
 
-    if (trimSize === 'LETTER_8_5x11') {
-        widthPx = 2550;
-        heightPx = 3300;
-    } else if (trimSize === 'A4_8_27x11_69') {
-        widthPx = 2480;
-        heightPx = 3508;
-    } else if (trimSize === 'A5_5_83x8_27') {
-        widthPx = 1748;
-        heightPx = 2480;
-    } else if (trimSize === 'TRADE_6x9') {
-        widthPx = 1800;
-        heightPx = 2700;
+    const textBlocks: TextBlock[] = [
+        {
+            id: crypto.randomUUID(),
+            role: 'TITLE',
+            content: 'My Financial Vision',
+            align: 'center',
+            position: { x: 50, y: 15 }
+        },
+        {
+            id: crypto.randomUUID(),
+            role: 'SUBTITLE',
+            content: options.financialTargetLabel || 'Financial Freedom',
+            align: 'center',
+            position: { x: 50, y: 25 }
+        }
+    ];
+
+    // Add financial target if available
+    if (options.financialTarget) {
+        textBlocks.push({
+            id: crypto.randomUUID(),
+            role: 'BODY',
+            content: `Target: $${options.financialTarget.toLocaleString()}`,
+            align: 'center',
+            emphasis: 'bold',
+            position: { x: 50, y: 40 }
+        });
     }
 
     return {
-        trimSize,
-        widthPx,
-        heightPx,
-        bleedPx: 37.5,
-        safeMarginPx: 150,
-        dpi
+        id: crypto.randomUUID(),
+        edition: options.edition,
+        type: 'FINANCIAL_OVERVIEW',
+        pageNumber,
+        layout,
+        title: 'Financial Snapshot',
+        textBlocks,
+        imageBlocks: [],
+        isVisible: true
     };
+}
+
+/**
+ * Build a foreword page with AI-generated content
+ */
+function buildForewordPage(options: BuildOptions, pageNumber: number): WorkbookPage {
+    const layout = fillLayoutMeta(options.trimSize);
+
+    // Use AI-generated foreword if available, otherwise use placeholder
+    const forewordText = options.aiContent?.foreword ||
+        'Your journey toward your vision begins here. Every page in this workbook represents a step closer to the life you deserve.';
+
+    const textBlocks: TextBlock[] = [
+        {
+            id: crypto.randomUUID(),
+            role: 'TITLE',
+            content: 'Letter from Your Future Self',
+            align: 'center',
+            position: { x: 50, y: 10 }
+        },
+        {
+            id: crypto.randomUUID(),
+            role: 'BODY',
+            content: forewordText,
+            align: 'left',
+            position: { x: 15, y: 25, w: 70 }
+        }
+    ];
+
+    return {
+        id: crypto.randomUUID(),
+        edition: options.edition,
+        type: 'DEDICATION',
+        pageNumber,
+        layout,
+        title: 'Foreword',
+        textBlocks,
+        imageBlocks: [],
+        isVisible: true
+    };
+}
+
+/**
+ * Get layout metadata for a trim size
+ * Updated for Prodigi specs: 10mm safety margin, no manual bleed
+ */
+function fillLayoutMeta(trimSize: WorkbookTrimSize, bindingType: BindingType = 'SOFTCOVER') {
+    // Get size from centralized specs
+    const sizeKey = trimSize as keyof typeof TRIM_SIZES;
+    const size = TRIM_SIZES[sizeKey] || TRIM_SIZES.TRADE_6x9;
+
+    return {
+        trimSize,
+        widthPx: size.widthPx,
+        heightPx: size.heightPx,
+        // NO bleed - Prodigi adds automatically
+        bleedPx: PRODIGI_SPECS.BLEED_PX,
+        // 10mm safety margin per Prodigi specs
+        safeMarginPx: PRODIGI_SPECS.SAFETY_MARGIN_PX,
+        // 12mm for spiral edge if applicable
+        spiralEdgeMarginPx: bindingType === 'SPIRAL' ? PRODIGI_SPECS.SPIRAL_EDGE_MARGIN_PX : undefined,
+        bindingType,
+        dpi: PRODIGI_SPECS.DPI
+    };
+}
+
+/**
+ * Fetch user data for workbook auto-population
+ * Pulls data from user_vision_profiles, habits, and goal_plans
+ */
+export async function fetchUserDataForWorkbook(userId: string): Promise<{
+    financialTarget?: number;
+    financialTargetLabel?: string;
+    visionText?: string;
+    habits: Habit[];
+    actionTasks: Array<{ id: string; title: string; description?: string; due_date?: string; priority?: string }>;
+    userName?: string;
+    theme?: ThemePack;
+}> {
+    try {
+        // Fetch user vision profile
+        const { data: visionProfile } = await supabase
+            .from('user_vision_profiles')
+            .select('financial_target, financial_target_label, vision_text, domain_selection')
+            .eq('user_id', userId)
+            .single();
+
+        // Fetch active habits
+        const { data: habits } = await supabase
+            .from('habits')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('is_active', true);
+
+        // Fetch action tasks from active plan using the helper function
+        let actionTasks: any[] = [];
+        try {
+            const { data: activePlan } = await supabase
+                .rpc('get_active_plan_with_tasks', { p_user_id: userId });
+
+            if (activePlan && activePlan.tasks) {
+                actionTasks = typeof activePlan.tasks === 'string'
+                    ? JSON.parse(activePlan.tasks)
+                    : activePlan.tasks;
+            }
+        } catch (planError) {
+            console.warn('[workbookService] Could not fetch active plan:', planError);
+        }
+
+        // Fetch profile for user name
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', userId)
+            .single();
+
+        return {
+            financialTarget: visionProfile?.financial_target,
+            financialTargetLabel: visionProfile?.financial_target_label,
+            visionText: visionProfile?.vision_text,
+            habits: habits || [],
+            actionTasks: actionTasks || [],
+            userName: profile?.full_name || profile?.email?.split('@')[0],
+            theme: (visionProfile?.domain_selection as ThemePack) || 'executive',
+        };
+    } catch (error) {
+        console.error('[workbookService] Error fetching user data:', error);
+        return { habits: [], actionTasks: [] };
+    }
 }
 
 export async function regeneratePage(page: WorkbookPage): Promise<WorkbookPage> {
