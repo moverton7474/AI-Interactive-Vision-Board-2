@@ -10,7 +10,7 @@
  * - Sync with Execute view
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AppView, ActionTask, GoalPlan, GoalPlanSource } from '../../types';
 import {
   getActivePlan,
@@ -141,6 +141,11 @@ const GoalsPage: React.FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+
+  // Refs for debounced auto-save
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingGoalRef = useRef<EditableGoal | null>(null);
 
   // New goal form state
   const [newGoal, setNewGoal] = useState<Partial<EditableGoal>>({
@@ -280,6 +285,54 @@ const GoalsPage: React.FC<Props> = ({
       setIsSaving(false);
     }
   };
+
+  // Debounced auto-save for inline editing (1.5 second delay)
+  const debouncedAutoSave = useCallback((goal: EditableGoal) => {
+    // Clear any pending timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Store the pending goal
+    pendingGoalRef.current = goal;
+
+    // Update local state immediately (optimistic update)
+    setGoals(prev => prev.map(g => g.id === goal.id ? goal : g));
+
+    // Set up debounced save
+    autoSaveTimerRef.current = setTimeout(async () => {
+      const planId = draftPlan?.id;
+      if (!planId || !pendingGoalRef.current) return;
+
+      setIsAutoSaving(true);
+      try {
+        const savedTask = await saveDraftTask(planId, {
+          ...pendingGoalRef.current,
+          displayOrder: goals.findIndex(g => g.id === pendingGoalRef.current?.id)
+        });
+
+        if (savedTask) {
+          setGoals(prev => prev.map(g => g.id === savedTask.id ? { ...savedTask, isEditing: g.isEditing } : g));
+          setLastSaved(new Date());
+        }
+        pendingGoalRef.current = null;
+      } catch (err: any) {
+        console.error('Auto-save error:', err);
+        // Don't show error for auto-save failures - user can manually save
+      } finally {
+        setIsAutoSaving(false);
+      }
+    }, 1500);
+  }, [draftPlan?.id, goals]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   // Add new goal
   const addGoal = async () => {
@@ -775,10 +828,12 @@ const GoalsPage: React.FC<Props> = ({
               isEditing={editingGoalId === goal.id}
               onEdit={() => setEditingGoalId(goal.id)}
               onSave={saveGoal}
+              onAutoSave={debouncedAutoSave}
               onDelete={() => deleteGoal(goal.id)}
               onToggleComplete={() => toggleGoalCompletion(goal.id)}
               onCancelEdit={() => setEditingGoalId(null)}
               isSaving={isSaving}
+              isAutoSaving={isAutoSaving}
             />
           ))
         )}
@@ -793,10 +848,21 @@ const GoalsPage: React.FC<Props> = ({
       )}
 
       {/* Last saved indicator */}
-      {lastSaved && (
-        <div className="fixed bottom-4 right-4 bg-green-50 text-green-700 px-4 py-2 rounded-lg shadow-sm text-sm flex items-center gap-2">
-          <CheckIcon />
-          Saved {lastSaved.toLocaleTimeString()}
+      {(lastSaved || isAutoSaving) && (
+        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-sm text-sm flex items-center gap-2 ${
+          isAutoSaving ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700'
+        }`}>
+          {isAutoSaving ? (
+            <>
+              <div className="w-4 h-4 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin" />
+              Auto-saving...
+            </>
+          ) : (
+            <>
+              <CheckIcon />
+              Saved {lastSaved?.toLocaleTimeString()}
+            </>
+          )}
         </div>
       )}
 
@@ -835,10 +901,12 @@ interface GoalCardProps {
   isEditing: boolean;
   onEdit: () => void;
   onSave: (goal: EditableGoal) => void;
+  onAutoSave: (goal: EditableGoal) => void;
   onDelete: () => void;
   onToggleComplete: () => void;
   onCancelEdit: () => void;
   isSaving: boolean;
+  isAutoSaving: boolean;
 }
 
 const GoalCard: React.FC<GoalCardProps> = ({
@@ -846,13 +914,22 @@ const GoalCard: React.FC<GoalCardProps> = ({
   isEditing,
   onEdit,
   onSave,
+  onAutoSave,
   onDelete,
   onToggleComplete,
   onCancelEdit,
-  isSaving
+  isSaving,
+  isAutoSaving
 }) => {
   const [editedGoal, setEditedGoal] = useState(goal);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Handle field changes with auto-save
+  const handleFieldChange = (updates: Partial<EditableGoal>) => {
+    const updated = { ...editedGoal, ...updates };
+    setEditedGoal(updated);
+    onAutoSave(updated);
+  };
 
   const typeConfig = TYPE_CONFIG[goal.type] || TYPE_CONFIG.ADMIN;
   const priorityConfig = PRIORITY_CONFIG[goal.priority || 'medium'];
@@ -866,7 +943,7 @@ const GoalCard: React.FC<GoalCardProps> = ({
             <input
               type="text"
               value={editedGoal.title}
-              onChange={(e) => setEditedGoal({ ...editedGoal, title: e.target.value })}
+              onChange={(e) => handleFieldChange({ title: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 outline-none"
             />
           </div>
@@ -874,7 +951,7 @@ const GoalCard: React.FC<GoalCardProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
             <textarea
               value={editedGoal.description}
-              onChange={(e) => setEditedGoal({ ...editedGoal, description: e.target.value })}
+              onChange={(e) => handleFieldChange({ description: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 outline-none resize-none"
             />
@@ -883,7 +960,7 @@ const GoalCard: React.FC<GoalCardProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
             <select
               value={editedGoal.type}
-              onChange={(e) => setEditedGoal({ ...editedGoal, type: e.target.value as ActionTask['type'] })}
+              onChange={(e) => handleFieldChange({ type: e.target.value as ActionTask['type'] })}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 outline-none"
             >
               <option value="FINANCE">💰 Financial</option>
@@ -895,7 +972,7 @@ const GoalCard: React.FC<GoalCardProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
             <select
               value={editedGoal.priority}
-              onChange={(e) => setEditedGoal({ ...editedGoal, priority: e.target.value as TaskPriority })}
+              onChange={(e) => handleFieldChange({ priority: e.target.value as TaskPriority })}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 outline-none"
             >
               <option value="high">High</option>
@@ -908,30 +985,41 @@ const GoalCard: React.FC<GoalCardProps> = ({
             <input
               type="date"
               value={editedGoal.dueDate?.split('T')[0] || ''}
-              onChange={(e) => setEditedGoal({ ...editedGoal, dueDate: e.target.value })}
+              onChange={(e) => handleFieldChange({ dueDate: e.target.value })}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 outline-none"
             />
           </div>
         </div>
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onCancelEdit}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onSave(editedGoal)}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-navy-900 text-white rounded-lg hover:bg-navy-800 transition-colors disabled:opacity-50"
-          >
-            {isSaving ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <CheckIcon />
+        <div className="flex items-center justify-between mt-4">
+          {/* Auto-save indicator */}
+          <div className="text-sm text-gray-500">
+            {isAutoSaving && (
+              <span className="flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                Auto-saving...
+              </span>
             )}
-            Save
-          </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={onCancelEdit}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onSave(editedGoal)}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-4 py-2 bg-navy-900 text-white rounded-lg hover:bg-navy-800 transition-colors disabled:opacity-50"
+            >
+              {isSaving ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <CheckIcon />
+              )}
+              Save
+            </button>
+          </div>
         </div>
       </div>
     );
