@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { voiceService, VoiceSettings, VoiceQuota } from '../services/voiceService';
 
 interface TranscriptMessage {
     role: 'user' | 'assistant';
@@ -40,7 +41,14 @@ const VoiceCoachWidget: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [autoListen, setAutoListen] = useState(false);
 
+    // v2.9 Premium Voice State
+    const [voiceSettings, setVoiceSettings] = useState<VoiceSettings | null>(null);
+    const [voiceQuota, setVoiceQuota] = useState<VoiceQuota | null>(null);
+    const [userTier, setUserTier] = useState<string>('free');
+    const [voiceProvider, setVoiceProvider] = useState<'browser' | 'openai' | 'elevenlabs'>('browser');
+
     const recognitionRef = useRef<any>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
     const synthRef = useRef<SpeechSynthesis | null>(typeof window !== 'undefined' ? window.speechSynthesis : null);
     const historyRef = useRef<HTMLDivElement>(null);
     const voicesLoadedRef = useRef(false);
@@ -96,18 +104,39 @@ const VoiceCoachWidget: React.FC = () => {
                 setUserId(session.user.id);
                 loadSessionStats(session.user.id);
 
-                // Load user profile for email display
+                // Load user profile for email display and tier
                 const { data: profile } = await supabase
                     .from('profiles')
-                    .select('email, full_name, first_name')
+                    .select('email, full_name, first_name, subscription_tier')
                     .eq('id', session.user.id)
                     .single();
 
                 if (profile) {
                     setUserEmail(profile.email || session.user.email || null);
                     setUserName(profile.first_name || profile.full_name?.split(' ')[0] || null);
+                    // Set user tier for voice provider selection
+                    setUserTier(profile.subscription_tier || 'free');
                 } else {
                     setUserEmail(session.user.email || null);
+                }
+
+                // Load voice settings for premium voice integration (v2.9)
+                try {
+                    const voiceData = await voiceService.getSettings();
+                    setVoiceSettings(voiceData.settings);
+                    setVoiceQuota(voiceData.quota);
+                    setUserTier(voiceData.tier);
+                    // Set effective provider based on tier
+                    if (voiceData.tier === 'elite') {
+                        setVoiceProvider('elevenlabs');
+                    } else if (voiceData.tier === 'pro') {
+                        setVoiceProvider('openai');
+                    } else {
+                        setVoiceProvider('browser');
+                    }
+                } catch (voiceErr) {
+                    console.log('Voice settings not available, using browser TTS:', voiceErr);
+                    setVoiceProvider('browser');
                 }
             }
         });
@@ -352,7 +381,88 @@ const VoiceCoachWidget: React.FC = () => {
         }
     };
 
-    const speak = (text: string, retryCount = 0) => {
+    // Premium voice TTS using voiceService (Pro/Elite tiers)
+    const speakWithPremiumVoice = async (text: string) => {
+        setStatus('speaking');
+        setIsSpeaking(true);
+
+        try {
+            const result = await voiceService.generateTTS(text, {
+                sessionId: sessionIdRef.current || undefined,
+                usageType: 'coaching',
+                preferredPersona: voiceSettings?.preferredPersona || 'maya',
+                language: voiceSettings?.language || 'en',
+            });
+
+            // Update quota after usage
+            if (result.quotaRemaining !== undefined) {
+                setVoiceQuota(prev => prev ? { ...prev, remaining: result.quotaRemaining } : null);
+            }
+
+            // Check if we got audio or need to fall back to browser TTS
+            if (result.audioUrl && result.audioBlob) {
+                // Create and play audio element
+                if (!audioRef.current) {
+                    audioRef.current = new Audio();
+                }
+
+                audioRef.current.src = result.audioUrl;
+
+                audioRef.current.onended = () => {
+                    setIsSpeaking(false);
+                    setStatus('idle');
+                    // Clean up blob URL
+                    if (result.audioUrl) {
+                        URL.revokeObjectURL(result.audioUrl);
+                    }
+                    // Auto-listen after AI speaks if enabled
+                    handleAutoListen();
+                };
+
+                audioRef.current.onerror = () => {
+                    console.error('Premium audio playback failed, falling back to browser TTS');
+                    if (result.audioUrl) {
+                        URL.revokeObjectURL(result.audioUrl);
+                    }
+                    // Fall back to browser TTS
+                    speakWithBrowserTTS(text);
+                };
+
+                await audioRef.current.play();
+                console.log(`Playing ${result.provider} TTS, ${result.charactersUsed} chars used`);
+            } else {
+                // No audio, use browser TTS fallback
+                console.log('No audio from premium provider, using browser TTS:', result.error || 'fallback');
+                speakWithBrowserTTS(result.text || text);
+            }
+        } catch (err) {
+            console.error('Premium TTS error:', err);
+            // Fall back to browser TTS
+            speakWithBrowserTTS(text);
+        }
+    };
+
+    // Helper function for auto-listen after speaking
+    const handleAutoListen = () => {
+        if (autoListen && sessionIdRef.current && !recognitionRunningRef.current) {
+            setTimeout(() => {
+                if (!recognitionRunningRef.current && sessionIdRef.current) {
+                    accumulatedTranscriptRef.current = '';
+                    setTranscript('');
+                    try {
+                        recognitionRef.current?.start();
+                        setIsListening(true);
+                        setStatus('listening');
+                    } catch (e) {
+                        console.log('Could not auto-start listening:', e);
+                    }
+                }
+            }, 500);
+        }
+    };
+
+    // Browser TTS (Free tier or fallback)
+    const speakWithBrowserTTS = (text: string, retryCount = 0) => {
         if (synthRef.current) {
             setStatus('speaking');
             setIsSpeaking(true);
@@ -365,8 +475,8 @@ const VoiceCoachWidget: React.FC = () => {
                 if (!synthRef.current) return;
 
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 1.0;
-                utterance.pitch = 1.0;
+                utterance.rate = voiceSettings?.voiceSpeed || 1.0;
+                utterance.pitch = voiceSettings?.voicePitch || 1.0;
                 utterance.volume = 1.0;
 
                 // Try to use a natural voice - prefer iOS Samantha
@@ -384,22 +494,7 @@ const VoiceCoachWidget: React.FC = () => {
                 utterance.onend = () => {
                     setIsSpeaking(false);
                     setStatus('idle');
-                    // Auto-listen after AI speaks if enabled
-                    if (autoListen && sessionIdRef.current && !recognitionRunningRef.current) {
-                        setTimeout(() => {
-                            if (!recognitionRunningRef.current && sessionIdRef.current) {
-                                accumulatedTranscriptRef.current = '';
-                                setTranscript('');
-                                try {
-                                    recognitionRef.current?.start();
-                                    setIsListening(true);
-                                    setStatus('listening');
-                                } catch (e) {
-                                    console.log('Could not auto-start listening:', e);
-                                }
-                            }
-                        }, 500);
-                    }
+                    handleAutoListen();
                 };
 
                 utterance.onerror = (event) => {
@@ -407,7 +502,7 @@ const VoiceCoachWidget: React.FC = () => {
                     // iOS sometimes fails on first attempt - retry once
                     if (isIOS && retryCount < 2) {
                         console.log('Retrying speech synthesis for iOS...');
-                        setTimeout(() => speak(text, retryCount + 1), 200);
+                        setTimeout(() => speakWithBrowserTTS(text, retryCount + 1), 200);
                         return;
                     }
                     setIsSpeaking(false);
@@ -427,11 +522,21 @@ const VoiceCoachWidget: React.FC = () => {
                     setTimeout(() => {
                         if (synthRef.current && !synthRef.current.speaking && isSpeakingRef.current && retryCount < 2) {
                             console.log('iOS speech synthesis stuck, retrying...');
-                            speak(text, retryCount + 1);
+                            speakWithBrowserTTS(text, retryCount + 1);
                         }
                     }, 500);
                 }
             }, isIOS ? 100 : 0); // Add delay for iOS
+        }
+    };
+
+    // Main speak function - routes to premium or browser TTS based on tier
+    const speak = (text: string) => {
+        // Use premium voice for Pro/Elite tiers, browser TTS for Free
+        if (voiceProvider === 'openai' || voiceProvider === 'elevenlabs') {
+            speakWithPremiumVoice(text);
+        } else {
+            speakWithBrowserTTS(text);
         }
     };
 
