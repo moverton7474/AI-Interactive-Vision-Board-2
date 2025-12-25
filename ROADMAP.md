@@ -1,9 +1,10 @@
 # VISIONARY AI — MASTER PRODUCT & DEVELOPMENT ROADMAP
 
-**Version:** 2.9
+**Version:** 3.0
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
 **Last Updated:** December 24, 2025
+**Business Plan Update:** Comprehensive business plan integration with financial projections, market analysis, and go-to-market strategy
 
 ---
 
@@ -37,6 +38,33 @@ Enable ambitious professionals, executives, athletes, families, and teams to ach
 
 ---
 
+## Company Overview
+
+### Corporate Information
+
+| Field | Details |
+|-------|---------|
+| **Company Name** | Visionary AI LLC |
+| **Founded** | 2025 |
+| **Headquarters** | Clayton, Missouri, USA |
+| **Founders** | Milton Overton & Lisa Overton |
+| **Legal Structure** | Missouri Limited Liability Company |
+| **Industry** | AI-Powered Personal Development & Goal Achievement |
+
+### Company Vision
+
+Visionary AI exists to democratize access to world-class goal achievement systems. We believe that everyone deserves an AI coach that understands their unique identity, values, and aspirations—and actively helps them execute on their vision.
+
+### Core Values
+
+1. **Identity-First** — We build technology that adapts to who you are, not the other way around
+2. **Execution Over Intention** — Dreaming is just the start; we help you take action every day
+3. **Human + AI Partnership** — AI augments human potential, never replaces human agency
+4. **Physical Reinforcement** — Digital tools are powerful; physical products create lasting commitment
+5. **Radical Transparency** — Users own their data and understand how AI makes decisions
+
+---
+
 ## Target Users & Market Focus
 
 ### Core Segments
@@ -51,6 +79,31 @@ Enable ambitious professionals, executives, athletes, families, and teams to ach
 - Financial planning
 - Agentic AI workflow automation
 - Digital-to-physical execution systems
+
+### Market Sizing
+
+| Market Level | Size | Description |
+|--------------|------|-------------|
+| **TAM (Total Addressable Market)** | $200B+ | Global wellness, goal-setting, AI coaching, and personal development market |
+| **SAM (Serviceable Addressable Market)** | $15B | English-speaking professionals using digital productivity and coaching tools |
+| **SOM (Serviceable Obtainable Market)** | $500M | Achievable market share within 3 years through focused positioning |
+
+### Competitive Landscape
+
+| Competitor | Category | Our Advantage |
+|------------|----------|---------------|
+| **Notion / Miro** | Productivity | We execute goals, not just track them |
+| **Canva** | Visual Design | AI-generated personalized vision boards with likeness preservation |
+| **Calm / Headspace** | Wellness | Goal-oriented coaching, not just meditation |
+| **BetterUp / Noom** | Coaching | 10x more affordable with AI-first approach |
+| **Financial Advisors** | Planning | Combines emotional visualization with financial intelligence |
+
+### Why We Win
+
+1. **First-Mover in Agentic Goal Achievement** — No competitor offers AI that takes action on your behalf
+2. **Identity-Driven Personalization** — AMIE creates deeper engagement than generic tools
+3. **Physical-Digital Loop** — Print products create commitment others can't match
+4. **Multi-Channel Coaching** — Watch, voice, SMS, email integration beats single-channel apps
 
 ---
 
@@ -2800,6 +2853,35 @@ All core backend systems (v1.0-v2.0) have been successfully deployed:
 | Coaching Sessions | $29.99/session | Certified coach marketplace |
 | Additional Team Seats | $9.99/user/mo | Enterprise tier |
 
+### Revenue Streams Breakdown
+
+| Revenue Stream | % of Revenue (Projected Year 2) | Growth Driver |
+|----------------|--------------------------------|---------------|
+| **Subscriptions** | 70% | Core recurring revenue from Pro/Elite tiers |
+| **Print Products** | 15% | Workbooks, posters, habit pads with high margins |
+| **Enterprise Contracts** | 10% | Annual team licenses with premium support |
+| **Add-ons & Marketplace** | 5% | Templates, coaching sessions, API access |
+
+### Unit Economics
+
+| Metric | Target | Notes |
+|--------|--------|-------|
+| **Customer Acquisition Cost (CAC)** | $25-35 | Organic + paid acquisition blend |
+| **Lifetime Value (LTV)** | $300-500 | 18-24 month average retention |
+| **LTV:CAC Ratio** | 10:1+ | Healthy SaaS benchmark exceeded |
+| **Monthly Churn Rate** | <5% | Identity-driven stickiness |
+| **Gross Margin** | 75%+ | SaaS margins with AI infrastructure costs |
+
+### Conversion Funnel Targets
+
+| Stage | Conversion Rate | Notes |
+|-------|-----------------|-------|
+| Visitor → Free Signup | 15% | Landing page optimization |
+| Free → Onboarding Complete | 60% | AMIE engagement |
+| Onboarding → 7-Day Active | 40% | Habit formation |
+| Free → Paid (30 days) | 8-12% | Trial-to-paid conversion |
+| Pro → Elite Upgrade | 20% | Voice coach upsell |
+
 ---
 
 ## 19. GTM & PR Strategy (Updated)
@@ -2819,6 +2901,88 @@ All core backend systems (v1.0-v2.0) have been successfully deployed:
 2. **Vision → Plan → Action** — "Turn dreams into done"
 3. **Physical Reinforcement** — "Hold your future in your hands"
 4. **Accountable AI** — "The coach that never gives up on you"
+
+### Detailed Go-to-Market Timeline
+
+#### Q4 2025: Pre-Launch Phase
+| Week | Focus | Key Activities |
+|------|-------|----------------|
+| Week 1-2 | Waitlist Building | Landing page launch, referral engine, early access invites |
+| Week 3-4 | Influencer Outreach | Partner with 10+ productivity/coaching influencers |
+| Week 5-6 | Beta Testing | 100 beta users, feedback collection, iteration |
+| Week 7-8 | Content Pipeline | Blog posts, YouTube tutorials, social proof gathering |
+
+#### Q1 2026: Resolution Surge
+| Month | Focus | Key Activities |
+|-------|-------|----------------|
+| **January** | New Year Launch | "2026 Vision" campaign, Product Hunt launch, PR push |
+| **February** | Conversion Optimization | A/B testing, onboarding improvements, churn reduction |
+| **March** | Content Marketing | SEO optimization, guest posts, podcast appearances |
+
+#### Q2 2026: Growth Acceleration
+| Month | Focus | Key Activities |
+|-------|-------|----------------|
+| **April** | Paid Acquisition | Facebook/Instagram ads, Google Ads, influencer partnerships |
+| **May** | Enterprise Outreach | B2B pilot programs, team features promotion |
+| **June** | Product Expansion | New print products, marketplace beta, API access |
+
+#### H2 2026: Scale Phase
+| Quarter | Focus | Key Activities |
+|---------|-------|----------------|
+| **Q3** | Market Expansion | International expansion (UK, Canada, Australia) |
+| **Q4** | Enterprise Push | Fortune 500 pilots, SOC 2 certification, enterprise sales team |
+
+---
+
+## 19.5 Financial Projections
+
+### Revenue Projections (2026-2028)
+
+| Year | Total Users | Paid Users | ARR | MRR | Notes |
+|------|-------------|------------|-----|-----|-------|
+| **2026** | 10,000 | 1,000 | $240,000 | $20,000 | Launch year, organic growth |
+| **2027** | 50,000 | 6,000 | $2,300,000 | $192,000 | Paid acquisition, enterprise deals |
+| **2028** | 150,000 | 22,000 | $8,500,000 | $708,000 | Market leadership, international |
+
+### Revenue Breakdown by Tier (Year 2 - 2027)
+
+| Tier | Users | ARPU | Annual Revenue | % of Total |
+|------|-------|------|----------------|------------|
+| **Free** | 44,000 | $0 | $0 | 0% |
+| **Pro** | 4,500 | $180/yr | $810,000 | 35% |
+| **Elite** | 1,200 | $450/yr | $540,000 | 23% |
+| **Enterprise** | 300 | $2,000/yr | $600,000 | 26% |
+| **Print/Add-ons** | - | - | $350,000 | 15% |
+| **Total** | 50,000 | - | $2,300,000 | 100% |
+
+### Operating Expenses (Year 2 - 2027)
+
+| Category | Annual Cost | % of Revenue | Notes |
+|----------|-------------|--------------|-------|
+| **Infrastructure (AI/Cloud)** | $280,000 | 12% | Gemini API, Supabase, Vercel |
+| **Team (Salaries)** | $600,000 | 26% | 5-6 FTEs + contractors |
+| **Marketing & Acquisition** | $350,000 | 15% | Paid ads, content, events |
+| **Operations & Tools** | $70,000 | 3% | SaaS tools, legal, accounting |
+| **Total OpEx** | $1,300,000 | 57% | - |
+| **Gross Profit** | $1,000,000 | 43% | Path to profitability |
+
+### Key Financial Milestones
+
+| Milestone | Target Date | Metric |
+|-----------|-------------|--------|
+| **First 1,000 Users** | Q1 2026 | User acquisition |
+| **$10K MRR** | Q2 2026 | Revenue milestone |
+| **Breakeven** | Q4 2026 | OpEx = Revenue |
+| **$100K MRR** | Q3 2027 | Scale milestone |
+| **Profitability** | Q1 2028 | Sustainable profit |
+
+### Funding Requirements
+
+| Round | Amount | Use of Funds | Timeline |
+|-------|--------|--------------|----------|
+| **Bootstrapped/Angel** | $50,000 | MVP completion, initial marketing | Completed |
+| **Seed Round** | $500,000 | Team expansion, paid acquisition, enterprise features | Q2 2026 |
+| **Series A** | $3,000,000 | International expansion, AI R&D, enterprise sales | Q4 2027 |
 
 ---
 
@@ -2848,7 +3012,81 @@ Visionary AI becomes the **category-defining platform** for identity-driven goal
 - Physical reinforcement (print products that reinforce identity)
 - Multi-channel coaching (watch, voice, SMS, email, push)
 
-**Target:** 100,000 active users by end of 2026, with 15% paid conversion and $2M ARR.
+### Growth Targets (Revised December 2025)
+
+| Year | Users | Paid Users | ARR | Key Milestone |
+|------|-------|------------|-----|---------------|
+| **2026** | 10,000 | 1,000 | $240K | Product-market fit |
+| **2027** | 50,000 | 6,000 | $2.3M | Market leadership |
+| **2028** | 150,000 | 22,000 | $8.5M | Category definition |
+
+---
+
+## 20.5 Team & Advisors
+
+### Founding Team
+
+| Role | Name | Background |
+|------|------|------------|
+| **CEO & Co-Founder** | Milton Overton | Tech entrepreneur, enterprise sales, AI product strategy |
+| **Co-Founder** | Lisa Overton | Operations, finance, customer success |
+
+### Planned Key Hires (2026)
+
+| Role | Priority | Timeline |
+|------|----------|----------|
+| **Head of Engineering** | P0 | Q1 2026 |
+| **Growth Marketing Lead** | P0 | Q1 2026 |
+| **AI/ML Engineer** | P1 | Q2 2026 |
+| **Customer Success Manager** | P1 | Q2 2026 |
+| **Enterprise Sales Rep** | P2 | Q3 2026 |
+
+### Advisory Board (Planned)
+
+| Expertise Needed | Purpose |
+|------------------|---------|
+| **SaaS Growth Expert** | Scaling GTM and paid acquisition |
+| **AI/ML Advisor** | Model optimization and new capabilities |
+| **Enterprise Sales** | B2B strategy and Fortune 500 relationships |
+| **Financial Services** | Fintech compliance and partnerships |
+
+---
+
+## 20.6 Risk Factors & Mitigations
+
+### Technical Risks
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| **AI Model API Changes** | Medium | High | Multi-model fallback (Gemini, OpenAI, Claude) |
+| **Supabase/Infrastructure Outage** | Low | High | Database backups, CDN caching, status monitoring |
+| **Security Breach** | Low | Critical | RLS hardening, audit logging, SOC 2 roadmap |
+| **AI Hallucinations/Bad Advice** | Medium | Medium | Human-in-the-loop for high-risk actions |
+
+### Market Risks
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| **Incumbent Competition** | Medium | Medium | First-mover advantage in agentic goal achievement |
+| **Economic Downturn** | Medium | Medium | Focus on ROI messaging, essential productivity |
+| **Consumer AI Fatigue** | Low | Medium | Human-first design, tangible print products |
+| **Slow Enterprise Adoption** | Medium | High | Start with SMB, prove value before enterprise push |
+
+### Regulatory Risks
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| **AI Regulation (EU AI Act)** | High | Medium | Transparency, explainability, human oversight |
+| **Data Privacy (GDPR/CCPA)** | Medium | High | Privacy-by-design, data portability, consent management |
+| **Financial Advice Liability** | Low | High | Clear disclaimers, not financial advice positioning |
+
+### Operational Risks
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| **Key Person Dependency** | Medium | High | Documentation, cross-training, advisors |
+| **Burn Rate Exceeds Runway** | Low | Critical | Conservative hiring, milestone-based spending |
+| **Print Partner Issues** | Low | Medium | Multiple print vendors (Prodigi backup options) |
 
 ---
 
