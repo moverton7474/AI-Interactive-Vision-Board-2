@@ -80,6 +80,7 @@ export default function AgentSettings() {
     const [voicePersonas, setVoicePersonas] = useState<VoicePersona[]>([]);
     const [userTier, setUserTier] = useState<string>('free');
     const [voiceLoading, setVoiceLoading] = useState(false);
+    const [savingPersona, setSavingPersona] = useState<string | null>(null); // Track which persona is saving
 
     // Use the agent actions hook for pending actions and realtime updates
     const {
@@ -205,8 +206,20 @@ export default function AgentSettings() {
         }
     };
 
-    // Handle voice persona selection (v2.9)
-    const handleVoicePersonaChange = async (persona: string) => {
+    // Handle voice persona selection (v2.9) - with mobile touch support
+    const handleVoicePersonaChange = async (persona: string, e?: React.MouseEvent | React.TouchEvent) => {
+        // Prevent double-fire from both touch and click
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Don't process if already saving this persona
+        if (savingPersona === persona) return;
+
+        setSavingPersona(persona);
+        setError(null);
+
         try {
             const updated = await voiceService.updateSettings({
                 preferredPersona: persona as VoiceSettings['preferredPersona'],
@@ -216,6 +229,8 @@ export default function AgentSettings() {
             setTimeout(() => setSuccess(null), 2000);
         } catch (err: any) {
             setError(err.message || 'Failed to update voice settings');
+        } finally {
+            setSavingPersona(null);
         }
     };
 
@@ -375,21 +390,32 @@ export default function AgentSettings() {
                                     const info = getPersonaInfo(persona.name);
                                     const isSelected = voiceSettings?.preferredPersona === persona.name;
                                     const isLocked = !persona.available;
+                                    const isSaving = savingPersona === persona.name;
 
                                     return (
                                         <button
                                             key={persona.name}
-                                            onClick={() => !isLocked && handleVoicePersonaChange(persona.name)}
-                                            disabled={isLocked}
-                                            className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                                            onClick={(e) => !isLocked && !isSaving && handleVoicePersonaChange(persona.name, e)}
+                                            onTouchEnd={(e) => !isLocked && !isSaving && handleVoicePersonaChange(persona.name, e)}
+                                            disabled={isLocked || isSaving}
+                                            className={`relative p-4 rounded-xl border-2 transition-all text-left select-none ${
                                                 isSelected
                                                     ? 'border-purple-500 bg-purple-900/30 ring-2 ring-purple-500/50'
                                                     : isLocked
                                                         ? 'border-slate-700 bg-slate-800/30 opacity-50 cursor-not-allowed'
-                                                        : 'border-slate-700 bg-slate-800/50 hover:border-purple-500/50 hover:bg-slate-800/70 cursor-pointer'
+                                                        : isSaving
+                                                            ? 'border-purple-400 bg-purple-900/20 cursor-wait'
+                                                            : 'border-slate-700 bg-slate-800/50 hover:border-purple-500/50 hover:bg-slate-800/70 active:bg-slate-800/90 cursor-pointer'
                                             }`}
+                                            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                                         >
-                                            {isLocked && (
+                                            {/* Loading overlay when saving */}
+                                            {isSaving && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 rounded-xl z-10">
+                                                    <div className="w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                                                </div>
+                                            )}
+                                            {isLocked && !isSaving && (
                                                 <div className="absolute top-2 right-2">
                                                     <span className="text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full">
                                                         {persona.name === 'system' ? 'FREE' : 'PRO+'}
@@ -409,7 +435,7 @@ export default function AgentSettings() {
                                                 }`}>
                                                     {info.provider}
                                                 </span>
-                                                {isSelected && (
+                                                {isSelected && !isSaving && (
                                                     <span className="text-xs px-2 py-0.5 rounded bg-green-900/50 text-green-300">
                                                         ✓ Active
                                                     </span>
