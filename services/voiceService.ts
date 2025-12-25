@@ -13,7 +13,7 @@ import { supabase } from '../lib/supabase';
 // Types
 export interface VoiceSettings {
   preferredProvider: 'browser' | 'openai' | 'elevenlabs';
-  preferredPersona: 'maya' | 'james' | 'tonya' | 'custom' | 'system';
+  preferredPersona: 'maya' | 'james' | 'tonya' | 'custom' | 'system';  // Tonya added for v2.9
   customVoiceId?: string;
   customVoiceName?: string;
   customVoiceStatus: 'none' | 'pending' | 'processing' | 'ready' | 'failed';
@@ -145,88 +145,69 @@ class VoiceService {
   /**
    * Generate TTS audio from text
    * Returns audio blob for streaming playback or text for browser TTS fallback
+   *
+   * Uses direct fetch instead of supabase.functions.invoke to properly handle
+   * binary audio responses from the Edge Function.
    */
   async generateTTS(
     text: string,
     options?: {
       sessionId?: string;
       usageType?: 'coaching' | 'affirmation' | 'greeting' | 'preview' | 'other';
-      preferredPersona?: 'maya' | 'james' | 'custom' | 'system';
+      preferredPersona?: 'maya' | 'james' | 'tonya' | 'custom' | 'system';
       language?: string;
     }
   ): Promise<TTSResult> {
     try {
-      const response = await supabase.functions.invoke('voice-tts-router', {
-        body: {
-          text,
-          sessionId: options?.sessionId,
-          usageType: options?.usageType || 'coaching',
-          preferredPersona: options?.preferredPersona || this.settings?.preferredPersona || 'maya',
-          language: options?.language || this.settings?.language || 'en',
-        },
-      });
-
-      // Check if we got an error response
-      if (response.error) {
-        console.error('TTS error:', response.error);
+      // Get auth session for authorization header
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.warn('No auth session for TTS, falling back to browser');
         return {
           provider: 'browser',
           text,
           charactersUsed: 0,
           quotaRemaining: this.quota?.remaining || 0,
-          error: response.error.message,
+          error: 'Not authenticated',
         };
       }
 
-      const data = response.data;
+      // Build the Edge Function URL
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const functionUrl = `${supabaseUrl}/functions/v1/voice-tts-router`;
 
-      // Check if response is JSON (fallback/error case)
-      if (typeof data === 'object' && data !== null) {
-        // Browser fallback or quota exceeded
-        if (data.code === 'QUOTA_EXCEEDED') {
-          return {
-            provider: 'browser',
-            text: data.fallbackText || text,
-            charactersUsed: 0,
-            quotaRemaining: data.quotaInfo?.remaining || 0,
-            error: 'Monthly quota exceeded',
-          };
-        }
+      // Use direct fetch to properly handle binary audio responses
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': anonKey,
+        },
+        body: JSON.stringify({
+          text,
+          sessionId: options?.sessionId,
+          usageType: options?.usageType || 'coaching',
+          preferredPersona: options?.preferredPersona || this.settings?.preferredPersona || 'maya',
+          language: options?.language || this.settings?.language || 'en',
+        }),
+      });
 
-        if (data.provider === 'browser') {
-          return {
-            provider: 'browser',
-            text: data.text || text,
-            charactersUsed: 0,
-            quotaRemaining: this.quota?.remaining || 0,
-          };
-        }
+      // Check response content type
+      const contentType = response.headers.get('Content-Type') || '';
 
-        // Error with fallback text
-        if (data.error && data.fallbackText) {
-          return {
-            provider: 'browser',
-            text: data.fallbackText,
-            charactersUsed: 0,
-            quotaRemaining: 0,
-            error: data.error,
-          };
-        }
-      }
-
-      // Check response headers for audio response
-      // When using supabase.functions.invoke, the response might be the raw data
-      // For audio, we need to handle it as a blob
-
-      // If we received binary data (audio), create a blob
-      if (data instanceof ArrayBuffer || data instanceof Blob) {
-        const audioBlob = data instanceof Blob ? data : new Blob([data], { type: 'audio/mpeg' });
+      // If response is audio, create blob and return
+      if (contentType.includes('audio/')) {
+        const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
 
-        // Parse headers if available
-        const provider = 'openai'; // Default, actual provider from headers in real implementation
-        const charactersUsed = text.length;
-        const quotaRemaining = this.quota?.remaining ? this.quota.remaining - charactersUsed : 0;
+        // Get metadata from headers
+        const provider = response.headers.get('X-Voice-Provider') || 'openai';
+        const charactersUsed = parseInt(response.headers.get('X-Characters-Used') || '0', 10);
+        const quotaRemaining = parseInt(response.headers.get('X-Quota-Remaining') || '0', 10);
+
+        console.log(`TTS success: ${provider}, ${charactersUsed} chars, ${audioBlob.size} bytes`);
 
         return {
           provider: provider as TTSResult['provider'],
@@ -234,6 +215,42 @@ class VoiceService {
           audioUrl,
           charactersUsed,
           quotaRemaining,
+        };
+      }
+
+      // Otherwise, response is JSON (browser fallback, error, or quota exceeded)
+      const data = await response.json();
+
+      // Check for quota exceeded
+      if (data.code === 'QUOTA_EXCEEDED') {
+        return {
+          provider: 'browser',
+          text: data.fallbackText || text,
+          charactersUsed: 0,
+          quotaRemaining: data.quotaInfo?.remaining || 0,
+          error: 'Monthly quota exceeded',
+        };
+      }
+
+      // Browser fallback
+      if (data.provider === 'browser') {
+        return {
+          provider: 'browser',
+          text: data.text || text,
+          charactersUsed: 0,
+          quotaRemaining: this.quota?.remaining || 0,
+        };
+      }
+
+      // Error with fallback text
+      if (data.error) {
+        console.warn('TTS error from edge function:', data.error);
+        return {
+          provider: 'browser',
+          text: data.fallbackText || text,
+          charactersUsed: 0,
+          quotaRemaining: 0,
+          error: data.error,
         };
       }
 

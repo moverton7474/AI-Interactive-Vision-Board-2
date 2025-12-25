@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.user_voice_settings (
   preferred_provider TEXT DEFAULT 'browser'
     CHECK (preferred_provider IN ('browser', 'openai', 'elevenlabs')),
   preferred_persona TEXT DEFAULT 'maya'
-    CHECK (preferred_persona IN ('maya', 'james', 'custom', 'system')),
+    CHECK (preferred_persona IN ('maya', 'james', 'tonya', 'custom', 'system')),
 
   -- ElevenLabs Custom Voice (Elite only)
   custom_voice_id TEXT, -- ElevenLabs voice ID for cloned voice
@@ -154,7 +154,8 @@ ON CONFLICT (name) DO UPDATE SET
 
 CREATE INDEX IF NOT EXISTS idx_voice_settings_user ON user_voice_settings(user_id);
 CREATE INDEX IF NOT EXISTS idx_voice_usage_user_date ON voice_usage(user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_voice_usage_monthly ON voice_usage(user_id, DATE_TRUNC('month', created_at));
+-- Note: Removed functional index with DATE_TRUNC as it requires IMMUTABLE marking
+-- Query optimization for monthly usage is handled by the function itself
 CREATE INDEX IF NOT EXISTS idx_voice_usage_provider ON voice_usage(provider, created_at);
 CREATE INDEX IF NOT EXISTS idx_voice_clones_user ON voice_clones(user_id);
 CREATE INDEX IF NOT EXISTS idx_voice_clones_status ON voice_clones(user_id, status);
