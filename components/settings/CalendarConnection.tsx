@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, SUPABASE_URL } from '../../lib/supabase';
 
 interface CalendarConnectionProps {
   userId: string;
@@ -49,7 +49,7 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
       const { data: { session } } = await supabase.auth.getSession();
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-connect?action=status`,
+        `${SUPABASE_URL}/functions/v1/google-calendar-connect?action=status`,
         {
           headers: {
             'Authorization': `Bearer ${session?.access_token}`,
@@ -82,7 +82,7 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
       const { data: { session } } = await supabase.auth.getSession();
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-connect?action=auth_url`,
+        `${SUPABASE_URL}/functions/v1/google-calendar-connect?action=auth_url`,
         {
           headers: {
             'Authorization': `Bearer ${session?.access_token}`,
@@ -115,7 +115,7 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
       const { data: { session } } = await supabase.auth.getSession();
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-connect`,
+        `${SUPABASE_URL}/functions/v1/google-calendar-connect`,
         {
           method: 'POST',
           headers: {
@@ -155,7 +155,7 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
       const { data: { session } } = await supabase.auth.getSession();
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-connect`,
+        `${SUPABASE_URL}/functions/v1/google-calendar-connect`,
         {
           method: 'POST',
           headers: {
@@ -192,7 +192,7 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
       const { data: { session } } = await supabase.auth.getSession();
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-connect`,
+        `${SUPABASE_URL}/functions/v1/google-calendar-connect`,
         {
           method: 'POST',
           headers: {

@@ -46,6 +46,7 @@ const VoiceCoachWidget: React.FC = () => {
     const [voiceQuota, setVoiceQuota] = useState<VoiceQuota | null>(null);
     const [userTier, setUserTier] = useState<string>('free');
     const [voiceProvider, setVoiceProvider] = useState<'browser' | 'openai' | 'elevenlabs'>('browser');
+    const [voiceSettingsLoaded, setVoiceSettingsLoaded] = useState(false);
 
     const recognitionRef = useRef<any>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -63,6 +64,9 @@ const VoiceCoachWidget: React.FC = () => {
     const accumulatedTranscriptRef = useRef('');
     const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const recognitionRunningRef = useRef(false); // Track if recognition is actually running
+    const voiceSettingsLoadedRef = useRef(false); // Track if voice settings are loaded
+    const voiceProviderRef = useRef<'browser' | 'openai' | 'elevenlabs'>('browser');
+    const lastInterimTranscriptRef = useRef(''); // Track last interim result for auto-send
 
     // Keep refs in sync with state
     useEffect(() => {
@@ -76,6 +80,10 @@ const VoiceCoachWidget: React.FC = () => {
     useEffect(() => {
         sessionIdRef.current = sessionId;
     }, [sessionId]);
+
+    useEffect(() => {
+        voiceProviderRef.current = voiceProvider;
+    }, [voiceProvider]);
 
     useEffect(() => {
         // Detect iOS for special handling
@@ -127,16 +135,23 @@ const VoiceCoachWidget: React.FC = () => {
                     setVoiceQuota(voiceData.quota);
                     setUserTier(voiceData.tier);
                     // Set effective provider based on tier
+                    let provider: 'browser' | 'openai' | 'elevenlabs' = 'browser';
                     if (voiceData.tier === 'elite') {
-                        setVoiceProvider('elevenlabs');
+                        provider = 'elevenlabs';
                     } else if (voiceData.tier === 'pro') {
-                        setVoiceProvider('openai');
-                    } else {
-                        setVoiceProvider('browser');
+                        provider = 'openai';
                     }
+                    setVoiceProvider(provider);
+                    voiceProviderRef.current = provider;
+                    setVoiceSettingsLoaded(true);
+                    voiceSettingsLoadedRef.current = true;
+                    console.log('Voice settings loaded, provider:', provider, 'tier:', voiceData.tier);
                 } catch (voiceErr) {
                     console.log('Voice settings not available, using browser TTS:', voiceErr);
                     setVoiceProvider('browser');
+                    voiceProviderRef.current = 'browser';
+                    setVoiceSettingsLoaded(true);
+                    voiceSettingsLoadedRef.current = true;
                 }
             }
         });
@@ -223,13 +238,16 @@ const VoiceCoachWidget: React.FC = () => {
                     const transcript = event.results[i][0].transcript;
                     if (event.results[i].isFinal) {
                         accumulatedTranscriptRef.current += transcript + ' ';
+                        lastInterimTranscriptRef.current = ''; // Clear interim when we get a final
                     } else {
                         interimTranscript = transcript;
+                        lastInterimTranscriptRef.current = transcript; // Track last interim
                     }
                 }
 
                 // Update display with accumulated + interim
-                setTranscript((accumulatedTranscriptRef.current + interimTranscript).trim());
+                const displayText = (accumulatedTranscriptRef.current + interimTranscript).trim();
+                setTranscript(displayText);
 
                 // Reset silence timer - give user 2.5 seconds of silence before sending
                 if (silenceTimerRef.current) {
@@ -237,10 +255,22 @@ const VoiceCoachWidget: React.FC = () => {
                 }
 
                 silenceTimerRef.current = setTimeout(() => {
-                    const textToSend = accumulatedTranscriptRef.current.trim();
+                    // Include both final results AND last interim result for auto-send
+                    // This fixes the issue where speech stays as "interim" in continuous mode
+                    const finalText = accumulatedTranscriptRef.current.trim();
+                    const interimText = lastInterimTranscriptRef.current.trim();
+                    const textToSend = (finalText + ' ' + interimText).trim();
+
+                    console.log('Auto-send triggered:', { finalText, interimText, textToSend });
+
                     if (textToSend && sessionIdRef.current) {
+                        // Stop recognition to finalize any pending results
+                        if (recognitionRunningRef.current) {
+                            recognitionRef.current?.stop();
+                        }
                         handleUserSpeech(textToSend);
                         accumulatedTranscriptRef.current = '';
+                        lastInterimTranscriptRef.current = '';
                         setTranscript('');
                     }
                 }, 2500);
@@ -317,6 +347,17 @@ const VoiceCoachWidget: React.FC = () => {
             setStatus('processing');
             setError(null);
             setConversationHistory([]);
+
+            // Wait for voice settings to load if not yet loaded (max 3 seconds)
+            if (!voiceSettingsLoadedRef.current) {
+                console.log('Waiting for voice settings to load...');
+                let waitTime = 0;
+                while (!voiceSettingsLoadedRef.current && waitTime < 3000) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    waitTime += 100;
+                }
+                console.log('Voice settings loaded, provider:', voiceProviderRef.current);
+            }
 
             const { data, error } = await supabase.functions.invoke('voice-coach-session', {
                 body: { action: 'start', sessionType: selectedType }
@@ -448,6 +489,7 @@ const VoiceCoachWidget: React.FC = () => {
             setTimeout(() => {
                 if (!recognitionRunningRef.current && sessionIdRef.current) {
                     accumulatedTranscriptRef.current = '';
+                    lastInterimTranscriptRef.current = '';
                     setTranscript('');
                     try {
                         recognitionRef.current?.start();
@@ -532,8 +574,11 @@ const VoiceCoachWidget: React.FC = () => {
 
     // Main speak function - routes to premium or browser TTS based on tier
     const speak = (text: string) => {
+        // Use ref to get most current provider value (avoids stale closure issues)
+        const currentProvider = voiceProviderRef.current;
+        console.log('Speaking with provider:', currentProvider);
         // Use premium voice for Pro/Elite tiers, browser TTS for Free
-        if (voiceProvider === 'openai' || voiceProvider === 'elevenlabs') {
+        if (currentProvider === 'openai' || currentProvider === 'elevenlabs') {
             speakWithPremiumVoice(text);
         } else {
             speakWithBrowserTTS(text);
@@ -548,15 +593,20 @@ const VoiceCoachWidget: React.FC = () => {
                 clearTimeout(silenceTimerRef.current);
                 silenceTimerRef.current = null;
             }
-            const textToSend = accumulatedTranscriptRef.current.trim();
+            // Include both finals and last interim when stopping
+            const finalText = accumulatedTranscriptRef.current.trim();
+            const interimText = lastInterimTranscriptRef.current.trim();
+            const textToSend = (finalText + ' ' + interimText).trim();
             if (textToSend && sessionId) {
                 handleUserSpeech(textToSend);
             }
             accumulatedTranscriptRef.current = '';
+            lastInterimTranscriptRef.current = '';
             setIsListening(false);
         } else {
             setTranscript('');
             accumulatedTranscriptRef.current = '';
+            lastInterimTranscriptRef.current = '';
             if (!recognitionRunningRef.current) {
                 try {
                     recognitionRef.current?.start();
@@ -606,7 +656,10 @@ const VoiceCoachWidget: React.FC = () => {
 
     // Manual send function for when auto-send doesn't trigger
     const manualSend = () => {
-        const textToSend = (accumulatedTranscriptRef.current + transcript).trim();
+        // Include accumulated finals + last interim + current transcript display
+        const finalText = accumulatedTranscriptRef.current.trim();
+        const interimText = lastInterimTranscriptRef.current.trim();
+        const textToSend = (finalText + ' ' + interimText).trim() || transcript.trim();
         if (!textToSend || !sessionId) return;
 
         // Stop listening first
@@ -623,6 +676,7 @@ const VoiceCoachWidget: React.FC = () => {
         // Send the text
         handleUserSpeech(textToSend);
         accumulatedTranscriptRef.current = '';
+        lastInterimTranscriptRef.current = '';
         setTranscript('');
         setIsListening(false);
     };
