@@ -20,7 +20,7 @@ import {
 } from '../../services/storageService';
 import { generateWorkbookContent } from '../../services/geminiService';
 import { buildInitialWorkbookPages, CoverThemeId } from '../../services/workbook/workbookService';
-import { WorkbookPage } from '../../types/workbookTypes';
+import { WorkbookPage, ThemePack } from '../../types/workbookTypes';
 import WorkbookPreview from './WorkbookPreview';
 import WorkbookCoverDesigner from './WorkbookCoverDesigner';
 import CoverThemeSelector from './CoverThemeSelector';
@@ -59,6 +59,7 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
     const [leatherColor, setLeatherColor] = useState<'black' | 'brown' | 'navy'>('black');
     const [embossStyle, setEmbossStyle] = useState<'gold' | 'silver' | 'blind'>('gold');
     const [coverTheme, setCoverTheme] = useState<CoverThemeId>('executive_dark');
+    const [themePack, setThemePack] = useState<ThemePack>('executive');
 
     // Content Config
     const [includeCalendar, setIncludeCalendar] = useState(true);
@@ -290,6 +291,39 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                         onSelect={setCoverTheme}
                                         visionBoardPreview={visionBoards[0]?.url}
                                     />
+
+                                    {/* Theme Pack Selector - v2.1 */}
+                                    <div>
+                                        <label className="block text-sm font-bold text-navy-900 mb-2">Content Theme Pack</label>
+                                        <p className="text-xs text-gray-500 mb-3">This determines the tone and style of AI-generated content and reflection prompts.</p>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {[
+                                                { id: 'executive', label: 'Executive', desc: 'Strategic, KPI-driven', color: 'bg-navy-900' },
+                                                { id: 'faith', label: 'Faith', desc: 'Purpose & service', color: 'bg-purple-700' },
+                                                { id: 'retirement', label: 'Retirement', desc: 'Freedom & legacy', color: 'bg-teal-600' },
+                                                { id: 'health', label: 'Health', desc: 'Vitality & wellness', color: 'bg-green-600' },
+                                                { id: 'entrepreneur', label: 'Entrepreneur', desc: 'Innovation & growth', color: 'bg-orange-600' },
+                                                { id: 'relationship', label: 'Relationship', desc: 'Connection & love', color: 'bg-rose-600' },
+                                            ].map(theme => (
+                                                <button
+                                                    type="button"
+                                                    key={theme.id}
+                                                    onClick={() => setThemePack(theme.id as ThemePack)}
+                                                    className={`p-3 rounded-lg border-2 text-left transition-all ${
+                                                        themePack === theme.id
+                                                            ? 'border-navy-900 bg-navy-50'
+                                                            : 'border-gray-200 hover:border-gray-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <div className={`w-3 h-3 rounded-full ${theme.color}`} />
+                                                        <span className="font-medium text-navy-900 text-sm">{theme.label}</span>
+                                                    </div>
+                                                    <span className="text-xs text-gray-500">{theme.desc}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <button
@@ -428,7 +462,8 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                                 includeForeword,
                                                 title,
                                                 subtitle,
-                                                coverTheme
+                                                coverTheme,
+                                                themePack
                                             });
 
                                             console.log(`[WorkbookWizard] Generated ${pages.length} pages`);
@@ -550,7 +585,11 @@ const WorkbookWizard: React.FC<Props> = ({ onClose }) => {
                                                         ...(includeForeword ? ['coach_letter'] : [])
                                                     ],
                                                     // Include the exact pages used in preview for PDF generation
-                                                    workbook_pages: generatedPages
+                                                    workbook_pages: generatedPages,
+                                                    // v2.1: Theme pack for PDF styling
+                                                    customization_data: {
+                                                        theme_pack: themePack
+                                                    }
                                                 });
 
                                                 if (order) {

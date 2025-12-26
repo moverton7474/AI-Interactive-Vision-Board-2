@@ -20,6 +20,7 @@ import EngagementAlerts from './admin/EngagementAlerts';
 import OutreachScheduler from './admin/OutreachScheduler';
 import FeatureFlagManager from './admin/FeatureFlagManager';
 import AgentActivityDashboard from './admin/AgentActivityDashboard';
+import PrintProductsAnalytics from './admin/PrintProductsAnalytics';
 
 interface Props {
   onBack?: () => void;
@@ -68,7 +69,7 @@ interface Team {
 const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'voice_analytics' | 'ai_settings' | 'alerts' | 'outreach' | 'knowledge' | 'team_admin' | 'site_settings' | 'credits' | 'feature_flags' | 'agent_activity'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'members' | 'reports' | 'communications' | 'voice_analytics' | 'ai_settings' | 'alerts' | 'outreach' | 'knowledge' | 'team_admin' | 'site_settings' | 'credits' | 'feature_flags' | 'agent_activity' | 'print_products'>('overview');
 
   // Data states
   const [team, setTeam] = useState<Team | null>(null);
@@ -389,6 +390,7 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
             { id: 'alerts', label: 'Alerts', adminOnly: false, managerOnly: true },
             { id: 'outreach', label: 'Outreach', adminOnly: false, managerOnly: true },
             { id: 'agent_activity', label: 'Agent Activity', adminOnly: false, managerOnly: true },
+            { id: 'print_products', label: 'Print Products', adminOnly: true },
             { id: 'knowledge', label: 'Knowledge Base', adminOnly: true },
             { id: 'team_admin', label: 'Manage Members', adminOnly: true },
             { id: 'credits', label: 'Credit Management', adminOnly: true },
@@ -710,6 +712,11 @@ const ManagerDashboard: React.FC<Props> = ({ onBack }) => {
         {/* Feature Flags View - Platform Admin Only */}
         {activeView === 'feature_flags' && isPlatformAdmin && (
           <FeatureFlagManager />
+        )}
+
+        {/* Print Products Analytics View - Platform Admin Only */}
+        {activeView === 'print_products' && isPlatformAdmin && (
+          <PrintProductsAnalytics />
         )}
 
         {/* Invite Modal */}
