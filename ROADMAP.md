@@ -171,6 +171,16 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 
 ### 🎉 Recent Major Achievements (December 2025)
 
+**Workbook v2.1: Best-in-Class Print Standards (December 25, 2025):**
+- ✅ **Prodigi Print Specifications** - 300 DPI, 10mm safety margins, RGB color mode, even page count
+- ✅ **Theme Pack System** - 6 content themes (executive, faith, retirement, health, entrepreneur, relationship)
+- ✅ **AI Content Service** - Ghostwriter Foreword ("Letter from Your Future Self"), theme-based reflection prompts
+- ✅ **Financial Overview Page** - User financial target display with progress bar and milestones
+- ✅ **Image Validation Service** - DPI checking for print quality assurance
+- ✅ **PDF Generator Updates** - Theme-based color palettes, Prodigi margin compliance
+- ✅ **WorkbookWizard Theme Selector** - UI for selecting content theme pack
+- ✅ **Print Products Analytics** - Admin dashboard for order tracking, revenue, and theme popularity
+
 **Voice Enhancement v2.9 Phase 1 Complete (December 25, 2025):**
 - ✅ **Database Migration Applied** - `20251224130000_voice_enhancement_v29.sql` with 4 tables, 5 functions, RLS policies
 - ✅ **Voice Personas Seeded** - Maya (nova), James (onyx), Tonya (shimmer), System (browser)
@@ -180,6 +190,13 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ **Mobile Detection** - Added isMobile state and refs for mobile-optimized voice recognition
 - ✅ **CalendarConnection URL Fix** - Uses SUPABASE_URL from lib/supabase.ts for API calls
 - ✅ **Google Calendar Redirect URI** - Updated Supabase secret for production domain
+
+**Voice Enhancement v2.9 Phase 2 Complete (December 25, 2025):**
+- ✅ **VoiceCoach.tsx Premium Voice Integration** - Full page Coach now uses voiceService for ElevenLabs (ELITE) and OpenAI TTS (PRO) with browser fallback
+- ✅ **Goals Query Fix** - `voice-coach-session` Edge Function now queries both `action_tasks` AND `milestones` tables for complete goal coverage
+- ✅ **Speech Recognition Null Safety** - Added defensive checks in both VoiceCoach.tsx and VoiceCoachWidget.tsx to prevent TypeError on undefined transcript
+- ✅ **Voice Provider Selection** - VoiceCoach.tsx now loads voice settings on mount and routes to appropriate TTS provider based on user tier
+- ✅ **Coach Page Parity** - Both Coach page and Dashboard widget now support identical premium voice features
 
 **Onboarding Flow Resilience & Error Handling (December 24, 2025):**
 - ✅ **Gemini Model Fix** - Changed `gemini-1.5-pro` to `gemini-1.5-flash` in gemini-proxy/index.ts (model was unavailable)
@@ -1937,6 +1954,31 @@ user_knowledge_base   ✅ Aggregated user data for AI/print
 - **Conversion Target**: 5% of active users
 - **Upsell Path**: Elite subscribers get free softcover annually
 - **Gift Market**: Couples ordering for each other
+
+### v2.1 Enhancements (December 2025) ✅ COMPLETED
+
+| Enhancement | Description | Status |
+|-------------|-------------|--------|
+| **Prodigi Print Specs** | 300 DPI, 10mm safety margins, RGB color mode, even page count | ✅ Complete |
+| **Theme Pack System** | 6 content themes with unique color palettes and AI content styles | ✅ Complete |
+| **AI Content Service** | Ghostwriter Foreword, theme-based reflection prompts, coach letter | ✅ Complete |
+| **Financial Overview Page** | User financial target display with progress visualization | ✅ Complete |
+| **Image Validation** | DPI checking for print quality assurance | ✅ Complete |
+| **Print Products Analytics** | Admin dashboard for order tracking and revenue metrics | ✅ Complete |
+
+**Theme Packs Available:**
+- **Executive** — Strategic, KPI-driven content with navy/gold palette
+- **Faith** — Purpose & service focused with purple/warm gold palette
+- **Retirement** — Freedom & legacy themed with teal/coral palette
+- **Health** — Vitality & wellness with green/blue palette
+- **Entrepreneur** — Innovation & growth with dark/orange palette
+- **Relationship** — Connection & love with rose/peach palette
+
+**New Files Created:**
+- `services/workbook/printSpecifications.ts` — Centralized Prodigi specs
+- `services/workbook/aiContentService.ts` — AI content generation
+- `services/workbook/imageValidationService.ts` — Print quality validation
+- `components/admin/PrintProductsAnalytics.tsx` — Admin analytics dashboard
 
 ---
 
