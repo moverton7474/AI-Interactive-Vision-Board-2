@@ -909,6 +909,156 @@ graph TD
 
 ---
 
+### v3.1 — Stripe Billing Migration 🔲 FUTURE
+
+**Theme:** Billing Infrastructure Modernization
+**Priority:** Medium-High (Revenue Operations)
+**Estimated Effort:** 4-6 weeks
+
+#### Overview
+
+Migrate from custom subscription management to Stripe Billing for centralized subscription lifecycle management, automated invoicing, smart dunning, and customer self-service portal.
+
+#### Current State Analysis
+
+| Component | Current Implementation | Files Affected |
+|-----------|----------------------|----------------|
+| **Subscription Storage** | Custom `subscriptions` table + `profiles.subscription_tier` | `SUPABASE_SCHEMA.sql`, 20251211 migration |
+| **Payment Processing** | `create-checkout-session` edge function | `supabase/functions/create-checkout-session/index.ts` |
+| **Webhook Handling** | `stripe-webhook` edge function with idempotency | `supabase/functions/stripe-webhook/index.ts` |
+| **Subscription Sync** | Manual admin sync function | `supabase/functions/admin-sync-stripe-subscription/index.ts` |
+| **Tier Override** | Manual admin override function | `supabase/functions/admin-override-subscription-tier/index.ts` |
+| **Frontend UI** | `SubscriptionModal.tsx` with hardcoded prices | `components/SubscriptionModal.tsx` |
+| **Service Layer** | `createStripeCheckoutSession()` | `services/storageService.ts` |
+| **Event Tracking** | `stripe_webhook_events` table | 20251215 migration |
+
+#### Stripe Billing Benefits
+
+| Feature | Current State | With Stripe Billing |
+|---------|--------------|---------------------|
+| **Subscription Management** | Custom DB + webhooks | Centralized Stripe Dashboard |
+| **Invoice Generation** | None | Automatic PDF invoices |
+| **Dunning (Failed Payment Recovery)** | Basic webhook handling | Smart retry + email reminders (10-20% recovery) |
+| **Customer Portal** | None | Self-service plan changes, billing history |
+| **Proration** | Not implemented | Automatic calculation on plan changes |
+| **Tax Compliance** | Not implemented | Stripe Tax integration ready |
+| **Analytics** | Custom queries | Built-in MRR, churn, LTV metrics |
+| **Subscription Pausing** | Not supported | Native support |
+| **Trial Management** | Manual | Automatic trial-to-paid conversion |
+
+#### Impact Analysis
+
+| Area | Impact | Changes Required |
+|------|--------|------------------|
+| **Database Schema** | LOW | Keep `subscriptions` table as cache, add `stripe_subscription_id` sync |
+| **Edge Functions** | MEDIUM | Simplify `stripe-webhook`, remove manual sync logic |
+| **Frontend** | LOW | Add Customer Portal button, remove custom upgrade modals |
+| **Admin Tools** | LOW | Replace manual tier override with Stripe Dashboard |
+| **User Experience** | POSITIVE | Self-service billing, invoice history, payment method updates |
+| **Revenue Operations** | HIGH POSITIVE | Better analytics, reduced churn, automated collections |
+
+#### Migration Phases
+
+##### Phase 1: Parallel Setup (Week 1-2)
+| Task | Description |
+|------|-------------|
+| Enable Stripe Billing | Activate in Stripe Dashboard |
+| Configure Products | Create PRO ($19.99) and ELITE ($49.99) subscription products |
+| Set Up Customer Portal | Configure portal settings (cancel, upgrade, payment update) |
+| Test with New Subscriptions | New users go through Stripe Billing, existing unchanged |
+
+##### Phase 2: Existing Subscription Import (Week 3-4)
+| Task | Description |
+|------|-------------|
+| Export Current Subscriptions | Extract from `subscriptions` table with Stripe customer IDs |
+| Use Stripe Migration Tool | Import via https://dashboard.stripe.com/billing/migrations |
+| Validate Data | Confirm all subscriptions imported correctly |
+| Update Webhook Handler | Simplify to sync from Stripe as source of truth |
+
+##### Phase 3: Customer Portal Integration (Week 5)
+| Task | Description |
+|------|-------------|
+| Add Portal Button | "Manage Subscription" button in Settings |
+| Remove `SubscriptionModal` | Replace with portal redirect for upgrades |
+| Add Invoice History | Link to Stripe-hosted invoice portal |
+| User Communication | Email existing users about new self-service options |
+
+##### Phase 4: Cleanup & Optimization (Week 6)
+| Task | Description |
+|------|-------------|
+| Remove Legacy Code | Delete manual sync functions, simplify webhook |
+| Enable Dunning | Configure Smart Retries and reminder emails |
+| Add Analytics | Connect Stripe Revenue metrics to admin dashboard |
+| Documentation | Update CLAUDE.md and internal docs |
+
+#### Database Changes Required
+
+```sql
+-- Migration: YYYYMMDD_stripe_billing_migration.sql
+
+-- Add Stripe Billing sync fields to profiles
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS stripe_billing_synced_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS stripe_current_period_end TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS stripe_cancel_at_period_end BOOLEAN DEFAULT FALSE;
+
+-- Add subscription metadata
+ALTER TABLE subscriptions
+ADD COLUMN IF NOT EXISTS stripe_price_id TEXT,
+ADD COLUMN IF NOT EXISTS billing_cycle_anchor TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS current_period_start TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ;
+
+-- Index for subscription lookups
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_id
+ON subscriptions(stripe_subscription_id);
+```
+
+#### Files to Modify
+
+| File | Action | Changes |
+|------|--------|---------|
+| `stripe-webhook/index.ts` | SIMPLIFY | Remove manual tier logic, sync from Stripe |
+| `create-checkout-session/index.ts` | MODIFY | Use Stripe Billing checkout mode |
+| `admin-sync-stripe-subscription/index.ts` | DEPRECATE | Remove after migration |
+| `admin-override-subscription-tier/index.ts` | DEPRECATE | Use Stripe Dashboard instead |
+| `SubscriptionModal.tsx` | REPLACE | Redirect to Customer Portal |
+| `storageService.ts` | SIMPLIFY | Remove `updateSubscription()`, add portal URL |
+| `Settings.tsx` | ADD | "Manage Billing" button linking to portal |
+
+#### Prerequisites
+
+- [ ] Audit `subscriptions` table data quality
+- [ ] Verify all `stripe_customer_id` values are valid in Stripe
+- [ ] Test import in Stripe Test Mode
+- [ ] Plan user communication (email notification)
+- [ ] Document rollback procedure
+
+#### Risk Mitigations
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Data loss during import | Low | High | Full backup before migration, test in staging |
+| Duplicate charges | Low | Critical | Idempotency checks, pause new signups during cutover |
+| User confusion | Medium | Medium | Clear communication, support documentation |
+| Webhook conflicts | Medium | Medium | Test thoroughly, gradual rollout |
+
+#### Success Metrics
+
+- [ ] 100% of existing subscriptions imported to Stripe Billing
+- [ ] Customer Portal adoption > 30% within first month
+- [ ] Failed payment recovery rate > 15%
+- [ ] Support tickets for billing reduced by 50%
+- [ ] Zero duplicate charges during migration
+
+#### Approval Status
+
+**Plan Status:** 🔲 Pending Approval
+**Migration URL:** https://dashboard.stripe.com/billing/migrations
+**Estimated Start:** TBD (after v2.9 voice features complete)
+
+---
+
 ## 2.6 AMIE — Adaptive Motivational Identity Engine (NEW)
 
 > **AMIE is the core differentiator** that makes Visionary AI unique. It's a personalized coaching layer that adapts AI communication style, motivation techniques, and content based on user identity.
