@@ -308,13 +308,22 @@ async function generateWorkbook(supabase: any, userId: string, orderId: string) 
     }));
   }
 
-  // REAL PDF GENERATION
+  // REAL PDF GENERATION with v2.1 theme support
   console.log(`[GenerateWorkbook] Generating PDF for ${pagesToRender.length} pages...`);
+
+  // Extract theme from order customization data or stored pages
+  const themePack = order.theme_pack || order.customization_data?.theme_pack || 'executive';
+  const bindingType = order.template?.binding || 'SOFTCOVER';
+
+  console.log(`[GenerateWorkbook] Using theme: ${themePack}, binding: ${bindingType}`);
 
   let pdfBytes: Uint8Array;
   try {
     const { generatePdf } = await import('./pdfGenerator.ts');
-    pdfBytes = await generatePdf(pagesToRender);
+    pdfBytes = await generatePdf(pagesToRender, {
+      theme: themePack,
+      bindingType: bindingType
+    });
   } catch (e: any) {
     console.error("[GenerateWorkbook] PDF Generation failed:", e);
     throw new Error(`PDF Generation failed: ${e.message}`);
@@ -419,7 +428,8 @@ async function generateWorkbook(supabase: any, userId: string, orderId: string) 
     JSON.stringify({
       success: true,
       order_id: orderId,
-      sections_generated: sections.length,
+      pages_generated: pagesToRender.length,
+      theme: themePack,
       status: prodigiError ? 'error' : 'submitted',
       pdf_url: pdfUrl
     }),

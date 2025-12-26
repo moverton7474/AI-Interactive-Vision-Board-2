@@ -1,12 +1,21 @@
 /**
- * WORKBOOK V2 PDF Generator
+ * WORKBOOK V2.1 PDF Generator
  *
- * Generates real PDF documents from WorkbookPage[] data.
+ * Generates print-ready PDF documents from WorkbookPage[] data.
  * Uses pdf-lib for Deno-compatible PDF generation.
+ *
+ * PRODIGI PRINT SPECIFICATIONS (v2.1):
+ * - 300 DPI for print quality
+ * - 10mm (28.35pt) safety margin on all sides
+ * - NO manual bleed (Prodigi adds automatically)
+ * - RGB color mode (Prodigi converts to CMYK)
+ * - Even page count required (padding added if needed)
  *
  * Supported page types:
  * - COVER_FRONT: Cover with optional background image
  * - TITLE_PAGE: Title and subtitle
+ * - DEDICATION: AI-generated "Letter from Your Future Self"
+ * - FINANCIAL_OVERVIEW: Financial target snapshot
  * - VISION_BOARD_SPREAD: Vision board images with captions
  * - MONTHLY_PLANNER: Calendar grid
  * - HABIT_TRACKER: Habit tracking grid
@@ -15,19 +24,77 @@
 
 import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'https://cdn.skypack.dev/pdf-lib';
 
-// Color palette matching the executive theme
+// Prodigi Print Specifications
+const PRODIGI_SPECS = {
+    DPI: 300,
+    SAFETY_MARGIN_PT: 28.35, // 10mm in points (1mm = 2.835pt)
+    SPIRAL_EDGE_MARGIN_PT: 34, // 12mm for spiral edge
+};
+
+// Theme color palettes
+type ThemePack = 'faith' | 'executive' | 'retirement' | 'health' | 'entrepreneur' | 'relationship';
+
+const THEME_COLORS: Record<ThemePack, { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }> = {
+    executive: {
+        primary: rgb(0.118, 0.141, 0.235),   // Navy #1E243C
+        secondary: rgb(0.851, 0.467, 0.024), // Gold #D97706
+        accent: rgb(0.4, 0.4, 0.4)           // Slate
+    },
+    faith: {
+        primary: rgb(0.298, 0.298, 0.502),   // Deep Purple #4C4C80
+        secondary: rgb(0.839, 0.682, 0.369), // Warm Gold #D6AE5E
+        accent: rgb(0.529, 0.529, 0.600)     // Soft Gray
+    },
+    retirement: {
+        primary: rgb(0.082, 0.400, 0.502),   // Teal #156680
+        secondary: rgb(0.965, 0.600, 0.318), // Coral #F69951
+        accent: rgb(0.502, 0.502, 0.502)     // Medium Gray
+    },
+    health: {
+        primary: rgb(0.180, 0.545, 0.341),   // Green #2E8B57
+        secondary: rgb(0.114, 0.627, 0.886), // Bright Blue #1DA0E2
+        accent: rgb(0.439, 0.502, 0.565)     // Blue Gray
+    },
+    entrepreneur: {
+        primary: rgb(0.200, 0.200, 0.200),   // Dark Gray #333
+        secondary: rgb(1.0, 0.478, 0.0),     // Orange #FF7A00
+        accent: rgb(0.600, 0.600, 0.600)     // Light Gray
+    },
+    relationship: {
+        primary: rgb(0.737, 0.231, 0.443),   // Rose #BC3B71
+        secondary: rgb(0.882, 0.510, 0.427), // Peach #E1826D
+        accent: rgb(0.592, 0.502, 0.529)     // Mauve Gray
+    }
+};
+
+// Default color palette (executive theme)
 const NAVY = rgb(0.118, 0.141, 0.235);  // #1E243C
 const GOLD = rgb(0.851, 0.467, 0.024);  // #D97706
 const SLATE = rgb(0.4, 0.4, 0.4);
 const WHITE = rgb(1, 1, 1);
 
-export async function generatePdf(pages: any[]): Promise<Uint8Array> {
+/**
+ * Generate PDF with Prodigi print specifications
+ * @param pages - WorkbookPage[] data
+ * @param options - Optional configuration (theme, binding type)
+ */
+export async function generatePdf(pages: any[], options?: { theme?: ThemePack; bindingType?: string }): Promise<Uint8Array> {
     const pdfDoc = await PDFDocument.create();
     const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    console.log(`[PDF Generator] Processing ${pages.length} pages...`);
+    // Get theme colors
+    const theme = options?.theme || 'executive';
+    const colors = THEME_COLORS[theme] || THEME_COLORS.executive;
+    const isSpiral = options?.bindingType === 'SPIRAL';
+
+    // Calculate safe margin (10mm + optional 12mm spiral edge)
+    const safeMargin = PRODIGI_SPECS.SAFETY_MARGIN_PT;
+    const spiralMargin = isSpiral ? PRODIGI_SPECS.SPIRAL_EDGE_MARGIN_PT : 0;
+
+    console.log(`[PDF Generator] Processing ${pages.length} pages with theme '${theme}'...`);
+    console.log(`[PDF Generator] Safety margin: ${safeMargin}pt, Spiral margin: ${spiralMargin}pt`);
 
     for (let i = 0; i < pages.length; i++) {
         const pageData = pages[i];
@@ -39,38 +106,46 @@ export async function generatePdf(pages: any[]): Promise<Uint8Array> {
 
         const page = pdfDoc.addPage([width, height]);
 
+        // Calculate content margins (inside safe area)
+        const isLeftPage = (i + 1) % 2 === 0; // Even pages are left
+        const leftMargin = isLeftPage ? safeMargin + spiralMargin : safeMargin;
+        const rightMargin = isLeftPage ? safeMargin : safeMargin + spiralMargin;
+
         try {
             // Draw Content based on Type
             switch (pageType) {
                 case 'COVER_FRONT':
-                    await drawCoverPage(pdfDoc, page, pageData, timesRomanFont, helveticaFont, helveticaBold);
+                    await drawCoverPage(pdfDoc, page, pageData, timesRomanFont, helveticaFont, helveticaBold, colors);
                     break;
                 case 'TITLE_PAGE':
-                    await drawTitlePage(page, pageData, timesRomanFont, helveticaFont);
-                    break;
-                case 'VISION_BOARD_SPREAD':
-                    await drawVisionBoardPage(pdfDoc, page, pageData, timesRomanFont, helveticaFont);
-                    break;
-                case 'MONTHLY_PLANNER':
-                    await drawMonthlyPlanner(page, pageData.monthlyData || pageData, timesRomanFont, helveticaFont, helveticaBold);
-                    break;
-                case 'HABIT_TRACKER':
-                    await drawHabitTracker(page, pageData.habitTracker || pageData, timesRomanFont, helveticaFont);
-                    break;
-                case 'GOAL_OVERVIEW':
-                    await drawGoalOverviewPage(page, pageData, timesRomanFont, helveticaFont);
-                    break;
-                case 'WEEKLY_PLANNER':
-                    await drawWeeklyPlannerPage(page, pageData, timesRomanFont, helveticaFont);
-                    break;
-                case 'REFLECTION_MONTH':
-                    await drawReflectionPage(page, pageData, timesRomanFont, helveticaFont);
-                    break;
-                case 'NOTES_LINED':
-                    await drawNotesPage(page, pageData, timesRomanFont, helveticaFont);
+                    await drawTitlePage(page, pageData, timesRomanFont, helveticaFont, colors);
                     break;
                 case 'DEDICATION':
-                    await drawDedicationPage(page, pageData, timesRomanFont, helveticaFont);
+                    await drawDedicationPage(page, pageData, timesRomanFont, helveticaFont, colors, leftMargin, rightMargin);
+                    break;
+                case 'FINANCIAL_OVERVIEW':
+                    await drawFinancialOverviewPage(page, pageData, timesRomanFont, helveticaFont, helveticaBold, colors, leftMargin, rightMargin);
+                    break;
+                case 'VISION_BOARD_SPREAD':
+                    await drawVisionBoardPage(pdfDoc, page, pageData, timesRomanFont, helveticaFont, colors);
+                    break;
+                case 'MONTHLY_PLANNER':
+                    await drawMonthlyPlanner(page, pageData.monthlyData || pageData, timesRomanFont, helveticaFont, helveticaBold, colors);
+                    break;
+                case 'HABIT_TRACKER':
+                    await drawHabitTracker(page, pageData.habitTracker || pageData, timesRomanFont, helveticaFont, colors);
+                    break;
+                case 'GOAL_OVERVIEW':
+                    await drawGoalOverviewPage(page, pageData, timesRomanFont, helveticaFont, colors);
+                    break;
+                case 'WEEKLY_PLANNER':
+                    await drawWeeklyPlannerPage(page, pageData, timesRomanFont, helveticaFont, colors);
+                    break;
+                case 'REFLECTION_MONTH':
+                    await drawReflectionPage(page, pageData, timesRomanFont, helveticaFont, colors);
+                    break;
+                case 'NOTES_LINED':
+                    await drawNotesPage(page, pageData, timesRomanFont, helveticaFont, colors);
                     break;
                 default:
                     await drawGenericPage(page, pageData, timesRomanFont, helveticaFont);
@@ -79,7 +154,7 @@ export async function generatePdf(pages: any[]): Promise<Uint8Array> {
             console.error(`[PDF Generator] Error on page ${i + 1} (${pageType}):`, e);
             // Draw error placeholder
             page.drawText(`Page ${i + 1}: ${pageType}`, {
-                x: 36,
+                x: leftMargin,
                 y: height - 50,
                 size: 14,
                 font: helveticaFont,
@@ -88,7 +163,14 @@ export async function generatePdf(pages: any[]): Promise<Uint8Array> {
         }
     }
 
-    console.log(`[PDF Generator] PDF generation complete`);
+    // Ensure even page count (Prodigi requirement)
+    if (pages.length % 2 !== 0) {
+        console.log('[PDF Generator] Adding blank page for even page count');
+        const blankPage = pdfDoc.addPage([432, 648]);
+        blankPage.drawText('', { x: 0, y: 0, size: 1, font: helveticaFont });
+    }
+
+    console.log(`[PDF Generator] PDF generation complete with ${pdfDoc.getPageCount()} pages`);
     return await pdfDoc.save();
 }
 
@@ -101,17 +183,18 @@ async function drawCoverPage(
     data: any,
     serif: PDFFont,
     sans: PDFFont,
-    sansBold: PDFFont
+    sansBold: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
 ) {
     const { width, height } = page.getSize();
 
-    // Draw background color (executive dark theme)
+    // Draw background color using theme primary
     page.drawRectangle({
         x: 0,
         y: 0,
         width,
         height,
-        color: NAVY
+        color: colors.primary
     });
 
     // If there's a cover image, try to embed it
@@ -166,7 +249,7 @@ async function drawCoverPage(
         color: WHITE
     });
 
-    // Draw subtitle
+    // Draw subtitle with theme secondary color
     const subtitle = data.subtitle || new Date().getFullYear().toString();
     const subtitleSize = 16;
     const subtitleWidth = sans.widthOfTextAtSize(subtitle, subtitleSize);
@@ -175,17 +258,23 @@ async function drawCoverPage(
         y: height / 2 - 10,
         size: subtitleSize,
         font: sans,
-        color: GOLD
+        color: colors.secondary
     });
 }
 
 /**
- * Draw title page
+ * Draw title page with theme colors
  */
-async function drawTitlePage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+async function drawTitlePage(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
+) {
     const { width, height } = page.getSize();
 
-    // Title
+    // Title with theme primary color
     const title = data.title || 'My Vision Workbook';
     const titleSize = 32;
     const titleWidth = serif.widthOfTextAtSize(title, titleSize);
@@ -194,10 +283,10 @@ async function drawTitlePage(page: PDFPage, data: any, serif: PDFFont, sans: PDF
         y: height - 200,
         size: titleSize,
         font: serif,
-        color: NAVY
+        color: colors.primary
     });
 
-    // Subtitle
+    // Subtitle with theme accent
     const subtitle = data.subtitle || '';
     if (subtitle) {
         const subtitleSize = 18;
@@ -207,16 +296,16 @@ async function drawTitlePage(page: PDFPage, data: any, serif: PDFFont, sans: PDF
             y: height - 240,
             size: subtitleSize,
             font: sans,
-            color: SLATE
+            color: colors.accent
         });
     }
 
-    // Decorative line
+    // Decorative line with theme secondary color
     page.drawLine({
         start: { x: width / 3, y: height - 260 },
         end: { x: 2 * width / 3, y: height - 260 },
         thickness: 2,
-        color: GOLD
+        color: colors.secondary
     });
 }
 
@@ -228,18 +317,19 @@ async function drawVisionBoardPage(
     page: PDFPage,
     data: any,
     serif: PDFFont,
-    sans: PDFFont
+    sans: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
 ) {
     const { width, height } = page.getSize();
-    const margin = 36;
+    const margin = PRODIGI_SPECS.SAFETY_MARGIN_PT;
 
-    // Title
+    // Title with theme color
     page.drawText('Vision Board', {
         x: margin,
         y: height - margin - 20,
         size: 20,
         font: serif,
-        color: NAVY
+        color: colors.primary
     });
 
     // Try to embed the vision board image
@@ -276,7 +366,7 @@ async function drawVisionBoardPage(
                     y: height - margin - 60 - (height * 0.5),
                     width: width - (margin * 2),
                     height: height * 0.5,
-                    borderColor: SLATE,
+                    borderColor: colors.accent,
                     borderWidth: 1
                 });
                 page.drawText('[Vision Board Image]', {
@@ -284,13 +374,13 @@ async function drawVisionBoardPage(
                     y: height / 2,
                     size: 12,
                     font: sans,
-                    color: SLATE
+                    color: colors.accent
                 });
             }
         }
     }
 
-    // Caption
+    // Caption with theme accent color
     const caption = data.aiContext?.sourceVisionPrompt || data.textBlocks?.[0]?.content || '';
     if (caption) {
         const captionSize = 11;
@@ -308,7 +398,7 @@ async function drawVisionBoardPage(
                     y: yPos,
                     size: captionSize,
                     font: sans,
-                    color: SLATE
+                    color: colors.accent
                 });
                 yPos -= 15;
                 line = word;
@@ -322,33 +412,39 @@ async function drawVisionBoardPage(
                 y: yPos,
                 size: captionSize,
                 font: sans,
-                color: SLATE
+                color: colors.accent
             });
         }
     }
 }
 
 /**
- * Draw goal overview page
+ * Draw goal overview page with theme colors
  */
-async function drawGoalOverviewPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+async function drawGoalOverviewPage(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
+) {
     const { width, height } = page.getSize();
-    const margin = 36;
+    const margin = PRODIGI_SPECS.SAFETY_MARGIN_PT;
 
     page.drawText('Annual Goals', {
         x: margin,
         y: height - margin - 24,
         size: 24,
         font: serif,
-        color: NAVY
+        color: colors.primary
     });
 
-    // Decorative line
+    // Decorative line with theme secondary
     page.drawLine({
         start: { x: margin, y: height - margin - 40 },
         end: { x: width - margin, y: height - margin - 40 },
         thickness: 1,
-        color: GOLD
+        color: colors.secondary
     });
 
     // Goal lines for writing
@@ -365,25 +461,31 @@ async function drawGoalOverviewPage(page: PDFPage, data: any, serif: PDFFont, sa
             y: yPos + 2,
             size: 10,
             font: sans,
-            color: SLATE
+            color: colors.accent
         });
         yPos -= 45;
     }
 }
 
 /**
- * Draw weekly planner page
+ * Draw weekly planner page with theme colors
  */
-async function drawWeeklyPlannerPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+async function drawWeeklyPlannerPage(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
+) {
     const { width, height } = page.getSize();
-    const margin = 36;
+    const margin = PRODIGI_SPECS.SAFETY_MARGIN_PT;
 
     page.drawText('Weekly Planner', {
         x: margin,
         y: height - margin - 24,
         size: 24,
         font: serif,
-        color: NAVY
+        color: colors.primary
     });
 
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -391,13 +493,13 @@ async function drawWeeklyPlannerPage(page: PDFPage, data: any, serif: PDFFont, s
     const dayHeight = 70;
 
     for (const day of days) {
-        // Day label
+        // Day label with theme primary
         page.drawText(day, {
             x: margin,
             y: yPos,
             size: 11,
             font: sans,
-            color: NAVY
+            color: colors.primary
         });
 
         // Box for notes
@@ -415,18 +517,24 @@ async function drawWeeklyPlannerPage(page: PDFPage, data: any, serif: PDFFont, s
 }
 
 /**
- * Draw reflection page
+ * Draw reflection page with theme colors
  */
-async function drawReflectionPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+async function drawReflectionPage(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
+) {
     const { width, height } = page.getSize();
-    const margin = 36;
+    const margin = PRODIGI_SPECS.SAFETY_MARGIN_PT;
 
     page.drawText('Monthly Reflection', {
         x: margin,
         y: height - margin - 24,
         size: 24,
         font: serif,
-        color: NAVY
+        color: colors.primary
     });
 
     const prompts = [
@@ -443,7 +551,7 @@ async function drawReflectionPage(page: PDFPage, data: any, serif: PDFFont, sans
             y: yPos,
             size: 11,
             font: sans,
-            color: NAVY
+            color: colors.primary
         });
 
         // Lines for writing
@@ -461,18 +569,24 @@ async function drawReflectionPage(page: PDFPage, data: any, serif: PDFFont, sans
 }
 
 /**
- * Draw notes page with lines
+ * Draw notes page with lines and theme colors
  */
-async function drawNotesPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+async function drawNotesPage(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
+) {
     const { width, height } = page.getSize();
-    const margin = 36;
+    const margin = PRODIGI_SPECS.SAFETY_MARGIN_PT;
 
     page.drawText('Notes', {
         x: margin,
         y: height - margin - 24,
         size: 20,
         font: serif,
-        color: NAVY
+        color: colors.primary
     });
 
     // Draw lines
@@ -489,37 +603,231 @@ async function drawNotesPage(page: PDFPage, data: any, serif: PDFFont, sans: PDF
 }
 
 /**
- * Draw dedication page
+ * Draw dedication page (Letter from Your Future Self)
+ * Supports AI-generated foreword with proper text wrapping
  */
-async function drawDedicationPage(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+async function drawDedicationPage(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> },
+    leftMargin: number = PRODIGI_SPECS.SAFETY_MARGIN_PT,
+    rightMargin: number = PRODIGI_SPECS.SAFETY_MARGIN_PT
+) {
     const { width, height } = page.getSize();
 
-    page.drawText('Dedication', {
-        x: width / 2 - 40,
-        y: height - 150,
-        size: 20,
+    // Title - "Letter from Your Future Self"
+    const titleBlock = data.textBlocks?.find((b: any) => b.role === 'TITLE');
+    const title = titleBlock?.content || 'Letter from Your Future Self';
+    const titleWidth = serif.widthOfTextAtSize(title, 18);
+
+    page.drawText(title, {
+        x: (width - titleWidth) / 2,
+        y: height - 80,
+        size: 18,
         font: serif,
-        color: NAVY
+        color: colors.primary
+    });
+
+    // Decorative line with theme secondary color
+    page.drawLine({
+        start: { x: width / 3, y: height - 100 },
+        end: { x: 2 * width / 3, y: height - 100 },
+        thickness: 1,
+        color: colors.secondary
+    });
+
+    // Get the foreword/body text
+    const bodyBlock = data.textBlocks?.find((b: any) => b.role === 'BODY');
+    const text = bodyBlock?.content || '';
+
+    if (text) {
+        const fontSize = 11;
+        const lineHeight = 16;
+        const contentWidth = width - leftMargin - rightMargin;
+
+        // Split text into paragraphs
+        const paragraphs = text.split('\n\n');
+        let yPos = height - 140;
+
+        for (const paragraph of paragraphs) {
+            if (yPos < 60) break; // Stop if near bottom
+
+            // Word wrap the paragraph
+            const words = paragraph.replace(/\n/g, ' ').split(' ').filter((w: string) => w.length > 0);
+            let line = '';
+
+            for (const word of words) {
+                const testLine = line + (line ? ' ' : '') + word;
+                if (serif.widthOfTextAtSize(testLine, fontSize) > contentWidth) {
+                    // Draw current line
+                    if (line) {
+                        page.drawText(line, {
+                            x: leftMargin,
+                            y: yPos,
+                            size: fontSize,
+                            font: serif,
+                            color: colors.accent
+                        });
+                        yPos -= lineHeight;
+                    }
+                    line = word;
+                } else {
+                    line = testLine;
+                }
+            }
+
+            // Draw remaining line
+            if (line) {
+                page.drawText(line, {
+                    x: leftMargin,
+                    y: yPos,
+                    size: fontSize,
+                    font: serif,
+                    color: colors.accent
+                });
+                yPos -= lineHeight;
+            }
+
+            // Add paragraph spacing
+            yPos -= 8;
+        }
+    }
+}
+
+/**
+ * Draw Financial Overview page
+ * Displays financial target and progress visualization
+ */
+async function drawFinancialOverviewPage(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    sansBold: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> },
+    leftMargin: number = PRODIGI_SPECS.SAFETY_MARGIN_PT,
+    rightMargin: number = PRODIGI_SPECS.SAFETY_MARGIN_PT
+) {
+    const { width, height } = page.getSize();
+
+    // Title
+    const title = data.title || 'My Financial Vision';
+    const titleWidth = serif.widthOfTextAtSize(title, 24);
+    page.drawText(title, {
+        x: (width - titleWidth) / 2,
+        y: height - 80,
+        size: 24,
+        font: serif,
+        color: colors.primary
     });
 
     // Decorative line
     page.drawLine({
-        start: { x: width / 3, y: height - 170 },
-        end: { x: 2 * width / 3, y: height - 170 },
-        thickness: 1,
-        color: GOLD
+        start: { x: width / 4, y: height - 100 },
+        end: { x: 3 * width / 4, y: height - 100 },
+        thickness: 2,
+        color: colors.secondary
     });
 
-    // Dedication text would go here
-    const text = data.textBlocks?.find((b: any) => b.role === 'BODY')?.content || '';
-    if (text) {
-        page.drawText(text.substring(0, 200), {
-            x: 60,
-            y: height / 2,
-            size: 12,
-            font: serif,
-            color: SLATE
+    // Financial Target Label
+    const subtitleBlock = data.textBlocks?.find((b: any) => b.role === 'SUBTITLE');
+    const subtitle = subtitleBlock?.content || 'Financial Freedom';
+    const subtitleWidth = sans.widthOfTextAtSize(subtitle, 14);
+    page.drawText(subtitle, {
+        x: (width - subtitleWidth) / 2,
+        y: height - 140,
+        size: 14,
+        font: sans,
+        color: colors.accent
+    });
+
+    // Financial Target Amount
+    const bodyBlock = data.textBlocks?.find((b: any) => b.role === 'BODY');
+    const targetText = bodyBlock?.content || '';
+    if (targetText) {
+        const targetWidth = sansBold.widthOfTextAtSize(targetText, 32);
+        page.drawText(targetText, {
+            x: (width - targetWidth) / 2,
+            y: height - 200,
+            size: 32,
+            font: sansBold,
+            color: colors.secondary
         });
+    }
+
+    // Progress visualization - empty progress bar for user to fill
+    const barWidth = width - leftMargin - rightMargin - 40;
+    const barHeight = 30;
+    const barX = leftMargin + 20;
+    const barY = height - 280;
+
+    // Background bar
+    page.drawRectangle({
+        x: barX,
+        y: barY,
+        width: barWidth,
+        height: barHeight,
+        borderColor: colors.accent,
+        borderWidth: 1
+    });
+
+    // Progress labels
+    page.drawText('0%', {
+        x: barX,
+        y: barY - 20,
+        size: 10,
+        font: sans,
+        color: colors.accent
+    });
+    page.drawText('100%', {
+        x: barX + barWidth - 25,
+        y: barY - 20,
+        size: 10,
+        font: sans,
+        color: colors.accent
+    });
+
+    // Section for milestones
+    page.drawText('Key Milestones:', {
+        x: leftMargin,
+        y: height - 350,
+        size: 14,
+        font: sansBold,
+        color: colors.primary
+    });
+
+    // Lines for writing milestones
+    let yPos = height - 380;
+    for (let i = 0; i < 5; i++) {
+        page.drawLine({
+            start: { x: leftMargin, y: yPos },
+            end: { x: width - rightMargin, y: yPos },
+            thickness: 0.5,
+            color: rgb(0.85, 0.85, 0.85)
+        });
+        yPos -= 35;
+    }
+
+    // Notes section
+    page.drawText('Notes & Affirmations:', {
+        x: leftMargin,
+        y: yPos - 20,
+        size: 14,
+        font: sansBold,
+        color: colors.primary
+    });
+
+    yPos -= 50;
+    for (let i = 0; i < 3; i++) {
+        page.drawLine({
+            start: { x: leftMargin, y: yPos },
+            end: { x: width - rightMargin, y: yPos },
+            thickness: 0.5,
+            color: rgb(0.85, 0.85, 0.85)
+        });
+        yPos -= 30;
     }
 }
 
@@ -555,17 +863,24 @@ async function drawGenericPage(page: PDFPage, data: any, serif: PDFFont, sans: P
     }
 }
 
-async function drawMonthlyPlanner(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont, sansBold: PDFFont) {
+async function drawMonthlyPlanner(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    sansBold: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
+) {
     const { width, height } = page.getSize();
-    const margin = 36; // 0.5 inch
+    const margin = PRODIGI_SPECS.SAFETY_MARGIN_PT;
 
-    // Title
+    // Title with theme primary color
     page.drawText(data.monthLabel || 'MONTH', {
         x: margin,
         y: height - margin - 24,
         size: 32,
         font: serif,
-        color: rgb(0.1, 0.15, 0.3), // Navy
+        color: colors.primary,
     });
 
     page.drawText(String(data.year || ''), {
@@ -573,7 +888,7 @@ async function drawMonthlyPlanner(page: PDFPage, data: any, serif: PDFFont, sans
         y: height - margin - 24,
         size: 18,
         font: sans,
-        color: rgb(0.5, 0.5, 0.5),
+        color: colors.accent,
     });
 
     // Grid
@@ -658,24 +973,30 @@ async function drawMonthlyPlanner(page: PDFPage, data: any, serif: PDFFont, sans
     }
 }
 
-async function drawHabitTracker(page: PDFPage, data: any, serif: PDFFont, sans: PDFFont) {
+async function drawHabitTracker(
+    page: PDFPage,
+    data: any,
+    serif: PDFFont,
+    sans: PDFFont,
+    colors: { primary: ReturnType<typeof rgb>; secondary: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> }
+) {
     const { width, height } = page.getSize();
-    const margin = 36;
+    const margin = PRODIGI_SPECS.SAFETY_MARGIN_PT;
 
     page.drawText('HABIT ARCHITECTURE', {
         x: margin,
         y: height - margin - 24,
         size: 24,
         font: serif,
-        color: NAVY,
+        color: colors.primary,
     });
 
-    // Decorative line
+    // Decorative line with theme secondary
     page.drawLine({
         start: { x: margin, y: height - margin - 40 },
         end: { x: width - margin, y: height - margin - 40 },
         thickness: 1,
-        color: GOLD
+        color: colors.secondary
     });
 
     const startY = height - margin - 80;
@@ -713,7 +1034,7 @@ async function drawHabitTracker(page: PDFPage, data: any, serif: PDFFont, sans: 
         });
     }
 
-    // Day numbers header
+    // Day numbers header with theme accent
     const gridLeft = margin + 140;
     const dayWidth = 8;
     for (let d = 1; d <= 31; d++) {
@@ -723,7 +1044,7 @@ async function drawHabitTracker(page: PDFPage, data: any, serif: PDFFont, sans: 
                 y: startY + 15,
                 size: 6,
                 font: sans,
-                color: SLATE
+                color: colors.accent
             });
         }
     }
