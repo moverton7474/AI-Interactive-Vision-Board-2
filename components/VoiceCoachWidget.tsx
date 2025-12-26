@@ -153,20 +153,29 @@ const VoiceCoachWidget: React.FC = () => {
                     setVoiceSettings(voiceData.settings);
                     setVoiceQuota(voiceData.quota);
                     setUserTier(voiceData.tier);
-                    // Set effective provider based on tier
-                    let provider: 'browser' | 'openai' | 'elevenlabs' = 'browser';
-                    if (voiceData.tier === 'elite') {
-                        provider = 'elevenlabs';
-                    } else if (voiceData.tier === 'pro') {
-                        provider = 'openai';
+
+                    // Use the saved preferred provider from database, respecting tier limits
+                    let provider: 'browser' | 'openai' | 'elevenlabs' = voiceData.settings?.preferredProvider || 'browser';
+
+                    // Only override if user's tier doesn't support their preferred provider
+                    if (provider === 'elevenlabs' && voiceData.tier !== 'elite') {
+                        // ElevenLabs requires elite tier, downgrade to openai for pro or browser for free
+                        provider = voiceData.tier === 'pro' ? 'openai' : 'browser';
+                        console.log('[VoiceCoachWidget] Downgraded from elevenlabs to', provider, 'based on tier:', voiceData.tier);
+                    } else if (provider === 'openai' && voiceData.tier === 'free') {
+                        // OpenAI requires pro+ tier, downgrade to browser for free
+                        provider = 'browser';
+                        console.log('[VoiceCoachWidget] Downgraded from openai to browser for free tier');
                     }
+
                     setVoiceProvider(provider);
                     voiceProviderRef.current = provider;
                     setVoiceSettingsLoaded(true);
                     voiceSettingsLoadedRef.current = true;
-                    console.log('Voice settings loaded, provider:', provider, 'tier:', voiceData.tier);
+                    console.log('[VoiceCoachWidget] Voice settings loaded - provider:', provider, 'preferredProvider:', voiceData.settings?.preferredProvider, 'preferredPersona:', voiceData.settings?.preferredPersona, 'tier:', voiceData.tier);
                 } catch (voiceErr) {
-                    console.log('Voice settings not available, using browser TTS:', voiceErr);
+                    console.error('[VoiceCoachWidget] Voice settings error:', voiceErr);
+                    setError('Voice settings could not be loaded. Using default voice.');
                     setVoiceProvider('browser');
                     voiceProviderRef.current = 'browser';
                     setVoiceSettingsLoaded(true);
@@ -281,11 +290,16 @@ const VoiceCoachWidget: React.FC = () => {
             };
 
             recognitionRef.current.onresult = (event: any) => {
+                if (!event?.results) return; // Null safety
+
                 let interimTranscript = '';
 
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    const transcript = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
+                    const result = event.results[i];
+                    if (!result?.[0]?.transcript) continue; // Null safety
+
+                    const transcript = result[0].transcript;
+                    if (result.isFinal) {
                         accumulatedTranscriptRef.current += transcript + ' ';
                         lastInterimTranscriptRef.current = ''; // Clear interim when we get a final
                     } else {

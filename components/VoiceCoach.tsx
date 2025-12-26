@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { voiceService, VoiceSettings, VoiceQuota } from '../services/voiceService';
 
 interface Props {
   onBack?: () => void;
@@ -105,6 +106,13 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
   const [autoListen, setAutoListen] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
+  // v2.9 Premium Voice State
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings | null>(null);
+  const [voiceQuota, setVoiceQuota] = useState<VoiceQuota | null>(null);
+  const [userTier, setUserTier] = useState<string>('free');
+  const [voiceProvider, setVoiceProvider] = useState<'browser' | 'openai' | 'elevenlabs'>('browser');
+  const [voiceSettingsLoaded, setVoiceSettingsLoaded] = useState(false);
+
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
@@ -126,6 +134,51 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
     isSpeakingRef.current = isSpeaking;
   }, [isSpeaking]);
 
+  // Ref for voice provider in callbacks
+  const voiceProviderRef = useRef<'browser' | 'openai' | 'elevenlabs'>('browser');
+  useEffect(() => {
+    voiceProviderRef.current = voiceProvider;
+  }, [voiceProvider]);
+
+  // Load v2.9 voice settings on mount
+  useEffect(() => {
+    const loadVoiceSettings = async () => {
+      try {
+        const voiceData = await voiceService.getSettings();
+        setVoiceSettings(voiceData.settings);
+        setVoiceQuota(voiceData.quota);
+        setUserTier(voiceData.tier);
+
+        // Use the saved preferred provider from database, respecting tier limits
+        let provider: 'browser' | 'openai' | 'elevenlabs' = voiceData.settings?.preferredProvider || 'browser';
+
+        // Only override if user's tier doesn't support their preferred provider
+        if (provider === 'elevenlabs' && voiceData.tier !== 'elite') {
+          // ElevenLabs requires elite tier, downgrade to openai for pro or browser for free
+          provider = voiceData.tier === 'pro' ? 'openai' : 'browser';
+          console.log('[VoiceCoach] Downgraded from elevenlabs to', provider, 'based on tier:', voiceData.tier);
+        } else if (provider === 'openai' && voiceData.tier === 'free') {
+          // OpenAI requires pro+ tier, downgrade to browser for free
+          provider = 'browser';
+          console.log('[VoiceCoach] Downgraded from openai to browser for free tier');
+        }
+
+        setVoiceProvider(provider);
+        voiceProviderRef.current = provider;
+        setVoiceSettingsLoaded(true);
+        console.log('[VoiceCoach] Voice settings loaded - provider:', provider, 'preferredProvider:', voiceData.settings?.preferredProvider, 'preferredPersona:', voiceData.settings?.preferredPersona, 'tier:', voiceData.tier);
+      } catch (err) {
+        console.error('[VoiceCoach] Voice settings error:', err);
+        setError('Voice settings could not be loaded. Using default browser voice.');
+        setVoiceProvider('browser');
+        voiceProviderRef.current = 'browser';
+        setVoiceSettingsLoaded(true);
+      }
+    };
+
+    loadVoiceSettings();
+  }, []);
+
   // Initialize speech recognition ONCE on mount
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -140,11 +193,16 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
       let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 
       recognitionRef.current.onresult = (event: any) => {
+        if (!event?.results) return; // Null safety
+
         let interimTranscript = '';
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
+          const result = event.results[i];
+          if (!result?.[0]?.transcript) continue; // Null safety
+
+          const transcript = result[0].transcript;
+          if (result.isFinal) {
             finalTranscript += transcript + ' ';
           } else {
             interimTranscript = transcript;
@@ -374,27 +432,13 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
         timestamp: new Date().toISOString()
       }]);
 
-      // Speak response if speech synthesis available
-      if ('speechSynthesis' in window && aiResponse) {
+      // Speak response using premium voice or browser TTS fallback
+      if (aiResponse) {
         setIsSpeaking(true);
-        const utterance = new SpeechSynthesisUtterance(aiResponse);
-        utterance.rate = 0.9;
-        utterance.pitch = 1;
 
-        // Try to use a natural voice
-        const voices = window.speechSynthesis.getVoices();
-        const preferredVoice = voices.find(v =>
-          v.name.includes('Samantha') ||
-          v.name.includes('Google') ||
-          v.name.includes('Microsoft')
-        );
-        if (preferredVoice) {
-          utterance.voice = preferredVoice;
-        }
-
-        utterance.onend = () => {
+        // Helper to start auto-listen after speech
+        const onSpeechEnd = () => {
           setIsSpeaking(false);
-          // Auto-listen after AI speaks if enabled
           if (autoListen && recognitionRef.current && activeSession) {
             setTimeout(() => {
               try {
@@ -407,11 +451,70 @@ const VoiceCoach: React.FC<Props> = ({ onBack }) => {
           }
         };
 
-        utterance.onerror = () => {
-          setIsSpeaking(false);
-        };
+        // Try premium TTS first (v2.9)
+        if (voiceProviderRef.current !== 'browser' && voiceSettingsLoaded) {
+          try {
+            console.log('[VoiceCoach] Using premium TTS provider:', voiceProviderRef.current, 'persona:', voiceSettings?.preferredPersona);
+            const ttsResult = await voiceService.generateTTS(aiResponse, {
+              sessionId: activeSession?.id,
+              usageType: 'coaching',
+              preferredPersona: voiceSettings?.preferredPersona || 'maya'
+            });
 
-        window.speechSynthesis.speak(utterance);
+            if (ttsResult.audioUrl || ttsResult.audioBlob) {
+              // Play premium audio
+              const audioUrl = ttsResult.audioUrl || (ttsResult.audioBlob ? URL.createObjectURL(ttsResult.audioBlob) : null);
+              if (audioUrl) {
+                const audio = new Audio(audioUrl);
+                audio.onended = () => {
+                  if (ttsResult.audioBlob && audioUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(audioUrl);
+                  }
+                  onSpeechEnd();
+                };
+                audio.onerror = () => {
+                  console.log('Premium audio playback failed, falling back to browser TTS');
+                  speakWithBrowserTTS(aiResponse, onSpeechEnd);
+                };
+                await audio.play();
+                return;
+              }
+            }
+          } catch (premiumErr) {
+            console.log('Premium TTS failed, falling back to browser:', premiumErr);
+          }
+        }
+
+        // Browser TTS fallback
+        speakWithBrowserTTS(aiResponse, onSpeechEnd);
+      }
+
+      // Browser TTS helper function
+      function speakWithBrowserTTS(text: string, onEnd: () => void) {
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 0.9;
+          utterance.pitch = 1;
+
+          const voices = window.speechSynthesis.getVoices();
+          const preferredVoice = voices.find(v =>
+            v.name.includes('Samantha') ||
+            v.name.includes('Google') ||
+            v.name.includes('Microsoft')
+          );
+          if (preferredVoice) {
+            utterance.voice = preferredVoice;
+          }
+
+          utterance.onend = onEnd;
+          utterance.onerror = () => {
+            setIsSpeaking(false);
+          };
+
+          window.speechSynthesis.speak(utterance);
+        } else {
+          onEnd();
+        }
       }
     } catch (err: any) {
       console.error('Error sending message:', err);

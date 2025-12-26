@@ -83,14 +83,35 @@ serve(async (req) => {
       );
     }
 
-    // Get user profile for tier
+    // Get user profile for tier with fallback detection
     const { data: profile } = await supabase
       .from('profiles')
       .select('subscription_tier')
       .eq('id', user.id)
       .single();
 
-    const tier = profile?.subscription_tier || 'free';
+    let tier = profile?.subscription_tier;
+
+    // If tier is null/undefined, check subscriptions table as fallback
+    if (!tier) {
+      console.log('[voice-settings] No subscription_tier in profile, checking subscriptions table...');
+      const { data: subscription } = await supabase
+        .from('subscriptions')
+        .select('tier, status')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .single();
+
+      if (subscription?.tier) {
+        tier = subscription.tier;
+        console.log('[voice-settings] Found active subscription tier:', tier);
+      } else {
+        tier = 'free';
+        console.log('[voice-settings] No active subscription found, defaulting to free');
+      }
+    }
+
+    console.log('[voice-settings] User tier:', tier, 'for user:', user.id);
 
     // Handle GET request - retrieve settings
     if (req.method === 'GET') {
