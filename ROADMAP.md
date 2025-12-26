@@ -3,7 +3,7 @@
 **Version:** 3.0
 **Maintainer:** Milton Overton
 **Distribution:** Internal Strategy & Engineering
-**Last Updated:** December 25, 2025
+**Last Updated:** December 26, 2025
 **Business Plan Update:** Comprehensive business plan integration with financial projections, market analysis, and go-to-market strategy
 
 ---
@@ -197,6 +197,15 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ **Speech Recognition Null Safety** - Added defensive checks in both VoiceCoach.tsx and VoiceCoachWidget.tsx to prevent TypeError on undefined transcript
 - ✅ **Voice Provider Selection** - VoiceCoach.tsx now loads voice settings on mount and routes to appropriate TTS provider based on user tier
 - ✅ **Coach Page Parity** - Both Coach page and Dashboard widget now support identical premium voice features
+
+**Voice Coach Settings Sync & Cross-Device Fix (December 26, 2025):**
+- ✅ **Tier Detection Fallback** - `voice-settings` Edge Function now checks `subscriptions` table when `profiles.subscription_tier` is NULL
+- ✅ **Provider Selection from Database** - VoiceCoach.tsx and VoiceCoachWidget.tsx now use `preferredProvider` from database settings instead of tier-only logic
+- ✅ **Cross-Device Consistency** - Same account now plays the same voice coach across web and desktop (synced via database)
+- ✅ **Tier-Based Downgrade Logic** - Provider automatically downgrades if user's tier doesn't support their saved preference (elevenlabs→openai→browser)
+- ✅ **Enhanced Error Handling** - Voice settings load failure now shows user-friendly error message and falls back to browser TTS
+- ✅ **Diagnostic Logging** - Added console logs for tier detection path (`[voice-settings] User tier: X for user: Y`)
+- ✅ **No Database Changes Required** - All existing tables (`user_voice_settings`, `voice_personas`, `subscriptions`, `profiles`) support the fix
 
 **Onboarding Flow Resilience & Error Handling (December 24, 2025):**
 - ✅ **Gemini Model Fix** - Changed `gemini-1.5-pro` to `gemini-1.5-flash` in gemini-proxy/index.ts (model was unavailable)
