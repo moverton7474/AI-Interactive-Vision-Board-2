@@ -1399,7 +1399,7 @@ const App = () => {
                   user_id UUID,
                   access_token TEXT NOT NULL, -- In production, this must be encrypted
                   institution_id TEXT,
-                  status TEXT DEFAULT 'ACTIVE'
+                  status TEXT DEFAULT 'active'
                   );
 
                   CREATE TABLE IF NOT EXISTS public.automation_rules (

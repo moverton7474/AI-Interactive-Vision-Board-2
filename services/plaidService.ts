@@ -45,9 +45,18 @@ export interface PlaidBalanceResponse {
 }
 
 /**
- * Create a Plaid Link token for connecting bank accounts
+ * Response from createLinkToken including environment info
  */
-export async function createLinkToken(): Promise<string> {
+export interface CreateLinkTokenResponse {
+  link_token: string;
+  plaid_env: 'sandbox' | 'development' | 'production';
+}
+
+/**
+ * Create a Plaid Link token for connecting bank accounts
+ * Returns link_token and plaid_env for sandbox detection
+ */
+export async function createLinkToken(): Promise<CreateLinkTokenResponse> {
   const { data, error } = await supabase.functions.invoke('create-link-token', {
     method: 'POST'
   });
@@ -61,7 +70,10 @@ export async function createLinkToken(): Promise<string> {
     throw new Error('No link token returned');
   }
 
-  return data.link_token;
+  return {
+    link_token: data.link_token,
+    plaid_env: data.plaid_env || 'sandbox'
+  };
 }
 
 /**

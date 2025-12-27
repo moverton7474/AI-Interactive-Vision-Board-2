@@ -207,6 +207,29 @@ Visionary is a high-end, AI-first SaaS platform designed to help couples and ind
 - ✅ **Diagnostic Logging** - Added console logs for tier detection path (`[voice-settings] User tier: X for user: Y`)
 - ✅ **No Database Changes Required** - All existing tables (`user_voice_settings`, `voice_personas`, `subscriptions`, `profiles`) support the fix
 
+**Plaid Integration Fix & ConnectBank Refactor (December 26, 2025):**
+- ✅ **Database Migration** - Created `20251226_plaid_integration_fix.sql` with idempotent fixes for plaid_items table
+- ✅ **Status Case Normalization** - Fixed 'ACTIVE' → 'active' casing across schema files (SUPABASE_SCHEMA.sql, App.tsx inline schema)
+- ✅ **FK Constraint Verification** - Migration ensures `plaid_items.user_id` references `auth.users(id) ON DELETE CASCADE`
+- ✅ **RLS Policy Standardization** - Consistent policy names: `plaid_items_select/insert/update/delete_policy`
+- ✅ **Field Name Fix** - `compile-knowledge-base` Edge Function now uses `institution_id` instead of non-existent `institution_name`
+- ✅ **ConnectBank.tsx Refactor** - Now uses `plaidService.ts` methods (`createLinkToken`, `exchangePublicToken`, `getAccountBalances`)
+- ✅ **Proper Auth Headers** - Token exchange now includes `Authorization: Bearer` header via plaidService
+- ✅ **Real Balance Fetching** - Removed hardcoded `balance: 12500`, now fetches actual balances via `get-plaid-balances` Edge Function
+- ✅ **Error Display UI** - ConnectBank now shows dismissible error banner with specific error messages
+- ✅ **Loading State** - Added spinner and "Connecting..." state during Plaid flow
+- ✅ **Balance Breakdown UI** - Shows checking/savings/investment totals when real data available
+- ✅ **Migration Verification** - `verify_plaid_migration()` function validates all 6 checks pass post-migration
+- ✅ **Performance Indexes** - Added indexes on `user_id`, `item_id`, `status` columns
+
+**Plaid Sandbox Phone Validation Fix (December 26, 2025):**
+- ✅ **Critical Bug Fix** - Changed invalid `'needs_reauth'` status to valid `'error'` in `get-plaid-balances` (was violating CHECK constraint)
+- ✅ **Error Context Storage** - Now stores `error_code` and `error_message` when Plaid returns ITEM_LOGIN_REQUIRED
+- ✅ **Environment Detection** - `create-link-token` now returns `plaid_env` to frontend for sandbox detection
+- ✅ **plaidService Enhancement** - `createLinkToken()` returns `{ link_token, plaid_env }` with proper TypeScript types
+- ✅ **Sandbox UI Guidance** - ConnectBank.tsx shows test phone number (`415-555-0010`) and OTP (`123456`) in sandbox mode
+- ✅ **No Breaking Changes** - All changes backward-compatible, existing integrations (FinancialDashboard, SlackIntegration) unaffected
+
 **Onboarding Flow Resilience & Error Handling (December 24, 2025):**
 - ✅ **Gemini Model Fix** - Changed `gemini-1.5-pro` to `gemini-1.5-flash` in gemini-proxy/index.ts (model was unavailable)
 - ✅ **MasterPromptQnA Retry Logic** - Added exponential backoff (up to 2 retries) with automatic fallback to standard questions

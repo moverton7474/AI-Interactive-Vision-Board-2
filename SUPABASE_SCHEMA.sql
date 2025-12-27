@@ -217,7 +217,7 @@ CREATE TABLE IF NOT EXISTS public.plaid_items (
     user_id UUID REFERENCES auth.users ON DELETE CASCADE,
     access_token TEXT NOT NULL, -- In production, this must be encrypted
     institution_id TEXT,
-    status TEXT DEFAULT 'ACTIVE'
+    status TEXT DEFAULT 'active'
 );
 
 CREATE TABLE IF NOT EXISTS public.automation_rules (

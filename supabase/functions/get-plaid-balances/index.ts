@@ -126,9 +126,14 @@ serve(async (req) => {
           // Check if token needs refresh
           if (balanceData.error_code === 'ITEM_LOGIN_REQUIRED') {
             // Mark item as needing re-authentication
+            // Using 'error' status (valid in CHECK constraint) with error details
             await supabase
               .from('plaid_items')
-              .update({ status: 'needs_reauth' })
+              .update({
+                status: 'error',
+                error_code: balanceData.error_code,
+                error_message: 'Re-authentication required - please reconnect your bank account'
+              })
               .eq('id', item.id)
 
             errors.push({

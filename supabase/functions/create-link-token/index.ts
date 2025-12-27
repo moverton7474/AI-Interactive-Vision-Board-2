@@ -61,7 +61,10 @@ Deno.serve(async (req: Request) => {
     console.log('Plaid link token created successfully')
 
     return new Response(
-      JSON.stringify(data),
+      JSON.stringify({
+        ...data,
+        plaid_env: PLAID_ENV  // Include environment for frontend sandbox detection
+      }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
