@@ -1104,6 +1104,13 @@ function buildVoiceCoachPrompt(
   const userName = userProfileData?.first_name || userProfileData?.full_name || 'there'
   const userEmail = userProfileData?.email || null
 
+  // Get current date for the AI to use when scheduling
+  const now = new Date()
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  const currentDate = `${dayNames[now.getDay()]}, ${monthNames[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`
+  const currentYear = now.getFullYear()
+
   const sessionContext: Record<string, string> = {
     morning_routine: 'helping the user start their day with intention and clarity',
     check_in: 'checking in on the user\'s emotional state and providing support',
@@ -1152,6 +1159,9 @@ ${recentSessionSummaries}
 
   return `You are ${themeName}, an AI voice coach and executive assistant with a ${voiceStyle} communication style.
 You are speaking with ${userName}.
+
+CURRENT DATE: Today is ${currentDate}. The current year is ${currentYear}.
+IMPORTANT: When scheduling events, ALWAYS use year ${currentYear}. Never use 2024 - that year has passed.
 
 Your role: ${sessionContext[sessionType] || sessionContext.check_in}
 ${userDataSection}
@@ -3022,6 +3032,30 @@ async function executeAgentTool(
           return {
             success: false,
             error: `Invalid date format. Please provide dates in ISO format (e.g., 2024-12-28T09:00:00Z). Received: start=${start_time}, end=${end_time}`
+          }
+        }
+
+        // CRITICAL: Fix year if AI generated dates with wrong year (e.g., 2024 instead of 2025)
+        const currentYear = new Date().getFullYear()
+        const now = new Date()
+
+        // Check if the date is in the past and likely a year error
+        if (startDate < now) {
+          const startYear = startDate.getFullYear()
+          // If the year is last year or earlier, it's likely an AI hallucination
+          if (startYear < currentYear) {
+            console.log(`[create_calendar_event] WARNING: AI generated past year ${startYear}, correcting to ${currentYear}`)
+            startDate.setFullYear(currentYear)
+            endDate.setFullYear(currentYear)
+
+            // If still in the past after year correction (e.g., Dec 20 when today is Dec 27),
+            // the event might be for next year or the user genuinely wants a past date
+            // For safety, if the corrected date is still in the past by more than 1 day, assume next year
+            if (startDate < now && (now.getTime() - startDate.getTime()) > 24 * 60 * 60 * 1000) {
+              console.log(`[create_calendar_event] Date still in past after year correction, moving to next year ${currentYear + 1}`)
+              startDate.setFullYear(currentYear + 1)
+              endDate.setFullYear(currentYear + 1)
+            }
           }
         }
 
