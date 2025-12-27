@@ -84,7 +84,7 @@ serve(async (req) => {
       case 'start':
         return await startSession(supabase, userId, body)
       case 'process':
-        return await processTranscript(supabase, userId, body, OPENAI_API_KEY)
+        return await processTranscript(supabase, userId, body, OPENAI_API_KEY, authHeader)
       case 'end':
         return await endSession(supabase, userId, body, OPENAI_API_KEY)
       case 'list':
@@ -520,7 +520,7 @@ async function startSession(supabase: any, userId: string, body: any) {
 /**
  * Process transcript and generate AI response
  */
-async function processTranscript(supabase: any, userId: string, body: any, openaiKey: string) {
+async function processTranscript(supabase: any, userId: string, body: any, openaiKey: string, authHeader?: string) {
   const { sessionId, transcript, isPartial = false } = body
 
   if (!sessionId || !transcript) {
@@ -689,15 +689,17 @@ async function processTranscript(supabase: any, userId: string, body: any, opena
             console.error('Failed to parse tool arguments:', e)
           }
 
-          console.log('Function call detected:', name, args)
+          console.log('[Voice Coach] Function call detected:', name)
+          console.log('[Voice Coach] Function arguments:', JSON.stringify(args, null, 2))
 
           // Execute the tool with guardrails
           let toolResult
           try {
-            toolResult = await executeAgentTool(supabase, userId, name, args, aiSettings, userProfileData)
+            toolResult = await executeAgentTool(supabase, userId, name, args, aiSettings, userProfileData, authHeader)
+            console.log('[Voice Coach] Tool result:', JSON.stringify(toolResult))
             actionsPerformed.push({ tool: name, args, result: toolResult })
           } catch (toolError: any) {
-            console.error('Tool execution error:', toolError)
+            console.error('[Voice Coach] Tool execution error:', toolError)
             toolResult = { success: false, error: toolError.message || 'Tool execution failed' }
           }
 
@@ -1158,6 +1160,8 @@ CAPABILITIES - You can perform actions for the user:
 - Create tasks and to-do items (use create_task tool)
 - Schedule reminders (use schedule_reminder tool)
 - Look up their goals and progress (use get_user_data tool)
+- Check their calendar availability (use check_calendar_availability tool)
+- Book appointments on their calendar (use create_calendar_event tool)
 
 When the user asks you to do something like "send an email" or "create a task" or "remind me", use the appropriate tool.
 Always confirm the action before executing and report back what you did.
@@ -1490,6 +1494,68 @@ function getOpenAITools() {
           required: ['action_id']
         }
       }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'check_calendar_availability',
+        description: 'Check the user\'s Google Calendar availability to find free time slots',
+        parameters: {
+          type: 'object',
+          properties: {
+            date: {
+              type: 'string',
+              description: 'Date to check availability (YYYY-MM-DD format). Defaults to today.'
+            },
+            start_date: {
+              type: 'string',
+              description: 'Start date for range query (YYYY-MM-DD format)'
+            },
+            end_date: {
+              type: 'string',
+              description: 'End date for range query (YYYY-MM-DD format)'
+            },
+            duration_minutes: {
+              type: 'number',
+              description: 'Minimum slot duration needed in minutes (default: 30)'
+            }
+          },
+          required: []
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_calendar_event',
+        description: 'Create a new event/appointment on the user\'s Google Calendar',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              description: 'Event title/name'
+            },
+            start_time: {
+              type: 'string',
+              description: 'Event start time in ISO 8601 format (e.g., 2024-12-28T10:00:00Z)'
+            },
+            end_time: {
+              type: 'string',
+              description: 'Event end time in ISO 8601 format (e.g., 2024-12-28T11:00:00Z)'
+            },
+            description: {
+              type: 'string',
+              description: 'Event description (optional)'
+            },
+            location: {
+              type: 'string',
+              description: 'Event location (optional)'
+            }
+          },
+          required: ['title', 'start_time', 'end_time']
+        }
+      }
     }
   ]
 }
@@ -1503,7 +1569,8 @@ async function executeAgentTool(
   toolName: string,
   args: any,
   aiSettings?: any,
-  userProfileData?: { email: string | null; full_name: string | null; first_name: string | null }
+  userProfileData?: { email: string | null; full_name: string | null; first_name: string | null },
+  authHeader?: string
 ): Promise<any> {
   console.log(`[executeAgentTool] Executing tool: ${toolName}`, args)
   console.log(`[executeAgentTool] User profile available: ${!!userProfileData}, email: ${userProfileData?.email ? '***@***' : 'none'}`)
@@ -1831,19 +1898,48 @@ async function executeAgentTool(
 
       switch (data_type) {
         case 'goals': {
-          const { data: goals } = await supabase
+          // Query action_tasks table (where onboarding goals are stored)
+          const { data: actionGoals } = await supabase
+            .from('action_tasks')
+            .select('id, title, description, is_completed, due_date, type')
+            .eq('user_id', userId)
+            .order('due_date', { ascending: true })
+            .limit(10)
+
+          // Also check milestones table for legacy goals
+          const { data: milestones } = await supabase
             .from('milestones')
             .select('id, title, target_date, completion_percentage')
             .eq('user_id', userId)
             .order('target_date', { ascending: true })
             .limit(5)
 
+          // Combine results from both tables
+          const allGoals = [
+            ...(actionGoals || []).map((g: any) => ({
+              id: g.id,
+              title: g.title,
+              description: g.description,
+              completed: g.is_completed,
+              dueDate: g.due_date,
+              type: g.type,
+              source: 'action_tasks'
+            })),
+            ...(milestones || []).map((m: any) => ({
+              id: m.id,
+              title: m.title,
+              progress: m.completion_percentage,
+              targetDate: m.target_date,
+              source: 'milestones'
+            }))
+          ]
+
           return {
             success: true,
-            data: goals || [],
-            summary: goals?.length
-              ? `Found ${goals.length} goals: ${goals.map((g: any) => g.title).join(', ')}`
-              : 'No goals found'
+            data: allGoals,
+            summary: allGoals.length
+              ? `Found ${allGoals.length} goals: ${allGoals.map((g: any) => g.title).join(', ')}`
+              : 'No goals found. Would you like to set some goals together?'
           }
         }
 
@@ -2686,7 +2782,8 @@ async function executeAgentTool(
               actionType,
               actionPayload,
               { ...aiSettings, require_confirmation: false }, // Skip confirmation loop
-              confirmedUserProfile // Pass user profile for email resolution
+              confirmedUserProfile, // Pass user profile for email resolution
+              authHeader // Pass auth header for calendar operations
             )
             break
 
@@ -2800,6 +2897,206 @@ async function executeAgentTool(
       return {
         success: true,
         message: `Action cancelled: ${pendingAction.action_type.replace(/_/g, ' ')}${reason ? `. Reason: ${reason}` : ''}`
+      }
+    }
+
+    case 'check_calendar_availability': {
+      const date = args?.date
+      const start_date = args?.start_date
+      const end_date = args?.end_date
+      const duration_minutes = args?.duration_minutes || 30
+
+      if (!authHeader) {
+        return {
+          success: false,
+          error: 'Authentication required for calendar access.'
+        }
+      }
+
+      try {
+        const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+
+        // Check if calendar is connected
+        const { data: connection } = await supabase
+          .from('user_calendar_connections')
+          .select('id, is_active')
+          .eq('user_id', userId)
+          .eq('provider', 'google')
+          .eq('is_active', true)
+          .single()
+
+        if (!connection) {
+          return {
+            success: false,
+            error: 'No Google Calendar connected. Please connect your Google Calendar in Settings first.'
+          }
+        }
+
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar-availability`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          },
+          body: JSON.stringify({
+            date,
+            start_date,
+            end_date,
+            duration_minutes
+          })
+        })
+
+        const result = await response.json()
+
+        if (!result.success) {
+          return { success: false, error: result.error || 'Failed to check calendar availability' }
+        }
+
+        // Format a human-friendly response
+        const slots = result.available_slots || []
+        const busyCount = result.summary?.total_busy_events || 0
+
+        let message = ''
+        if (slots.length === 0) {
+          message = `You have ${busyCount} events scheduled and no available time slots during working hours.`
+        } else {
+          const slotDescriptions = slots.slice(0, 5).map((slot: any) => {
+            const start = new Date(slot.start)
+            const end = new Date(slot.end)
+            return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${slot.duration_minutes} min)`
+          })
+          message = `You have ${slots.length} available time slots. Here are the next few: ${slotDescriptions.join(', ')}`
+        }
+
+        return {
+          success: true,
+          message,
+          available_slots: slots,
+          busy_count: busyCount,
+          date_range: result.date_range
+        }
+      } catch (err: any) {
+        return { success: false, error: `Failed to check calendar: ${err.message}` }
+      }
+    }
+
+    case 'create_calendar_event': {
+      const title = args?.title
+      let start_time = args?.start_time
+      let end_time = args?.end_time
+      const description = args?.description || ''
+      const location = args?.location || ''
+
+      console.log('[create_calendar_event] Received args:', JSON.stringify(args))
+
+      if (!title || !start_time || !end_time) {
+        console.log('[create_calendar_event] Missing required fields:', { title, start_time, end_time })
+        return {
+          success: false,
+          error: 'I need the event title, start time, and end time to create a calendar event.'
+        }
+      }
+
+      if (!authHeader) {
+        console.log('[create_calendar_event] No auth header available')
+        return {
+          success: false,
+          error: 'Authentication required for calendar access.'
+        }
+      }
+
+      // Ensure times are proper ISO 8601 format
+      try {
+        const startDate = new Date(start_time)
+        const endDate = new Date(end_time)
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          console.log('[create_calendar_event] Invalid date format:', { start_time, end_time })
+          return {
+            success: false,
+            error: `Invalid date format. Please provide dates in ISO format (e.g., 2024-12-28T09:00:00Z). Received: start=${start_time}, end=${end_time}`
+          }
+        }
+
+        // Convert to ISO string if not already
+        start_time = startDate.toISOString()
+        end_time = endDate.toISOString()
+        console.log('[create_calendar_event] Normalized times:', { start_time, end_time })
+      } catch (dateError: any) {
+        console.error('[create_calendar_event] Date parsing error:', dateError)
+        return {
+          success: false,
+          error: `Failed to parse dates: ${dateError.message}`
+        }
+      }
+
+      try {
+        const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+
+        // Check if calendar is connected
+        const { data: connection, error: connError } = await supabase
+          .from('user_calendar_connections')
+          .select('id, is_active')
+          .eq('user_id', userId)
+          .eq('provider', 'google')
+          .eq('is_active', true)
+          .single()
+
+        console.log('[create_calendar_event] Calendar connection check:', { connection, connError })
+
+        if (!connection) {
+          return {
+            success: false,
+            error: 'No Google Calendar connected. Please connect your Google Calendar in Settings first.'
+          }
+        }
+
+        console.log('[create_calendar_event] Calling edge function with:', { title, start_time, end_time })
+
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar-create-event`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          },
+          body: JSON.stringify({
+            title,
+            start_time,
+            end_time,
+            description,
+            location
+          })
+        })
+
+        const result = await response.json()
+        console.log('[create_calendar_event] Edge function response:', JSON.stringify(result))
+
+        if (!result.success) {
+          console.log('[create_calendar_event] Edge function returned error:', result.error)
+          return { success: false, error: result.error || 'Failed to create calendar event' }
+        }
+
+        // Log to agent action history
+        await supabase.from('agent_action_history').insert({
+          user_id: userId,
+          action_type: 'create_calendar_event',
+          action_status: 'executed',
+          action_payload: { title, start_time, end_time, description, location },
+          trigger_context: 'conversation',
+          executed_at: new Date().toISOString()
+        })
+
+        const startDateFormatted = new Date(start_time)
+        const endDateFormatted = new Date(end_time)
+
+        return {
+          success: true,
+          message: `Calendar event created: "${title}" on ${startDateFormatted.toLocaleDateString()} from ${startDateFormatted.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${endDateFormatted.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          event: result.event,
+          html_link: result.event?.html_link
+        }
+      } catch (err: any) {
+        return { success: false, error: `Failed to create calendar event: ${err.message}` }
       }
     }
 

@@ -89,7 +89,7 @@ serve(async (req) => {
         result = await handleProcessAudio(supabase, GEMINI_API_KEY, user.id, params, requestId);
         break;
       case 'process_text':
-        result = await handleProcessText(supabase, GEMINI_API_KEY, user.id, params, requestId);
+        result = await handleProcessText(supabase, GEMINI_API_KEY, user.id, params, requestId, authHeader);
         break;
       case 'end':
         result = await handleEndSession(supabase, user.id, params, requestId);
@@ -357,7 +357,8 @@ async function handleProcessText(
   apiKey: string,
   userId: string,
   params: any,
-  requestId: string
+  requestId: string,
+  authHeader?: string
 ) {
   const { sessionId, text } = params;
 
@@ -395,27 +396,123 @@ async function handleProcessText(
     parts: [{ text: entry.content }]
   }));
 
-  // Build system instruction
-  const systemInstruction = buildSystemInstruction(session.session_type, userName);
+  // Build system instruction with calendar capability info
+  let systemInstruction = buildSystemInstruction(session.session_type, userName);
+  systemInstruction += `\n\nYou have access to the user's Google Calendar. You can:
+- Check their availability using the check_calendar_availability function
+- Create calendar events using the create_calendar_event function
+When the user asks to schedule something, use these tools. Always confirm the details before creating an event.`;
 
   try {
-    // Call Gemini with text
-    const response = await callGeminiWithText(
+    // Call Gemini with text and tools
+    console.log(`[${requestId}] Calling Gemini with tools enabled, authHeader present: ${!!authHeader}`);
+
+    let response = await callGeminiWithText(
       apiKey,
       text,
       history,
       systemInstruction,
-      requestId
+      requestId,
+      true // Include tools
     );
 
-    const aiResponse = response.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "I'm having trouble right now. Could you try again?";
+    console.log(`[${requestId}] Gemini raw response:`, JSON.stringify(response).substring(0, 500));
+
+    let aiResponse = '';
+    let functionCallExecuted = false;
+
+    // Check if Gemini wants to call a function
+    const candidate = response.candidates?.[0];
+    const parts = candidate?.content?.parts || [];
+
+    console.log(`[${requestId}] Response parts count: ${parts.length}`);
+
+    for (const part of parts) {
+      console.log(`[${requestId}] Processing part:`, JSON.stringify(part).substring(0, 200));
+
+      if (part.functionCall) {
+        const functionCall = part.functionCall;
+        const functionName = functionCall.name;
+        const functionArgs = functionCall.args || {};
+
+        console.log(`[${requestId}] Gemini requested function call: ${functionName}`, JSON.stringify(functionArgs));
+
+        // Execute the calendar tool
+        if (!authHeader) {
+          console.error(`[${requestId}] No auth header available for calendar tool execution!`);
+        }
+
+        const toolResult = await executeCalendarTool(
+          supabase,
+          userId,
+          functionName,
+          functionArgs,
+          authHeader || '',
+          requestId
+        );
+
+        console.log(`[${requestId}] Tool execution result:`, JSON.stringify(toolResult));
+        functionCallExecuted = true;
+
+        // Call Gemini again with the function result
+        const functionResultHistory = [
+          ...history,
+          { role: 'user', parts: [{ text }] },
+          { role: 'model', parts: [{ functionCall }] },
+          {
+            role: 'function',
+            parts: [{
+              functionResponse: {
+                name: functionName,
+                response: toolResult
+              }
+            }]
+          }
+        ];
+
+        const followUpResponse = await fetch(
+          `${GEMINI_API_BASE}/models/${GEMINI_LIVE_MODEL}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: functionResultHistory,
+              systemInstruction: { parts: [{ text: systemInstruction }] },
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 300,
+                topP: 0.9
+              }
+            })
+          }
+        );
+
+        if (followUpResponse.ok) {
+          const followUpData = await followUpResponse.json();
+          aiResponse = followUpData.candidates?.[0]?.content?.parts?.[0]?.text ||
+            (toolResult.success
+              ? `Done! ${toolResult.message || 'Action completed successfully.'}`
+              : `I encountered an issue: ${toolResult.error}`);
+        } else {
+          aiResponse = toolResult.success
+            ? `Done! ${toolResult.message || 'Action completed successfully.'}`
+            : `I encountered an issue: ${toolResult.error}`;
+        }
+        break;
+      } else if (part.text) {
+        aiResponse = part.text;
+      }
+    }
+
+    if (!aiResponse) {
+      aiResponse = "I'm having trouble right now. Could you try again?";
+    }
 
     // Update transcript
     const newTranscript = [
       ...(session.transcript || []),
       { role: 'user', content: text, timestamp: new Date().toISOString() },
-      { role: 'assistant', content: aiResponse, timestamp: new Date().toISOString() }
+      { role: 'assistant', content: aiResponse, timestamp: new Date().toISOString(), functionCalled: functionCallExecuted }
     ];
 
     await supabase
@@ -428,7 +525,8 @@ async function handleProcessText(
 
     return successResponse({
       response: aiResponse,
-      turnCount: newTranscript.length / 2
+      turnCount: newTranscript.length / 2,
+      functionCalled: functionCallExecuted
     }, requestId);
 
   } catch (err: any) {
@@ -620,6 +718,185 @@ async function callGeminiWithAudio(
 }
 
 /**
+ * Get calendar function declarations for Gemini
+ */
+function getCalendarTools() {
+  return [
+    {
+      name: 'check_calendar_availability',
+      description: 'Check the user\'s Google Calendar availability to find free time slots for scheduling',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: {
+            type: 'string',
+            description: 'Date to check availability (YYYY-MM-DD format). Defaults to today.'
+          },
+          duration_minutes: {
+            type: 'number',
+            description: 'Minimum slot duration needed in minutes (default: 30)'
+          }
+        }
+      }
+    },
+    {
+      name: 'create_calendar_event',
+      description: 'Create a new event/appointment on the user\'s Google Calendar',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Event title/name'
+          },
+          start_time: {
+            type: 'string',
+            description: 'Event start time in ISO 8601 format (e.g., 2024-12-28T10:00:00)'
+          },
+          end_time: {
+            type: 'string',
+            description: 'Event end time in ISO 8601 format (e.g., 2024-12-28T11:00:00)'
+          },
+          description: {
+            type: 'string',
+            description: 'Event description (optional)'
+          }
+        },
+        required: ['title', 'start_time', 'end_time']
+      }
+    }
+  ];
+}
+
+/**
+ * Execute a calendar tool
+ */
+async function executeCalendarTool(
+  supabase: any,
+  userId: string,
+  toolName: string,
+  args: any,
+  authHeader: string,
+  requestId: string
+): Promise<any> {
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+
+  console.log(`[${requestId}] Executing calendar tool: ${toolName}`, args);
+
+  // Check if calendar is connected
+  const { data: connection, error: connError } = await supabase
+    .from('user_calendar_connections')
+    .select('id, is_active')
+    .eq('user_id', userId)
+    .eq('provider', 'google')
+    .eq('is_active', true)
+    .single();
+
+  if (!connection) {
+    console.log(`[${requestId}] No calendar connection found`);
+    return {
+      success: false,
+      error: 'No Google Calendar connected. Please connect your Google Calendar in Settings first.'
+    };
+  }
+
+  try {
+    if (toolName === 'check_calendar_availability') {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar-availability`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader
+        },
+        body: JSON.stringify({
+          date: args.date,
+          duration_minutes: args.duration_minutes || 30
+        })
+      });
+
+      const result = await response.json();
+      console.log(`[${requestId}] Calendar availability result:`, JSON.stringify(result).substring(0, 200));
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      const slots = result.available_slots || [];
+      return {
+        success: true,
+        available_slots: slots.slice(0, 5),
+        total_slots: slots.length,
+        busy_events: result.summary?.total_busy_events || 0
+      };
+
+    } else if (toolName === 'create_calendar_event') {
+      // Normalize dates to ISO format
+      let { title, start_time, end_time, description } = args;
+
+      try {
+        const startDate = new Date(start_time);
+        const endDate = new Date(end_time);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return { success: false, error: 'Invalid date format provided' };
+        }
+
+        start_time = startDate.toISOString();
+        end_time = endDate.toISOString();
+      } catch (e) {
+        return { success: false, error: 'Failed to parse date/time' };
+      }
+
+      console.log(`[${requestId}] Creating calendar event: ${title} at ${start_time}`);
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/google-calendar-create-event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader
+        },
+        body: JSON.stringify({
+          title,
+          start_time,
+          end_time,
+          description: description || ''
+        })
+      });
+
+      const result = await response.json();
+      console.log(`[${requestId}] Calendar create event result:`, JSON.stringify(result).substring(0, 300));
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      // Log to agent action history
+      await supabase.from('agent_action_history').insert({
+        user_id: userId,
+        action_type: 'create_calendar_event',
+        action_status: 'executed',
+        action_payload: { title, start_time, end_time, description },
+        trigger_context: 'live_voice',
+        executed_at: new Date().toISOString()
+      });
+
+      return {
+        success: true,
+        message: `Event "${title}" created successfully`,
+        event_id: result.event?.id,
+        html_link: result.event?.html_link
+      };
+    }
+
+    return { success: false, error: `Unknown tool: ${toolName}` };
+
+  } catch (err: any) {
+    console.error(`[${requestId}] Calendar tool execution error:`, err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
  * Call Gemini API with text input
  */
 async function callGeminiWithText(
@@ -627,7 +904,8 @@ async function callGeminiWithText(
   text: string,
   history: any[],
   systemInstruction: string,
-  requestId: string
+  requestId: string,
+  includeTools: boolean = true
 ): Promise<any> {
   const url = `${GEMINI_API_BASE}/models/${GEMINI_LIVE_MODEL}:generateContent?key=${apiKey}`;
 
@@ -639,7 +917,7 @@ async function callGeminiWithText(
     }
   ];
 
-  const requestBody = {
+  const requestBody: any = {
     contents,
     systemInstruction: { parts: [{ text: systemInstruction }] },
     generationConfig: {
@@ -649,7 +927,16 @@ async function callGeminiWithText(
     }
   };
 
-  console.log(`[${requestId}] Calling Gemini with text input...`);
+  // Add calendar tools
+  if (includeTools) {
+    const tools = getCalendarTools();
+    requestBody.tools = [{
+      functionDeclarations: tools
+    }];
+    console.log(`[${requestId}] Including ${tools.length} calendar tools`);
+  }
+
+  console.log(`[${requestId}] Calling Gemini with text input (tools: ${includeTools}), user text: "${text.substring(0, 100)}"`);
 
   const response = await fetch(url, {
     method: 'POST',
