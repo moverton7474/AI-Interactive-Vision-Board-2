@@ -27,32 +27,60 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Check connection status on mount and after URL changes (OAuth callback)
+  // Helper function to get valid session with refresh if needed
+  const getValidSession = async () => {
+    let { data: { session } } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      // Try to refresh the session
+      const { data: { session: refreshedSession }, error } = await supabase.auth.refreshSession();
+      if (error || !refreshedSession?.access_token) {
+        return null;
+      }
+      session = refreshedSession;
+    }
+
+    return session;
+  };
+
+  // Check connection status on mount and handle OAuth callback results
   useEffect(() => {
-    checkStatus();
-
-    // Check for OAuth callback code in URL
+    // Handle OAuth callback results from edge function redirect
     const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
+    const calendarSuccess = urlParams.get('calendar_success');
+    const calendarError = urlParams.get('calendar_error');
+    const calendarName = urlParams.get('calendar_name');
 
-    if (code && state) {
-      handleOAuthCallback(code, state);
+    if (calendarSuccess === 'true') {
+      setSuccess(`Connected to ${calendarName || 'Google Calendar'}`);
+      setTimeout(() => setSuccess(null), 5000);
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (calendarError) {
+      setError(decodeURIComponent(calendarError));
       // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
     }
+
+    checkStatus();
   }, [userId]);
 
   const checkStatus = async () => {
     try {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
+
+      if (!session) {
+        // User not logged in - don't show error, just mark as not connected
+        setStatus({ connected: false, connection: null });
+        return;
+      }
 
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/google-calendar-connect?action=status`,
         {
           headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
           }
         }
@@ -79,13 +107,19 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
       setConnecting(true);
       setError(null);
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
+
+      if (!session) {
+        setError('Please log in again to connect your calendar');
+        setConnecting(false);
+        return;
+      }
 
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/google-calendar-connect?action=auth_url`,
         {
           headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
           }
         }
@@ -107,41 +141,8 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
     }
   };
 
-  const handleOAuthCallback = async (code: string, state: string) => {
-    try {
-      setConnecting(true);
-      setError(null);
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/google-calendar-connect`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ action: 'exchange_code', code })
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSuccess(`Connected to ${data.calendar_name || 'Google Calendar'}`);
-        setTimeout(() => setSuccess(null), 3000);
-        await checkStatus();
-      } else {
-        setError(data.error || 'Failed to complete connection');
-      }
-    } catch (err: any) {
-      console.error('OAuth callback error:', err);
-      setError('Failed to complete connection');
-    } finally {
-      setConnecting(false);
-    }
-  };
+  // Note: handleOAuthCallback is no longer needed - the google-calendar-callback
+  // edge function now handles the token exchange and redirects with URL params
 
   const handleDisconnect = async () => {
     if (!confirm('Are you sure you want to disconnect Google Calendar?')) {
@@ -152,14 +153,20 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
       setDisconnecting(true);
       setError(null);
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
+
+      if (!session) {
+        setError('Please log in again');
+        setDisconnecting(false);
+        return;
+      }
 
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/google-calendar-connect`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ action: 'disconnect' })
@@ -189,14 +196,20 @@ const CalendarConnection: React.FC<CalendarConnectionProps> = ({
       setLoading(true);
       setError(null);
 
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getValidSession();
+
+      if (!session) {
+        setError('Please log in again');
+        setLoading(false);
+        return;
+      }
 
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/google-calendar-connect`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
+            'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ action: 'refresh' })
