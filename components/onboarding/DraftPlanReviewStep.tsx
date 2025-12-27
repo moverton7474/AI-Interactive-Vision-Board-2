@@ -129,7 +129,7 @@ const DraftPlanReviewStep: React.FC<Props> = ({
       // Fallback to default tasks
       const fallbackTasks: EditableTask[] = [
         {
-          id: `task-${Date.now()}-1`,
+          id: crypto.randomUUID(),
           title: 'Define your 3-year financial milestone',
           description: 'Set a specific savings or investment goal for the next 3 years',
           dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -138,7 +138,7 @@ const DraftPlanReviewStep: React.FC<Props> = ({
           priority: 'high'
         },
         {
-          id: `task-${Date.now()}-2`,
+          id: crypto.randomUUID(),
           title: 'Research your dream location',
           description: 'Explore cost of living, neighborhoods, and lifestyle in your target area',
           dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
@@ -147,7 +147,7 @@ const DraftPlanReviewStep: React.FC<Props> = ({
           priority: 'medium'
         },
         {
-          id: `task-${Date.now()}-3`,
+          id: crypto.randomUUID(),
           title: 'Create a weekly review habit',
           description: 'Schedule 30 minutes each Sunday to reflect on progress',
           dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
@@ -170,7 +170,7 @@ const DraftPlanReviewStep: React.FC<Props> = ({
 
   const addTask = useCallback((type: 'FINANCE' | 'LIFESTYLE' | 'ADMIN') => {
     const newTask: EditableTask = {
-      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: crypto.randomUUID(),
       title: '',
       description: '',
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),

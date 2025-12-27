@@ -826,7 +826,7 @@ const App = () => {
         if (milestone.tasks) {
           for (const task of milestone.tasks) {
             allTasks.push({
-              id: task.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              id: task.id || crypto.randomUUID(),
               title: task.title,
               description: task.description || '',
               type: (task.type?.toUpperCase() || 'ADMIN') as ActionTask['type'],
