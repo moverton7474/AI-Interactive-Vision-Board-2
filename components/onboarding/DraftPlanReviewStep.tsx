@@ -87,13 +87,16 @@ const DraftPlanReviewStep: React.FC<Props> = ({
     }
   }, []);
 
-  // Auto-save when tasks change
+  // Auto-save when tasks change (debounced to prevent rapid-fire saves)
   useEffect(() => {
     if (tasks.length > 0) {
-      onTasksChanged(tasks);
-      setLastSaved(new Date());
+      const timer = setTimeout(() => {
+        onTasksChanged(tasks);
+        setLastSaved(new Date());
+      }, 500); // 500ms debounce to prevent race conditions
+      return () => clearTimeout(timer);
     }
-  }, [tasks]);
+  }, [tasks, onTasksChanged]);
 
   const generateTasks = async () => {
     try {

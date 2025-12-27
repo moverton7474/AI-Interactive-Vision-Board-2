@@ -851,13 +851,7 @@ export const saveDraftTasks = async (
 
     if (!plan) return [];
 
-    // Delete existing tasks for this plan
-    await supabase
-      .from('action_tasks')
-      .delete()
-      .eq('plan_id', planId);
-
-    // Insert new tasks
+    // Build task rows with proper UUIDs
     const taskRows = tasks.map((task, index) => ({
       id: task.id || crypto.randomUUID(),
       plan_id: planId,
@@ -871,12 +865,26 @@ export const saveDraftTasks = async (
       display_order: task.displayOrder ?? index,
       source: task.source || 'onboarding',
       ai_metadata: task.aiMetadata || {},
-      created_at: new Date().toISOString()
+      updated_at: new Date().toISOString()
     }));
 
+    // Get IDs of tasks being saved
+    const taskIdsToKeep = taskRows.map(t => t.id);
+
+    // Delete tasks that are no longer in the list (removed by user)
+    await supabase
+      .from('action_tasks')
+      .delete()
+      .eq('plan_id', planId)
+      .not('id', 'in', `(${taskIdsToKeep.join(',')})`);
+
+    // Use UPSERT to handle both new and existing tasks (prevents race conditions)
     const { data, error } = await supabase
       .from('action_tasks')
-      .insert(taskRows)
+      .upsert(taskRows, {
+        onConflict: 'id',
+        ignoreDuplicates: false
+      })
       .select();
 
     if (error) throw error;
