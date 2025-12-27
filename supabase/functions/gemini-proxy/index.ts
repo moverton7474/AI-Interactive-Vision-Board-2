@@ -57,9 +57,9 @@ const MODELS = {
   // Chat: Use Gemini 2.0 Flash for conversational AI
   chat: 'gemini-2.0-flash-exp',
 
-  // Reasoning: Use Gemini 1.5 Flash for complex planning and projections
-  // Changed from 1.5-pro which may not be available in all regions/API keys
-  reasoning: 'gemini-1.5-flash',
+  // Reasoning: Use Gemini 2.0 Flash Exp for complex planning and projections
+  // Supports googleSearch tool for action plan grounding (1.5 uses legacy google_search_retrieval)
+  reasoning: 'gemini-2.0-flash-exp',
 
   // Likeness Validation: Use multimodal model to compare faces
   likeness_validator: 'gemini-2.0-flash-exp',
@@ -1656,11 +1656,11 @@ Schema:
     const cleanText = text.replace(/```json\n?|\n?```/g, '').trim()
     const plan = JSON.parse(cleanText)
 
-    // Add UUIDs if missing
+    // Always assign valid UUIDs (Gemini may return non-UUID ids like 'task-123')
     plan.forEach((m: any) => {
       if (m.tasks) {
         m.tasks.forEach((t: any) => {
-          if (!t.id) t.id = crypto.randomUUID()
+          t.id = crypto.randomUUID()
         })
       }
     })
